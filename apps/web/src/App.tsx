@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, set, initialState } from './store';
-import { api } from './lib/api';
+import { api, needsServerSetup } from './lib/api';
 import { connectGateway, disconnectGateway } from './lib/gateway';
 import { LoginPage, RegisterPage, ForgotPage, ResetPage } from './pages/Auth';
 import { InvitePage } from './pages/Invite';
@@ -27,6 +27,11 @@ export function App() {
   const loc = useLocation();
 
   useEffect(() => {
+    if (needsServerSetup()) {
+      set({ status: 'unauthenticated' });
+      nav('/server-setup', { replace: true });
+      return;
+    }
     void bootSession();
     const onUnauth = () => {
       void leaveVoice();
@@ -39,6 +44,7 @@ export function App() {
 
   useEffect(() => {
     const publicPaths = ['/login', '/register', '/forgot', '/reset-password', '/invite', '/server-setup'];
+    if (needsServerSetup()) return;
     if (status === 'unauthenticated' && !publicPaths.some((p) => loc.pathname.startsWith(p))) {
       nav(`/login?next=${encodeURIComponent(loc.pathname)}`, { replace: true });
     }

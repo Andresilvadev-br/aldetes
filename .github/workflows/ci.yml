@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: aldetes, POSTGRES_PASSWORD: ci-only-password, POSTGRES_DB: aldetes }
+        ports: ["5433:5432"]
+        options: --health-cmd "pg_isready -U aldetes" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6380:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Gerar .env de CI (segredos descartáveis)
+        run: |
+          node scripts/setup-env.mjs
+          sed -i "s#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=ci-only-password#; s#^DATABASE_URL=.*#DATABASE_URL=postgresql://aldetes:ci-only-password@127.0.0.1:5433/aldetes#" .env
+      - run: pnpm --filter @aldetes/server db:generate
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @aldetes/web build

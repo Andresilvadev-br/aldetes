@@ -8,13 +8,19 @@ import { desktop } from './desktop';
  */
 let baseUrl = '';
 let bearer: string | null = null;
+let serverConfigured = true;
 
 export async function initApi() {
   if (desktop) {
-    baseUrl = ((await desktop.getServerUrl()) ?? 'http://localhost:3001').replace(/\/$/, '');
+    const saved = await desktop.getServerUrl();
+    serverConfigured = !!saved;
+    baseUrl = (saved ?? 'http://localhost:3001').replace(/\/$/, '');
     bearer = await desktop.getToken();
   }
 }
+
+/** Desktop app opened for the first time: no server chosen yet. */
+export const needsServerSetup = () => !serverConfigured;
 
 export const getBaseUrl = () => baseUrl;
 export const getBearer = () => bearer;

@@ -4,7 +4,7 @@ import { Logo } from '@/components/common/Icon';
 
 /** Desktop only: choose which self-hosted Aldetes server to connect to. */
 export function ServerSetup() {
-  const [url, setUrl] = useState('http://localhost:3001');
+  const [url, setUrl] = useState('https://');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const save = async () => {

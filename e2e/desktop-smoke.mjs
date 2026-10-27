@@ -25,6 +25,14 @@ try {
   const bridge = await page.evaluate(() => ({ has: !!window.aldetesDesktop, platform: window.aldetesDesktop?.platform, node: typeof window.require }));
   check('Bridge exposta e Node isolado do renderer', bridge.has && bridge.node === 'undefined', JSON.stringify(bridge));
 
+  // First run: choose the self-hosted server
+  await page.waitForURL(/server-setup|login/);
+  if (page.url().includes('server-setup')) {
+    await page.locator('input').fill(process.env.ALDETES_SERVER ?? 'http://localhost:3001');
+    await page.getByRole('button', { name: 'Conectar' }).click();
+    await page.waitForURL(/login/, { timeout: 15000 });
+    check('Primeira execução: servidor configurado e validado (/api/health)', true);
+  }
   const u = 'desk_' + Date.now().toString(36);
   await page.getByRole('link', { name: 'Cadastre-se' }).click();
   await page.getByLabel('E-mail').fill(`${u}@teste.dev`);

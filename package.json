@@ -12,6 +12,12 @@
     "dev:desktop": "pnpm --filter @aldetes/desktop dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r --filter=!@aldetes/desktop test",
+    "setup:prod": "node scripts/setup-prod.mjs",
+    "livekit:dev": "bash scripts/livekit-dev.sh",
+    "test:e2e": "node e2e/two-clients.mjs",
+    "test:desktop": "node e2e/desktop-smoke.mjs",
+    "perf": "node e2e/perf.mjs",
+    "dist:desktop": "pnpm --filter @aldetes/desktop dist"
   }
 }
