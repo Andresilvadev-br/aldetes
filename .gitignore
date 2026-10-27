@@ -12,3 +12,4 @@ apps/server/uploads
 infra/livekit/*.yaml
 .test-uploads
 infra/bin/
+apps/desktop/release

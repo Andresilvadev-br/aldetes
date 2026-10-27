@@ -1,0 +1,47 @@
+appId: app.aldetes.desktop
+productName: Aldetes
+executableName: aldetes
+copyright: Aldetes
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist-electron/**
+  - build/icon.png
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web
+# uiohook-napi ships N-API prebuilds (ABI-stable), so no native rebuild is needed.
+npmRebuild: false
+asarUnpack:
+  - "**/node_modules/uiohook-napi/**"
+# Self-hosted updates: serve the files from `release/` (latest.yml, installers) at this URL.
+publish:
+  provider: generic
+  url: ${env.ALDETES_UPDATE_URL}
+win:
+  target: [nsis]
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+mac:
+  target: [dmg, zip]
+  category: public.app-category.social-networking
+  icon: build/icon.png
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: O Aldetes usa o microfone para chamadas de voz.
+    NSCameraUsageDescription: O Aldetes usa a câmera para chamadas de vídeo.
+    NSScreenCaptureUsageDescription: O Aldetes captura a tela quando você escolhe transmitir.
+linux:
+  executableName: aldetes
+  syncDesktopName: true
+  target: [AppImage, deb]
+  category: Network
+  icon: build/icon.png
+  maintainer: Aldetes

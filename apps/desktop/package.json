@@ -1,0 +1,33 @@
+{
+  "name": "@aldetes/desktop",
+  "productName": "Aldetes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aldetes \u2014 cliente desktop",
+  "author": "Aldetes",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "build:main": "tsup",
+    "dev": "pnpm build:main && cross-env ALDETES_DEV_URL=http://localhost:5173 electron .",
+    "start": "pnpm build:main && electron .",
+    "build": "pnpm --filter @aldetes/web build && pnpm build:main",
+    "dist": "pnpm build && electron-builder --publish never",
+    "dist:linux": "pnpm build && electron-builder --linux --publish never",
+    "dist:win": "pnpm build && electron-builder --win --publish never",
+    "dist:mac": "pnpm build && electron-builder --mac --publish never",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "cross-env": "^10.1.0",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.18.0",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3"
+  },
+  "desktopName": "aldetes.desktop"
+}

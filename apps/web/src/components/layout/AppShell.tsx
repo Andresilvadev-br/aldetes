@@ -11,7 +11,7 @@ import { FriendsPage } from '@/pages/Friends';
 import { DiscoverPage } from '@/pages/Discover';
 import { onGateway } from '@/lib/gateway';
 import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice } from '@/lib/voice';
-import { getPrefs } from '@/lib/prefs';
+import { getPrefs, usePrefs } from '@/lib/prefs';
 import { playSound } from '@/lib/sounds';
 import { desktop } from '@/lib/desktop';
 import { QuickSwitcher } from '../modals/QuickSwitcher';
@@ -75,6 +75,27 @@ export function AppShell() {
         }
       }),
     [],
+  );
+
+  // Desktop: global push-to-talk (works even when the window isn't focused)
+  const voiceMode = usePrefs((p) => p.voiceMode);
+  const pttKey = usePrefs((p) => p.pttKey);
+  useEffect(() => {
+    if (!desktop) return;
+    desktop.setPushToTalkKey(voiceMode === 'ptt' ? pttKey : null).then((ok) => {
+      if (voiceMode === 'ptt' && !ok) toast('Aperte-para-falar global indisponível para essa tecla; funcionará só com a janela em foco.');
+    });
+  }, [voiceMode, pttKey]);
+
+  // Desktop: clicking a notification opens the channel
+  const nav = useNavigate();
+  useEffect(
+    () =>
+      desktop?.onOpenChannel((channelId) => {
+        const c = get().channels[channelId];
+        if (c) nav(c.serverId ? `/channels/${c.serverId}/${c.id}` : `/channels/@me/${c.id}`);
+      }),
+    [nav],
   );
 
   // Unread badge on the desktop app icon

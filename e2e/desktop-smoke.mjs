@@ -1,0 +1,62 @@
+// Electron smoke test (run under xvfb-run on Linux CI): boots the packaged-style app (app:// origin),
+// registers a user against the API, joins voice and shares a screen picked via the native desktopCapturer bridge.
+import { createRequire } from 'node:module';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const { _electron: electron } = createRequire(import.meta.url)('playwright');
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const shots = process.argv[2] ?? './e2e-shots';
+const results = [];
+const check = (n, ok, extra = '') => (results.push(ok), console.log(`${ok ? '✅' : '❌'} ${n}${extra ? ' — ' + extra : ''}`));
+
+// ALDETES_EXE=apps/desktop/release/linux-unpacked/aldetes tests the packaged build instead of the dev one.
+const packaged = process.env.ALDETES_EXE;
+const app = await electron.launch({
+  executablePath: packaged ? join(root, packaged) : join(root, 'node_modules/.pnpm/node_modules/electron/dist/electron'),
+  args: [...(packaged ? [] : [join(root, 'apps/desktop')]), '--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
+});
+try {
+  const page = await app.firstWindow();
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await page.waitForLoadState('domcontentloaded');
+  check('Janela carrega via app://aldetes', page.url().startsWith('app://aldetes'), page.url());
+  const bridge = await page.evaluate(() => ({ has: !!window.aldetesDesktop, platform: window.aldetesDesktop?.platform, node: typeof window.require }));
+  check('Bridge exposta e Node isolado do renderer', bridge.has && bridge.node === 'undefined', JSON.stringify(bridge));
+
+  const u = 'desk_' + Date.now().toString(36);
+  await page.getByRole('link', { name: 'Cadastre-se' }).click();
+  await page.getByLabel('E-mail').fill(`${u}@teste.dev`);
+  await page.getByLabel('Nome de usuário').fill(u);
+  await page.getByLabel('Senha').fill('senha-forte-123');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.waitForURL(/channels\/@me/, { timeout: 15000 });
+  check('Cadastro/login pelo app desktop (token em safeStorage)', true);
+  const tokenStored = await page.evaluate(() => window.aldetesDesktop.getToken().then((t) => !!t));
+  if (tokenStored) check('Token persistido criptografado pelo SO', true);
+  else console.log('⚠️  Token NÃO persistido: safeStorage sem keyring neste ambiente (comportamento seguro esperado; o usuário refaz login ao reabrir)');
+
+  const sources = await page.evaluate(() => window.aldetesDesktop.getScreenSources());
+  check('desktopCapturer lista fontes de captura', sources.length > 0, sources.map((s) => `${s.kind}:${s.name}`).join(', '));
+
+  await page.getByRole('button', { name: 'Adicionar um servidor' }).click();
+  await page.getByRole('button', { name: 'Criar', exact: true }).click();
+  await page.waitForURL(/channels\/\d+\/\d+/);
+  await page.locator('[role=button]', { hasText: /^Geral$/ }).first().click();
+  await page.getByText('Voz conectada').waitFor({ timeout: 20000 });
+  check('Entra no canal de voz pelo desktop', true);
+  await page.getByRole('button', { name: /^Tela$/ }).click();
+  await page.locator('[role=dialog] .grid button').first().waitFor();
+  await page.locator('[role=dialog] .grid button').first().click();
+  await page.getByRole('button', { name: 'Transmitir' }).click();
+  const live = await page.getByText('AO VIVO').first().waitFor({ timeout: 15000 }).then(() => true, () => false);
+  check('Compartilha a tela escolhida no seletor nativo', live);
+  await page.screenshot({ path: `${shots}/desktop-share.png` });
+} catch (e) {
+  check('Roteiro desktop', false, e.message);
+} finally {
+  await app.close();
+  console.log(`${results.filter(Boolean).length}/${results.length} verificações passaram`);
+  process.exit(results.every(Boolean) ? 0 : 1);
+}

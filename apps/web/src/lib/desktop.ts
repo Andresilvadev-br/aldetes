@@ -24,6 +24,7 @@ export interface DesktopBridge {
   onGlobalShortcut(cb: (name: string) => void): () => void;
   setPushToTalkKey(accelerator: string | null): Promise<boolean>;
   checkForUpdates(): Promise<{ available: boolean; version?: string; error?: string }>;
+  onOpenChannel(cb: (channelId: string) => void): () => void;
 }
 
 declare global {
