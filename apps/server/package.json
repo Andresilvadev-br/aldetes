@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
-    "build": "tsup src/index.ts --format esm --target node22 --out-dir dist --clean --no-splitting --noExternal @aldetes/shared",
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
@@ -30,6 +30,7 @@
     "ioredis": "^6.0.0",
     "livekit-server-sdk": "^2.19.2",
     "nodemailer": "^10.2.1",
+    "prisma": "^6.19.3",
     "socket.io": "^4.8.4",
     "zod": "^3.25.76"
   },
@@ -37,7 +38,6 @@
     "@types/node": "^26.6.5",
     "@types/nodemailer": "^8.0.2",
     "pino-pretty": "^13.2.0",
-    "prisma": "^6.19.3",
     "socket.io-client": "^4.8.4",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",

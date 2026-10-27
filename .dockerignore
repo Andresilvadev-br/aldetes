@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/dist-electron
+apps/desktop/release
+.env
+.env.*
+infra/livekit/*.yaml
+infra/bin
+.git
+**/.test-uploads
+**/uploads

@@ -1,0 +1,34 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Web client + API + realtime gateway + uploaded files
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(self), microphone=(self), display-capture=(self)"
+		-Server
+	}
+	@backend path /api/* /socket.io/* /cdn/*
+	handle @backend {
+		reverse_proxy api:3001
+	}
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# LiveKit signalling (WSS). Media goes directly over UDP/TCP to the LiveKit host.
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy host.docker.internal:7880
+}
+
+# Only used so Caddy obtains/renews the certificate LiveKit's TURN/TLS server reads.
+{$TURN_DOMAIN} {
+	respond "Aldetes TURN" 200
+}

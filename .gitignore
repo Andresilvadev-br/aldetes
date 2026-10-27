@@ -13,3 +13,4 @@ infra/livekit/*.yaml
 .test-uploads
 infra/bin/
 apps/desktop/release
+infra/prod/livekit.yaml

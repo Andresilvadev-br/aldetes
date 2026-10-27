@@ -1,0 +1,77 @@
+# Produção: docker compose -f infra/prod/docker-compose.yml --env-file .env.production up -d --build
+# Pré-requisitos: domínio(s) apontando para este servidor, portas abertas (ver docs/DEPLOY.md).
+name: aldetes
+services:
+  caddy:
+    build: { context: ../.., dockerfile: infra/prod/Dockerfile.web }
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+      TURN_DOMAIN: ${TURN_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [api]
+
+  api:
+    build: { context: ../.., dockerfile: infra/prod/Dockerfile.api }
+    restart: unless-stopped
+    env_file: ../../.env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      LIVEKIT_HTTP_URL: http://host.docker.internal:7880
+      S3_ENDPOINT: http://minio:9000
+    ports: ["127.0.0.1:3001:3001"] # LiveKit (host network) posts webhooks here
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"], interval: 5s, retries: 20 }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes: [miniodata:/data]
+    profiles: ["s3"]
+
+  # LiveKit precisa de rede do host para a faixa UDP de mídia e o TURN embutido.
+  livekit:
+    image: livekit/livekit-server:v1.9.1
+    restart: unless-stopped
+    network_mode: host
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - caddy_data:/caddy:ro # certificados TLS do TURN emitidos pelo Caddy
+    depends_on: [caddy]
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:
+  redisdata:
+  miniodata:
+  uploads:
