@@ -11,3 +11,4 @@ apps/server/uploads
 .secrets
 infra/livekit/*.yaml
 .test-uploads
+infra/bin/

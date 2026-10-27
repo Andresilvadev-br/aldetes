@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette: original Aldetes tokens (RGB triplets for Tailwind alpha support) */
+:root,
+[data-theme='dark'] {
+  --bg-rail: 24 25 31;
+  --bg-side: 36 37 45;
+  --bg-main: 46 47 56;
+  --bg-float: 28 29 35;
+  --bg-input: 58 59 70;
+  --fg: 220 222 230;
+  --fg-muted: 160 163 176;
+  --fg-faint: 110 113 126;
+  --fg-strong: 247 248 252;
+  --brand: 108 92 231;
+  --brand-hover: 92 76 214;
+  --ok: 46 204 113;
+  --warn: 241 196 15;
+  --danger: 231 76 60;
+  --line: 255 255 255;
+  --mention: 250 166 26;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg-rail: 227 229 236;
+  --bg-side: 240 241 246;
+  --bg-main: 255 255 255;
+  --bg-float: 255 255 255;
+  --bg-input: 233 234 240;
+  --fg: 46 48 58;
+  --fg-muted: 92 96 110;
+  --fg-faint: 130 134 148;
+  --fg-strong: 12 13 18;
+  --line: 0 0 0;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  @apply bg-bg-main text-fg font-sans antialiased;
+  font-size: var(--font-size, 15px);
+  overflow: hidden;
+}
+:root[data-reduce-motion='true'] * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* thin scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--fg-faint) / 0.4) transparent;
+}
+.scroll-none {
+  scrollbar-width: none;
+}
+.scroll-none::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-hover;
+  }
+  .btn-secondary {
+    @apply btn bg-fg-faint/30 text-fg-strong hover:bg-fg-faint/45;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:bg-danger/85;
+  }
+  .btn-ghost {
+    @apply btn text-fg hover:underline;
+  }
+  .input {
+    @apply w-full rounded bg-bg-rail/80 px-3 py-2 text-fg-strong outline-none ring-brand/60 placeholder:text-fg-faint focus:ring-2;
+  }
+  .label {
+    @apply mb-2 block text-xs font-bold uppercase tracking-wide text-fg-muted;
+  }
+  .icon-btn {
+    @apply flex h-8 w-8 items-center justify-center rounded text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg-strong;
+  }
+  .menu {
+    @apply min-w-[188px] animate-pop rounded-md bg-bg-float p-1.5 text-sm shadow-2xl ring-1 ring-black/30;
+  }
+  .menu-item {
+    @apply flex w-full cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-fg hover:bg-brand hover:text-white;
+  }
+  .menu-item-danger {
+    @apply menu-item text-danger hover:bg-danger hover:text-white;
+  }
+}

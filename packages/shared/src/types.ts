@@ -42,7 +42,7 @@ export interface PermissionOverwriteDTO {
 export interface Channel {
   id: string;
   serverId: string | null;
-  type: ChannelType | 'dm' | 'group_dm';
+  type: ChannelType | 'thread' | 'dm' | 'group_dm';
   name: string;
   topic: string | null;
   position: number;
