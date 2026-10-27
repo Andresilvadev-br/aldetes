@@ -1,0 +1,47 @@
+{
+  "name": "@aldetes/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "build": "tsup src/index.ts --format esm --target node22 --out-dir dist --clean --no-splitting --noExternal @aldetes/shared",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@aldetes/shared": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1157.0",
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/multipart": "^10.1.6",
+    "@fastify/rate-limit": "^11.2.1",
+    "@prisma/client": "^6.19.3",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "argon2": "^0.45.1",
+    "fastify": "^5.12.7",
+    "file-type": "^22.2.0",
+    "image-size": "^2.0.4",
+    "ioredis": "^6.0.0",
+    "livekit-server-sdk": "^2.19.2",
+    "nodemailer": "^10.2.1",
+    "socket.io": "^4.8.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
+    "pino-pretty": "^13.2.0",
+    "prisma": "^6.19.3",
+    "socket.io-client": "^4.8.4",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

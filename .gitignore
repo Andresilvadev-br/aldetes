@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-electron
+release
+.env
+.env.*
+!.env.example
+*.log
+coverage
+apps/server/uploads
+.secrets
+infra/livekit/*.yaml
+.test-uploads
