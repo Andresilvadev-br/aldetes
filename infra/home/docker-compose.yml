@@ -1,0 +1,55 @@
+# Aldetes no seu próprio PC (Linux/WSL2), acessado pela rede privada do Tailscale.
+# Não suba manualmente: use `bash scripts/start-home.sh`, que gera a configuração.
+name: aldetes-home
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/prod/Dockerfile.web
+      args: { CADDYFILE: infra/home/Caddyfile }
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on: [api]
+
+  api:
+    build: { context: ../.., dockerfile: infra/prod/Dockerfile.api }
+    restart: unless-stopped
+    env_file: ../../.env.home
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      LIVEKIT_HTTP_URL: http://host.docker.internal:7880
+    ports: ["127.0.0.1:3001:3001"] # LiveKit (rede do host) envia webhooks para cá
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"], interval: 5s, retries: 20 }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  livekit:
+    image: livekit/livekit-server:v1.9.1
+    restart: unless-stopped
+    network_mode: host # mídia UDP direto na interface do Tailscale
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro"]
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:

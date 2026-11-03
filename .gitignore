@@ -14,3 +14,4 @@ infra/livekit/*.yaml
 infra/bin/
 apps/desktop/release
 infra/prod/livekit.yaml
+infra/home/livekit.yaml

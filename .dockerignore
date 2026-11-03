@@ -9,3 +9,4 @@ infra/bin
 .git
 **/.test-uploads
 **/uploads
+infra/home/livekit.yaml
