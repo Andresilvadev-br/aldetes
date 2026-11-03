@@ -84,6 +84,9 @@ WEB_ORIGINS=https://$DOMAIN,app://aldetes
 LIVEKIT_URL=wss://$LK_DOMAIN
 MAIL_FROM="Aldetes <no-reply@$DOMAIN>"
 ENV
+# Credenciais do MinIO (perfil opcional "s3"); evita avisos do docker compose
+grep -q '^S3_ACCESS_KEY=' .env.production || echo "S3_ACCESS_KEY=aldetes$(rnd 8)" >> .env.production
+grep -q '^S3_SECRET_KEY=' .env.production || echo "S3_SECRET_KEY=$(rnd 32)" >> .env.production
 set -a; . ./.env.production; set +a
 
 CERT_DIR="/caddy/caddy/certificates/acme-v02.api.letsencrypt.org-directory/$TURN_DOMAIN"
