@@ -77,7 +77,7 @@ writeFileSync(
   join(root, 'infra/prod/livekit.yaml'),
   `# Gerado — NÃO VERSIONAR
 port: 7880
-bind_addresses: ["127.0.0.1"]   # sinalização exposta só via Caddy (wss://${lkDomain})
+bind_addresses: ["0.0.0.0"]   # porta 7880 bloqueada no firewall; acesso público só via Caddy (wss://${lkDomain})
 rtc:
   tcp_port: 7881
   port_range_start: 50000

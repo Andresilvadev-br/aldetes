@@ -12,7 +12,16 @@
 
 Custos possíveis: VPS e domínio (pagos pelo proprietário), além de certificado de assinatura de código caso queira instaladores sem aviso no Windows/macOS. Nada disso é necessário para rodar localmente.
 
-## Passo a passo
+## Jeito rápido (VPS Ubuntu, um comando)
+
+```bash
+git clone https://github.com/<seu-usuario>/aldetes.git && cd aldetes
+bash scripts/start-vps.sh chat.exemplo.com rtc.exemplo.com turn.exemplo.com voce@exemplo.com
+```
+
+O script instala o Docker se faltar, confere o DNS, configura o firewall (ufw), gera os segredos e sobe tudo com HTTPS.
+
+## Passo a passo (manual)
 
 ```bash
 # no servidor (Docker e Docker Compose instalados)
