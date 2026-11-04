@@ -3,6 +3,11 @@ import type { SVGProps } from 'react';
 // Original stroke icon set for Aldetes (24x24, currentColor).
 const paths: Record<string, string> = {
   hash: 'M5 9h14M4 15h14M10 3 8 21M16 3l-2 18',
+  send: 'M4 12 20 4l-4 16-4-7-8-1Zm8 1 8-9',
+  play: 'M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z',
+  pause: 'M7 4h3v16H7zM14 4h3v16h-3z',
+  pip: 'M3 5h18v14H3zM12 12h7v5h-7z',
+  expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   speaker: 'M4 9v6h4l5 4V5L8 9H4Zm12.5-.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12',
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1Zm8-5 9-3v18l-9-3M7 14v4a2 2 0 0 0 4 0',
   forum: 'M4 5h12v9H8l-4 3V5Zm6 12h6l4 3V9h-2',

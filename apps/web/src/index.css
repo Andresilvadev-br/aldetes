@@ -262,3 +262,26 @@ body {
 :root[data-hidden='true'] *::after {
   animation-play-state: paused !important;
 }
+
+/* Phones: the app follows the visible height (keyboard open → no empty strip under the message field) */
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    height: var(--app-h, 100%);
+  }
+  :root[data-kb='open'] [data-safe-bottom] {
+    padding-bottom: 0.25rem !important;
+  }
+  :root[data-kb='open'] [data-composer] {
+    padding-bottom: 1.1rem !important;
+  }
+}
+
+/* Decorative auroras only move while hovered (static otherwise: same look, ~zero GPU cost while gaming/streaming) */
+.cz-hover .cz > * {
+  animation-play-state: paused;
+}
+.cz-hover:hover .cz > * {
+  animation-play-state: running;
+}

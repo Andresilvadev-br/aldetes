@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -58,7 +59,7 @@ export function LiveIsland() {
   const expanded = useIsland((s) => s.expanded);
   const events = useIsland((s) => s.events);
   const uploads = useIsland((s) => s.uploads);
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ channelId: s.channelId, screen: s.screen, state: s.state })));
   const connection = useStore((s) => s.connection);
   const [share, setShare] = useState(false);
   const [hovering, setHovering] = useState(false);
@@ -79,7 +80,8 @@ export function LiveIsland() {
     () =>
       onGateway('call:ring', (d: { channelId: string; from: string }) => {
         if (useVoice.getState().channelId === d.channelId || get().me?.status === 'dnd') return;
-        pushIsland({ kind: 'ring', title: displayName(d.from), body: 'está te chamando', userId: d.from, channelId: d.channelId, ttl: 30000 });
+        const ch = get().channels[d.channelId];
+        pushIsland({ kind: 'ring', title: displayName(d.from), body: ch?.serverId ? `te chamou para ${ch.name}` : 'está te chamando', userId: d.from, channelId: d.channelId, ttl: 30000 });
         desktop?.notify('Chamada recebida', `${displayName(d.from)} está te chamando`, d.channelId);
       }),
     [],
@@ -98,6 +100,16 @@ export function LiveIsland() {
     }
     prevStreamers.current = streamers;
   }, [streamers, myChannel]);
+
+  // Entering a call: the island announces it (morphing out of the compact capsule), only after the real connection
+  const prevState = useRef(v.state);
+  useEffect(() => {
+    if (v.state === 'connected' && prevState.current === 'connecting' && v.channelId) {
+      const ch = get().channels[v.channelId];
+      pushIsland({ kind: 'info', title: `Conectado · ${ch?.serverId ? ch.name : 'Chamada'}`, ttl: 1600, key: `connected:${v.channelId}`, cooldown: 5000 });
+    }
+    prevState.current = v.state;
+  }, [v.state, v.channelId]);
 
   // Brief events (≈1.8 s): someone joins/leaves my call, someone stops streaming
   const members = useStoreShallow((st) => (myChannel ? Object.values(st.voiceStates).filter((x) => x.channelId === myChannel && x.userId !== st.me?.id).map((x) => x.userId) : []));
@@ -391,7 +403,7 @@ function SpeakingStack({ ids, size = 20 }: { ids: string[]; size?: number }) {
 
 function CallCompact({ onClick }: { onClick: () => void }) {
   const { name, participants } = useCallInfo();
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ connectedAt: s.connectedAt, selfDeaf: s.selfDeaf, selfMute: s.selfMute, state: s.state })));
   const now = useNow(true);
   const ok = v.state === 'connected';
   return (
@@ -424,7 +436,7 @@ function ReactionChip() {
 }
 
 function SplitCompact({ onClick, np }: { onClick: () => void; np: NowPlaying | null }) {
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ screenSince: s.screenSince })));
   const now = useNow(true);
   return (
     <div className="flex items-stretch">
@@ -513,7 +525,7 @@ export function LeaveBtn({ onLeave }: { onLeave: () => void }) {
 
 function CallExpanded({ onShare }: { onShare: () => void }) {
   const { name, server, participants, channel } = useCallInfo();
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ camera: s.camera, canVideo: s.canVideo, connectedAt: s.connectedAt, pending: s.pending, pingMs: s.pingMs, screen: s.screen, screenInfo: s.screenInfo, screenSince: s.screenSince, screenStats: s.screenStats, selfDeaf: s.selfDeaf, selfMute: s.selfMute })));
   const now = useNow(true);
   const nav = useNavigate();
   return (

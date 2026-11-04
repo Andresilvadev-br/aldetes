@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -43,7 +44,7 @@ const NO_STATES: string[] = [];
 
 /** "You're in a call" card: status, timer, who's here (talking ring), and big round controls. */
 export function VoicePanel() {
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ camera: s.camera, canVideo: s.canVideo, channelId: s.channelId, connectedAt: s.connectedAt, pingMs: s.pingMs, quality: s.quality, screen: s.screen, speaking: s.speaking, state: s.state })));
   const channel = useStore((s) => (v.channelId ? s.channels[v.channelId] : undefined));
   const server = useStore((s) => (channel?.serverId ? s.servers[channel.serverId] : undefined));
   const me = useStore((s) => s.me);

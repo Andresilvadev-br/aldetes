@@ -1,21 +1,18 @@
 import { create } from 'zustand';
-import {
+import type {
   Room,
-  RoomEvent,
-  Track,
-  ConnectionState,
-  ConnectionQuality,
   DisconnectReason,
-  VideoPresets,
-  VideoPreset,
-  AudioPresets,
-  type Participant,
-  type RemoteParticipant,
-  type RemoteTrack,
-  type RemoteTrackPublication,
-  type LocalTrackPublication,
-  type ScreenShareCaptureOptions,
+  Participant,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
+  LocalTrackPublication,
+  ScreenShareCaptureOptions,
 } from 'livekit-client';
+import { Track, ConnectionQuality, ConnectionState, loadLiveKit } from './lk';
+
+/** The SDK, loaded on the first call (see lib/lk.ts). */
+let LK: Awaited<ReturnType<typeof loadLiveKit>>;
 import { api } from './api';
 import { emit } from './gateway';
 import { getPrefs, setPrefs } from './prefs';
@@ -53,6 +50,12 @@ export interface VoiceStore {
   stageLayout: 'focus' | 'grid';
   /** live reactions currently on screen */
   reactions: LiveReaction[];
+  /** per-tile framing chosen by the viewer: whole picture (contain) or fill the tile (cover) */
+  fit: Record<string, 'contain' | 'cover'>;
+  /** viewer's quality choice per stream (only matters when the streamer offers a light version) */
+  viewQuality: Record<string, 'auto' | 'low'>;
+  /** in-app floating player hidden by the user */
+  miniClosed: boolean;
 }
 
 export interface LiveReaction {
@@ -110,6 +113,9 @@ export const useVoice = create<VoiceStore>()(() => ({
     }
   })(),
   reactions: [],
+  fit: {},
+  viewQuality: {},
+  miniClosed: false,
 }));
 export function setStageLayout(l: 'focus' | 'grid') {
   vset({ stageLayout: l });
@@ -192,7 +198,7 @@ function applyRemoteAudio(p: RemoteParticipant) {
 }
 
 function attachRoomEvents(r: Room) {
-  r.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+  r.on(LK.RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
     if (track.kind === Track.Kind.Audio) {
       const el = track.attach();
       el.dataset.identity = participant.identity;
@@ -203,29 +209,29 @@ function attachRoomEvents(r: Room) {
     }
     bump();
   })
-    .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+    .on(LK.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
       track.detach().forEach((el) => el.remove());
       bump();
     })
-    .on(RoomEvent.ParticipantConnected, (p) => {
+    .on(LK.RoomEvent.ParticipantConnected, (p) => {
       playSound('join');
       applyRemoteAudio(p);
       bump();
     })
-    .on(RoomEvent.ParticipantDisconnected, (p) => {
+    .on(LK.RoomEvent.ParticipantDisconnected, (p) => {
       playSound('leave');
       if (vget().focused?.startsWith(p.identity + ':')) vset({ focused: null });
       bump();
     })
-    .on(RoomEvent.TrackPublished, bump)
-    .on(RoomEvent.TrackUnpublished, (pub, p) => {
+    .on(LK.RoomEvent.TrackPublished, bump)
+    .on(LK.RoomEvent.TrackUnpublished, (pub, p) => {
       if (vget().focused === `${p.identity}:${pub.source}`) vset({ focused: null });
       bump();
     })
-    .on(RoomEvent.TrackMuted, bump)
-    .on(RoomEvent.TrackUnmuted, bump)
-    .on(RoomEvent.LocalTrackPublished, bump)
-    .on(RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
+    .on(LK.RoomEvent.TrackMuted, bump)
+    .on(LK.RoomEvent.TrackUnmuted, bump)
+    .on(LK.RoomEvent.LocalTrackPublished, bump)
+    .on(LK.RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
       if (pub.source === Track.Source.ScreenShare) {
         stopStreamStats();
         vset({ screen: false, screenInfo: null });
@@ -237,21 +243,21 @@ function attachRoomEvents(r: Room) {
       }
       bump();
     })
-    .on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+    .on(LK.RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
       if (topic === 'reaction' && participant) onReactionData(payload, participant.identity);
     })
-    .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+    .on(LK.RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       vset({ speaking: Object.fromEntries(speakers.map((s) => [s.identity, true])) });
     })
-    .on(RoomEvent.ConnectionQualityChanged, (q: ConnectionQuality, p: Participant) => {
+    .on(LK.RoomEvent.ConnectionQualityChanged, (q: ConnectionQuality, p: Participant) => {
       vset((s) => ({ quality: { ...s.quality, [p.identity]: q } }));
     })
-    .on(RoomEvent.Reconnecting, () => vset({ state: 'reconnecting' }))
-    .on(RoomEvent.Reconnected, () => {
+    .on(LK.RoomEvent.Reconnecting, () => vset({ state: 'reconnecting' }))
+    .on(LK.RoomEvent.Reconnected, () => {
       vset({ state: 'connected' });
       publishSelfState();
     })
-    .on(RoomEvent.ParticipantPermissionsChanged, () => {
+    .on(LK.RoomEvent.ParticipantPermissionsChanged, () => {
       const perms = r.localParticipant.permissions;
       const canMic = !!perms?.canPublishSources?.includes(2 /* MICROPHONE */) || (!!perms?.canPublish && !perms?.canPublishSources?.length);
       vset({ canSpeak: canMic });
@@ -259,15 +265,15 @@ function attachRoomEvents(r: Room) {
       if (!canMic) toast('Você foi silenciado por um moderador.');
       bump();
     })
-    .on(RoomEvent.MediaDevicesError, (e: Error) => toast(micError(e), 'error'))
-    .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+    .on(LK.RoomEvent.MediaDevicesError, (e: Error) => toast(micError(e), 'error'))
+    .on(LK.RoomEvent.Disconnected, (reason?: DisconnectReason) => {
       cleanupRoom();
       if (intentionalLeave) return;
       const cid = vget().channelId;
       // Kicked / moved / room deleted: don't auto-rejoin
-      if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.ROOM_DELETED || reason === DisconnectReason.DUPLICATE_IDENTITY) {
+      if (reason === LK.DisconnectReason.PARTICIPANT_REMOVED || reason === LK.DisconnectReason.ROOM_DELETED || reason === LK.DisconnectReason.DUPLICATE_IDENTITY) {
         vset({ state: 'idle', channelId: null, serverId: null });
-        if (reason === DisconnectReason.PARTICIPANT_REMOVED) toast('Você foi desconectado do canal de voz.');
+        if (reason === LK.DisconnectReason.PARTICIPANT_REMOVED) toast('Você foi desconectado do canal de voz.');
         return;
       }
       if (cid && rejoinAttempts < 5) {
@@ -306,7 +312,9 @@ export async function joinVoice(channelId: string, isRejoin = false) {
     const t = await api<{ url: string; token: string; serverId: string | null; permissions: { speak: boolean; video: boolean } }>('POST', `/voice/${channelId}/join`);
     if (vget().channelId !== channelId) return; // user switched meanwhile
     const prefs = getPrefs();
-    const r = new Room({
+    LK = await loadLiveKit();
+    if (vget().channelId !== channelId) return;
+    const r = new LK.Room({
       // pixelDensity 'screen': request layers for the real (HiDPI) pixel size of each tile → sharper video
       adaptiveStream: { pixelDensity: 'screen' },
       dynacast: true,
@@ -319,15 +327,15 @@ export async function joinVoice(channelId: string, isRejoin = false) {
         deviceId: prefs.inputDeviceId !== 'default' ? prefs.inputDeviceId : undefined,
       },
       audioOutput: prefs.outputDeviceId !== 'default' ? { deviceId: prefs.outputDeviceId } : undefined,
-      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      videoCaptureDefaults: { resolution: LK.VideoPresets.h720.resolution },
       publishDefaults: {
         simulcast: true,
         dtx: true,
         red: true,
         videoCodec: 'vp8',
-        audioPreset: AudioPresets.musicHighQuality, // 64 kbps Opus: clearer voices than the 32 kbps speech default
+        audioPreset: LK.AudioPresets.musicHighQuality, // 64 kbps Opus: clearer voices than the 32 kbps speech default
         videoEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
-        videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+        videoSimulcastLayers: [LK.VideoPresets.h180, LK.VideoPresets.h360],
       },
     });
     room = r;
@@ -435,7 +443,7 @@ export async function toggleCamera() {
     const p = getPrefs();
     await room.localParticipant.setCameraEnabled(on, {
       deviceId: p.videoDeviceId || undefined,
-      resolution: VideoPresets.h720.resolution,
+      resolution: LK.VideoPresets.h720.resolution,
     });
     vset({ camera: on });
   } catch (err) {
@@ -490,7 +498,7 @@ function encoderPlan(preset: (typeof STREAM_PRESETS)[StreamQuality], motion: boo
 }
 
 /** Browser: getDisplayMedia shows the native picker. Desktop: `sourceId` was pre-selected through the bridge. */
-export async function startScreenShare(opts: { quality: StreamQuality; audio: boolean; desktopSourceId?: string; contentHint?: 'motion' | 'detail' }) {
+export async function startScreenShare(opts: { quality: StreamQuality; audio: boolean; desktopSourceId?: string; contentHint?: 'motion' | 'detail'; lite?: boolean }) {
   if (!room) return;
   // Switching source/quality while live: stop the current stream first, then start the new one.
   if (vget().screen) await room.localParticipant.setScreenShareEnabled(false);
@@ -508,17 +516,21 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
   };
   try {
     const plan = encoderPlan(preset, motion);
+    // Optional light version (streamer's choice): one extra layer at the SAME frame rate, so viewers on weak
+    // connections (or thumbnails) can drop resolution without dropping to a low-FPS layer. Costs some encoder work.
+    const lite = !!opts.lite && preset.height > 540;
+    const liteLayer = preset.height > 720 ? new LK.VideoPreset(1280, 720, Math.round(preset.maxBitrate * 0.3), preset.frameRate) : new LK.VideoPreset(960, 540, Math.round(preset.maxBitrate * 0.35), preset.frameRate);
     await room.localParticipant.setScreenShareEnabled(true, capture, {
       screenShareEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.frameRate, priority: 'high' },
-      screenShareSimulcastLayers: [],
-      simulcast: false,
+      screenShareSimulcastLayers: lite ? [liteLayer] : [],
+      simulcast: lite,
       videoCodec: plan.videoCodec,
-      scalabilityMode: plan.scalabilityMode as never,
+      scalabilityMode: (plan.scalabilityMode ? (lite ? 'L2T3_KEY' : plan.scalabilityMode) : undefined) as never,
       backupCodec: { codec: 'vp8' },
       degradationPreference: plan.degradationPreference,
     });
     vset({ screen: true, screenSince: Date.now() });
-    setPrefs({ streamQuality: opts.quality });
+    setPrefs({ streamQuality: opts.quality, streamLite: !!opts.lite });
     desktop?.setStreaming?.(true); // desktop: raise the app's process priority while live
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     const mst = pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined;
@@ -723,4 +735,20 @@ export async function sendReaction(emoji: string): Promise<boolean> {
     /* the local one already showed; others just miss it */
   }
   return true;
+}
+
+// ---------- viewer controls ----------
+export function setTileFit(key: string, fit: 'contain' | 'cover') {
+  vset((s) => ({ fit: { ...s.fit, [key]: fit } }));
+}
+/** "Auto" = best the network allows; "Leve" = cap to the light layer (only exists if the streamer offers it). */
+export function setViewQuality(identity: string, q: 'auto' | 'low') {
+  const pub = room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare);
+  pub?.setVideoQuality(q === 'low' ? LK.VideoQuality.LOW : LK.VideoQuality.HIGH);
+  vset((s) => ({ viewQuality: { ...s.viewQuality, [identity]: q } }));
+}
+/** Whether a remote stream has more than one quality layer to choose from. */
+export function streamHasLayers(identity: string) {
+  const pub = room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare);
+  return (pub?.trackInfo?.layers?.length ?? 0) > 1;
 }

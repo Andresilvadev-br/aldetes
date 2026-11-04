@@ -60,6 +60,32 @@ export function voiceRoutes(app: FastifyInstance, ctx: AppContext) {
     };
   });
 
+  /**
+   * "Chamar para a call": rings someone into the voice channel I'm in.
+   * Real checks: I must be in that channel right now, they must be allowed to connect to it, and they must not
+   * have blocked me (then it's silently ignored).
+   */
+  app.post('/voice/:channelId/invite', { ...auth, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    const { channelId } = req.params as { channelId: string };
+    const { userId } = z.object({ userId: z.string().regex(/^\d{1,20}$/) }).parse(req.body);
+    const me = req.auth.userId;
+    if (userId === me) throw badRequest('Você já está aqui');
+    const a = await requireChannel(db, channelId, me, Permissions.CONNECT);
+    if (!VOICE_TYPES.has(a.channel.type)) throw badRequest('Este canal não é de voz');
+    const mine = JSON.parse((await ctx.redis.hget('voice:states', me)) ?? 'null') as { channelId?: string } | null;
+    if (mine?.channelId !== channelId) throw badRequest('Entre na call antes de chamar alguém');
+    try {
+      await requireChannel(db, channelId, userId, Permissions.CONNECT);
+    } catch {
+      throw badRequest('Essa pessoa não tem acesso a esta call');
+    }
+    const theirs = JSON.parse((await ctx.redis.hget('voice:states', userId)) ?? 'null') as { channelId?: string } | null;
+    if (theirs?.channelId === channelId) return { ok: true, already: true };
+    const blocked = await db.relationship.findUnique({ where: { fromId_toId: { fromId: userId, toId: me } } });
+    if (blocked?.type !== 'blocked') ctx.gw.toUser(userId, 'call:ring', { channelId, from: me });
+    return { ok: true };
+  });
+
   // Connection test: a throwaway room just for this user (webhooks ignore it: it isn't a channel).
   app.post('/voice/diagnostics', { ...auth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req) => {
     const at = new AccessToken(cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET, { identity: `diag-${req.auth.userId}-${Date.now().toString(36)}`, ttl: '10m' });

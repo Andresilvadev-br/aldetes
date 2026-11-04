@@ -267,6 +267,13 @@ model Attachment {
   size        Int
   width       Int?
   height      Int?
+  /// small WebP/JPEG made by the sender's device (shown in the chat instead of the original)
+  thumbKey    String?
+  /// tiny blurred preview (data URL, ≤ 4 KB) shown instantly while the thumbnail loads
+  placeholder String?
+  /// voice messages
+  durationMs  Int?
+  waveform    String?
   createdAt   DateTime @default(now())
   message     Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 

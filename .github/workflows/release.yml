@@ -10,11 +10,11 @@ on:
       version:
         description: 'Versão a publicar (ex.: 0.2.0)'
         required: true
-        default: '0.2.0'
+        default: '0.6.0'
       notes:
         description: 'Novidades (aparecem no aviso de atualização; separe os itens com ;)'
         required: false
-        default: ''
+        default: 'Mensagens de áudio; Fotos que aparecem na hora; Botão de enviar no celular; Janela flutuante da transmissão; App mais leve e rápido'
 
 permissions:
   contents: write

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useStore, get } from '@/store';
 import { ServerRail } from './ServerRail';
@@ -13,6 +13,7 @@ import { DiscoverPage } from '@/pages/Discover';
 import { onGateway } from '@/lib/gateway';
 import { useIsMobile, useMobilePane } from '@/lib/mobile';
 import { WhatsNew } from '../common/WhatsNew';
+import { MiniPlayer } from '../voice/MiniPlayer';
 import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice, sendReaction, REACTIONS } from '@/lib/voice';
 import { getPrefs, usePrefs } from '@/lib/prefs';
 import { playSound } from '@/lib/sounds';
@@ -23,7 +24,7 @@ import { toast } from '../common/overlay';
 import { LiveIsland } from '../island/LiveIsland';
 import { useFloatingIslandSync } from '@/lib/islandSync';
 import { useUi, closeSettings } from '@/lib/ui';
-import { UserSettings } from '../settings/UserSettings';
+const UserSettings = lazy(() => import('../settings/UserSettings').then((m) => ({ default: m.UserSettings })));
 import { AnimatePresence, motion } from 'motion/react';
 
 export function AppShell() {
@@ -125,7 +126,7 @@ export function AppShell() {
       {(!mobile || pane === 'nav') && <ServerRail />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setSwitcher(true)} />
-        <div className={clsx('flex min-h-0 flex-1 gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]', mobile ? 'pr-2' : 'pr-2')}>
+        <div data-safe-bottom className={clsx('flex min-h-0 flex-1 gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]', mobile ? 'pr-2' : 'pr-2')}>
           <Routes>
             <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
             <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
@@ -136,7 +137,8 @@ export function AppShell() {
       </div>
       <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
       <WhatsNew />
-      {settingsTab && <UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} />}
+      <MiniPlayer />
+      {settingsTab && <Suspense fallback={null}><UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} /></Suspense>}
     </div>
   );
 }

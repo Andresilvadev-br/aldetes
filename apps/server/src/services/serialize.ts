@@ -53,6 +53,10 @@ export function attachment(a: FullMessage['attachments'][number]): Attachment {
     url: cdnUrl(a.storageKey)!,
     width: a.width,
     height: a.height,
+    thumbUrl: a.thumbKey ? cdnUrl(a.thumbKey) : null,
+    placeholder: a.placeholder ?? null,
+    durationMs: a.durationMs ?? null,
+    waveform: a.waveform ? [...Buffer.from(a.waveform, 'base64')] : null,
   };
 }
 

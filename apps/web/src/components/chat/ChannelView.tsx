@@ -21,11 +21,16 @@ import { useNavigate } from 'react-router-dom';
 import type { Message } from '@aldetes/shared';
 import { MobileBack } from '../layout/MobileBack';
 import { useIsMobile } from '@/lib/mobile';
+import { motion } from 'motion/react';
+import { dur, ease } from '@/lib/motion';
 import { loadServerEmojis } from './emojiData';
 
 export function ChannelView({ channelId }: { channelId: string }) {
   const channel = useStore((s) => s.channels[channelId]);
-  const [showMembersDesk, setShowMembers] = useState(() => localStorage.getItem('aldetes.members') !== '0');
+  const [showMembersDesk, setShowMembers] = useState(() => {
+    const saved = localStorage.getItem('aldetes.members');
+    return saved ? saved !== '0' : !window.matchMedia?.('(max-width: 1023px)').matches;
+  });
   const mobile = useIsMobile();
   const [mobileMembers, setMobileMembers] = useState(false);
   const showMembers = mobile ? mobileMembers : showMembersDesk;
@@ -52,7 +57,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
   const other = channel.recipients?.[0];
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <motion.div className="flex h-full min-h-0 flex-col" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: dur.short, ease: ease.out }}>
       <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-3 sm:px-5">
         <MobileBack />
         {isDm ? (
@@ -144,7 +149,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
         {panel === 'pins' && <PinsPopover channelId={channelId} onClose={() => setPanel(null)} />}
         {panel === 'threads' && <ThreadsPopover channelId={channelId} onClose={() => setPanel(null)} />}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

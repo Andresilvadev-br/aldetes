@@ -1,12 +1,15 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
-import { Track, type Participant, type VideoTrack } from 'livekit-client';
+import type { Participant, VideoTrack } from 'livekit-client';
+import { Track } from '@/lib/lk';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, setTileFit, setViewQuality, streamHasLayers, type Tile } from '@/lib/voice';
 import { spring, dur } from '@/lib/motion';
 import { usePrefs } from '@/lib/prefs';
 import { LiveAvatar, ReactionPicker } from './LiveAvatar';
+import { useMedia, SHORT } from '@/lib/mobile';
 import { Segmented } from '../settings/SettingsLayout';
 import { Avatar } from '../common/Avatar';
 import { Icon } from '../common/Icon';
@@ -15,7 +18,7 @@ import { QualityBars } from './VoicePanel';
 import { ScreenShareModal } from './ScreenShareModal';
 import { useMemberMenu } from '../common/UserPopout';
 
-function VideoEl({ participant, source, contain, mirror }: { participant: Participant; source: Track.Source; contain?: boolean; mirror?: boolean }) {
+export function VideoEl({ participant, source, contain, mirror }: { participant: Participant; source: Track.Source; contain?: boolean; mirror?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   const pub = participant.getTrackPublication(source);
   const track = pub?.track as VideoTrack | undefined;
@@ -39,6 +42,7 @@ function TileView({ tile, serverId, big, onClick }: { tile: Tile; serverId: stri
   const menu = useContextMenu();
   const items = useMemberMenu(tile.identity, serverId);
   const isScreen = tile.source === Track.Source.ScreenShare;
+  const fitChoice = useVoice((v) => v.fit[tile.key]);
   const hasVideo = !!tile.participant.getTrackPublication(tile.source)?.track && !tile.participant.getTrackPublication(tile.source)?.isMuted;
   return (
     <div
@@ -53,7 +57,7 @@ function TileView({ tile, serverId, big, onClick }: { tile: Tile; serverId: stri
       )}
     >
       {hasVideo ? (
-        <VideoEl participant={tile.participant} source={tile.source} contain={isScreen} mirror={tile.isLocal && !isScreen} />
+        <VideoEl participant={tile.participant} source={tile.source} contain={isScreen && fitChoice !== 'cover'} mirror={tile.isLocal && !isScreen} />
       ) : isScreen && !tile.isLocal ? (
         <div className="flex flex-col items-center gap-3 text-center">
           <span className="rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">AO VIVO</span>
@@ -125,6 +129,9 @@ function ViewerStreamBar({ tile, tileRef }: { tile: Tile; tileRef: React.RefObje
   const stats = useVideoStats(tileRef);
   const hasAudio = !!tile.participant.getTrackPublication(Track.Source.ScreenShareAudio);
   const [vol, setVol] = useState(100);
+  const fit = useVoice((v) => v.fit[tile.key] ?? 'contain');
+  const vq = useVoice((v) => v.viewQuality[tile.identity] ?? 'auto');
+  const layers = streamHasLayers(tile.identity);
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -149,10 +156,36 @@ function ViewerStreamBar({ tile, tileRef }: { tile: Tile; tileRef: React.RefObje
         </label>
       )}
       <span className="flex-1" />
+      {layers && (
+        <span className="flex overflow-hidden rounded-lg bg-white/10 text-[11px] font-semibold" role="group" aria-label="Qualidade que você recebe">
+          {(['auto', 'low'] as const).map((q) => (
+            <button key={q} className={clsx('px-2 py-1', vq === q ? 'bg-white text-black' : 'hover:bg-white/15')} onClick={() => setViewQuality(tile.identity, q)} aria-pressed={vq === q}>
+              {q === 'auto' ? 'Auto' : 'Leve'}
+            </button>
+          ))}
+        </span>
+      )}
+      <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10" title={fit === 'cover' ? 'Mostrar a tela inteira' : 'Preencher o espaço'} aria-label="Enquadramento" onClick={() => setTileFit(tile.key, fit === 'cover' ? 'contain' : 'cover')}>
+        <Icon name={fit === 'cover' ? 'focus' : 'expand'} size={16} />
+      </button>
+      {'pictureInPictureEnabled' in document && (
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10"
+          title="Janela flutuante (fica por cima de tudo)"
+          aria-label="Janela flutuante"
+          onClick={() => {
+            const v = tileRef.current?.querySelector('video') as HTMLVideoElement | null;
+            if (document.pictureInPictureElement) void document.exitPictureInPicture();
+            else void v?.requestPictureInPicture().catch(() => {});
+          }}
+        >
+          <Icon name="pip" size={16} />
+        </button>
+      )}
       <button className="rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-white/10" onClick={() => setWatching(tile.identity, false)} title="Para de receber o vídeo (economiza internet)">
         Parar de assistir
       </button>
-      <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10" title="Tela cheia" onClick={() => (document.fullscreenElement ? document.exitFullscreen() : tileRef.current?.requestFullscreen())}>
+      <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10" title="Tela cheia (Esc para sair)" aria-label="Tela cheia" onClick={() => (document.fullscreenElement ? document.exitFullscreen() : tileRef.current?.requestFullscreen())}>
         <Icon name="maximize" size={16} />
       </button>
     </div>
@@ -297,6 +330,23 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
   const rects = W && H && ordered.length ? (mode === 'grid' ? gridRects(ordered.length, W, H) : focusRects(ordered.length, W, H)) : [];
   const rectOf = new Map(ordered.map((t, i) => [t.key, rects[i]]));
   const voiceOnly = media.length === 0;
+  const short = useMedia(SHORT); // phone in landscape: video gets the whole height
+  // touch: swipe left/right on the stage to move the focus to the next/previous video
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') swipe.current = { x: e.clientX, y: e.clientY };
+  };
+  const onTouchEnd = (e: React.PointerEvent) => {
+    const s0 = swipe.current;
+    swipe.current = null;
+    if (!s0 || media.length < 2) return;
+    const dx = e.clientX - s0.x;
+    if (Math.abs(dx) < 60 || Math.abs(e.clientY - s0.y) > 50) return;
+    const i = media.findIndex((t) => t.key === focusKey);
+    const next = media[(i + (dx < 0 ? 1 : -1) + media.length) % media.length]!;
+    setFocus(next.key);
+    setStageLayout('focus');
+  };
 
   return (
     <div className={clsx('flex min-h-0 flex-1 flex-col', compact && 'h-[48vh] flex-none border-b border-line/[0.06] bg-black/30')}>
@@ -304,7 +354,7 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
         {voiceOnly ? (
           <VoiceGrid people={people} serverId={serverId} />
         ) : (
-          <div className="relative min-h-0 min-w-0 flex-1">
+          <div className="relative min-h-0 min-w-0 flex-1 touch-pan-y" onPointerDown={onTouchStart} onPointerUp={onTouchEnd}>
             {media.length >= 2 && (
               <div className="absolute right-1 top-1 z-20">
                 <Segmented
@@ -340,7 +390,7 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
             <StreamReactions />
           </div>
         )}
-        {!voiceOnly && <PeopleStrip people={people} serverId={serverId} vertical={!compact} />}
+        {!voiceOnly && !short && <PeopleStrip people={people} serverId={serverId} vertical={!compact} />}
       </div>
       <CallDock />
     </div>
@@ -348,13 +398,24 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
 }
 
 /** Voice-only call: large, legible people with live voice rings (no empty video rectangle). */
+/** True during the first moments after mount: people enter in a short stagger, later changes animate alone. */
+function useEntering(ms = 900) {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setOn(false), ms);
+    return () => clearTimeout(t);
+  }, [ms]);
+  return on;
+}
+
 function VoiceGrid({ people, serverId }: { people: string[]; serverId: string | null }) {
   const big = people.length <= 4 ? 112 : people.length <= 9 ? 88 : 64;
+  const entering = useEntering();
   return (
     <div className="flex min-h-0 flex-1 flex-wrap content-center items-center justify-center gap-x-8 gap-y-6 overflow-y-auto p-4">
       <AnimatePresence initial={false}>
-        {people.map((id) => (
-          <motion.div key={id} layout initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }} transition={spring.stage} className="flex w-[150px] flex-col items-center gap-3">
+        {people.map((id, i) => (
+          <motion.div key={id} layout initial={{ opacity: 0, scale: 0.85, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }} transition={{ ...spring.stage, delay: entering ? Math.min(i, 10) * 0.05 : 0 }} className="flex w-[150px] flex-col items-center gap-3">
             <PersonMenu id={id} serverId={serverId}>
               <LiveAvatar identity={id} size={big} />
             </PersonMenu>
@@ -374,7 +435,10 @@ function PersonMenu({ id, serverId, children }: { id: string; serverId: string |
 }
 
 /** Participants next to the stage: constant size, who talks, mute, camera, live — scrolls when many. */
-function PeopleStrip({ people, serverId, vertical }: { people: string[]; serverId: string | null; vertical: boolean }) {
+function PeopleStrip({ people: all, serverId, vertical }: { people: string[]; serverId: string | null; vertical: boolean }) {
+  const [q, setQ] = useState('');
+  const entering = useEntering();
+  const people = q ? all.filter((id) => displayName(id, serverId).toLowerCase().includes(q.toLowerCase())) : all;
   return (
     <aside
       aria-label="Na chamada"
@@ -383,16 +447,25 @@ function PeopleStrip({ people, serverId, vertical }: { people: string[]; serverI
         vertical ? 'flex max-h-full gap-1.5 xl:w-56 xl:flex-col max-xl:h-[84px]' : 'flex h-[84px] gap-1.5',
       )}
     >
-      <div className={clsx('eyebrow shrink-0 px-1.5 pt-1', vertical ? 'hidden xl:block' : 'hidden')}>Na chamada · {people.length}</div>
+      <div className={clsx('eyebrow shrink-0 px-1.5 pt-1', vertical ? 'hidden xl:block' : 'hidden')}>Na chamada · {all.length}</div>
+      {all.length > 8 && (
+        <input
+          className={clsx('input h-8 shrink-0 px-2.5 py-1 text-xs', vertical ? 'hidden xl:block' : 'hidden')}
+          placeholder="Buscar na call…"
+          aria-label="Buscar pessoas na call"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      )}
       <AnimatePresence initial={false}>
-        {people.map((id) => (
+        {people.map((id, i) => (
           <motion.div
             key={id}
             layout
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.9, x: 8 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            transition={spring.stage}
+            transition={{ ...spring.stage, delay: entering ? Math.min(i, 10) * 0.04 : 0 }}
             className={clsx('flex shrink-0 items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-line/[0.05]', vertical ? 'xl:w-full max-xl:flex-col max-xl:justify-center max-xl:gap-1 max-xl:px-3' : 'flex-col justify-center gap-1 px-3')}
           >
             <PersonMenu id={id} serverId={serverId}>
@@ -453,7 +526,7 @@ function Spinner() {
 
 /** Fixed dock: camera, screen, mic, audio, reactions — and "Sair" set apart so it is never hit by accident. */
 export function CallDock() {
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ camera: s.camera, canVideo: s.canVideo, pending: s.pending, screen: s.screen, selfDeaf: s.selfDeaf, selfMute: s.selfMute, state: s.state })));
   const [share, setShare] = useState(false);
   const [react, setReact] = useState(false);
   const btn = (active: boolean) =>

@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, set, initialState } from './store';
 import { api, needsServerSetup } from './lib/api';
 import { connectGateway, disconnectGateway } from './lib/gateway';
 import { LoginPage, RegisterPage, ForgotPage, ResetPage } from './pages/Auth';
 import { InvitePage } from './pages/Invite';
-import { LandingPage } from './pages/Landing';
+const LandingPage = lazy(() => import('./pages/Landing').then((m) => ({ default: m.LandingPage })));
 import { AppShell } from './components/layout/AppShell';
 import { ContextMenuProvider, Toasts, ConfirmHost } from './components/common/overlay';
 import { Logo } from './components/common/Icon';
@@ -67,7 +67,7 @@ export function App() {
   // Brand intro on every launch of the app (not on the public site pages)
   const [intro, setIntro] = useState(() => !['/welcome', '/download'].some((p) => window.location.hash.startsWith(`#${p}`)));
   return (
-    <MotionConfig reducedMotion={motionLevel === 'performance' ? 'always' : 'never'} transition={spring.responsive}>
+    <MotionConfig reducedMotion={motionLevel === 'performance' ? 'always' : 'user'} transition={spring.responsive}>
     <ContextMenuProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -75,8 +75,8 @@ export function App() {
         <Route path="/forgot" element={<ForgotPage />} />
         <Route path="/reset-password" element={<ResetPage />} />
         <Route path="/invite/:code" element={<InvitePage />} />
-        <Route path="/welcome" element={<LandingPage />} />
-        <Route path="/download" element={<LandingPage />} />
+        <Route path="/welcome" element={<Suspense fallback={null}><LandingPage /></Suspense>} />
+        <Route path="/download" element={<Suspense fallback={null}><LandingPage /></Suspense>} />
         <Route path="/server-setup" element={isDesktop ? <ServerSetup /> : <Navigate to="/" />} />
         <Route path="/*" element={status === 'ready' ? <AppShell /> : status === 'unauthenticated' ? null : <Splash />} />
       </Routes>

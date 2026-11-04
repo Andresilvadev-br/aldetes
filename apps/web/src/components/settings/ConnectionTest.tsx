@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { ConnectionCheck, CheckStatus, type CheckInfo } from 'livekit-client';
+import type { ConnectionCheck, CheckInfo } from 'livekit-client';
+import { loadLiveKit } from '@/lib/lk';
+
+/** Mirrors livekit-client's numeric CheckStatus (kept local so Settings doesn't pull the SDK). */
+const CheckStatus = { IDLE: 0, RUNNING: 1, SKIPPED: 2, SUCCESS: 3, FAILED: 4, 0: 'IDLE', 1: 'RUNNING', 2: 'SKIPPED', 3: 'SUCCESS', 4: 'FAILED' } as const;
 import { api } from '@/lib/api';
 import { Icon } from '../common/Icon';
 import { toast, toastError } from '../common/overlay';
@@ -24,15 +28,15 @@ export function ConnectionTest() {
     setRunning(true);
     setResults({});
     try {
-      const t = await api<{ url: string; token: string }>('POST', '/voice/diagnostics');
+      const [{ ConnectionCheck: Check }, t] = await Promise.all([loadLiveKit(), api<{ url: string; token: string }>('POST', '/voice/diagnostics')]);
       for (const step of STEPS) {
-        const check = new ConnectionCheck(t.url, t.token);
-        setResults((r) => ({ ...r, [step.key]: { name: step.key, logs: [], status: CheckStatus.RUNNING, description: '' } }));
+        const check = new Check(t.url, t.token);
+        setResults((r) => ({ ...r, [step.key]: { name: step.key, logs: [], status: CheckStatus.RUNNING as CheckInfo['status'], description: '' } }));
         let info: CheckInfo;
         try {
           info = await step.run(check);
         } catch (err) {
-          info = { name: step.key, logs: [{ level: 'error', message: String((err as Error)?.message ?? err) }], status: CheckStatus.FAILED, description: '' } as CheckInfo;
+          info = { name: step.key, logs: [{ level: 'error', message: String((err as Error)?.message ?? err) }], status: CheckStatus.FAILED as CheckInfo['status'], description: '' } as CheckInfo;
         }
         setResults((r) => ({ ...r, [step.key]: info }));
       }
@@ -47,7 +51,7 @@ export function ConnectionTest() {
     const lines = [`Aldetes — teste de conexão (${new Date().toLocaleString('pt-BR')})`, navigator.userAgent];
     for (const s of STEPS) {
       const r = results[s.key];
-      lines.push(`\n[${r ? CheckStatus[r.status] : 'NÃO RODOU'}] ${s.label}`);
+      lines.push(`\n[${r ? CheckStatus[r.status as 0 | 1 | 2 | 3 | 4] : 'NÃO RODOU'}] ${s.label}`);
       for (const l of r?.logs ?? []) lines.push(`  ${l.level}: ${l.message}`);
     }
     void navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Relatório copiado. Cole no chat para quem administra o servidor.', 'success'));

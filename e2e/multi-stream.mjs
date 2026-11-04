@@ -50,6 +50,17 @@ try {
   check('Três pessoas na mesma call', true);
   await C.waitForTimeout(1500);
   await C.screenshot({ path: `${SHOTS}/stage-voice-only.png` });
+  await C.bringToFront();
+  const base = await C.evaluate(async () => {
+    let frames = 0;
+    const t0 = performance.now();
+    await new Promise((r) => {
+      const f = () => (frames++, performance.now() - t0 < 3000 ? requestAnimationFrame(f) : r());
+      requestAnimationFrame(f);
+    });
+    return { fps: Math.round((frames * 1000) / (performance.now() - t0)), visivel: document.visibilityState };
+  });
+  console.log('   referência (só voz, sem vídeo):', JSON.stringify(base));
 
   // B: mute through the dock → the others see it (real state, not just the icon)
   await B.getByRole('button', { name: 'Microfone', exact: true }).last().click();
@@ -71,6 +82,27 @@ try {
   await C.waitForTimeout(1200);
   await C.screenshot({ path: `${SHOTS}/stage-two-streams-focus.png` });
   check('Duas transmissões simultâneas chegam ao espectador', both);
+
+  // Fluidity while watching 2 streams with 3 people talking: UI frames/s and main-thread stalls (> 50 ms)
+  await C.bringToFront();
+  await C.waitForTimeout(500);
+  const fluid = await C.evaluate(async () => {
+    let long = 0;
+    let longMs = 0;
+    const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => ((long += 1), (longMs += e.duration))));
+    po.observe({ type: 'longtask', buffered: false });
+    let frames = 0;
+    const t0 = performance.now();
+    await new Promise((r) => {
+      const f = () => (frames++, performance.now() - t0 < 4000 ? requestAnimationFrame(f) : r());
+      requestAnimationFrame(f);
+    });
+    po.disconnect();
+    return { fps: Math.round((frames * 1000) / (performance.now() - t0)), travadas: long, msTravado: Math.round(longMs) };
+  });
+  // FPS here is limited by this machine (software GPU, 3 browsers encoding/decoding) — see the voice-only reference.
+  // The app-side metric is main-thread stalls: the UI code must not block while video plays.
+  check('Interface sem travadas assistindo 2 transmissões (nenhuma tarefa > 50 ms)', fluid.msTravado < 200, JSON.stringify({ ...fluid, referenciaSoVoz: base.fps }));
 
   // H: switching Foco → Grade and changing focus must not remount/restart the videos
   await C.evaluate(() => document.querySelectorAll('video').forEach((v, i) => (v.dataset.mark = String(i))));

@@ -93,7 +93,10 @@ export function messageRoutes(app: FastifyInstance, ctx: AppContext) {
     await db.message.update({ where: { id: mid }, data: { deletedAt: new Date(), content: '', pinned: false } });
     const atts = await db.attachment.findMany({ where: { messageId: mid } });
     await db.attachment.deleteMany({ where: { messageId: mid } });
-    for (const at of atts) await ctx.storage.delete(at.storageKey);
+    for (const at of atts) {
+      await ctx.storage.delete(at.storageKey);
+      if (at.thumbKey) await ctx.storage.delete(at.thumbKey);
+    }
     if (!own && a.channel.serverId) await audit(ctx, a.channel.serverId, req.auth.userId, 'message_delete', mid, { channelId: cid, authorId: m.authorId });
     ctx.gw.toChannel(cid, ServerEvents.MESSAGE_DELETE, { id: mid, channelId: cid });
     return { ok: true };

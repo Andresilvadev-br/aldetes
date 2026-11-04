@@ -317,6 +317,52 @@ describe('social', () => {
   });
 });
 
+describe('anexos rápidos e chamar para a call', () => {
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const send = async (c: Client, parts: (fd: FormData) => void) => {
+    const fd = new FormData();
+    parts(fd);
+    const res = await fetch(env.base + '/api/attachments', { method: 'POST', headers: { authorization: `Bearer ${c.token}` }, body: fd });
+    return { status: res.status, data: await res.json() };
+  };
+
+  it('guarda miniatura e borrão feitos pelo remetente, e duração/onda do áudio', async () => {
+    const wave = Buffer.from(Array.from({ length: 64 }, (_, i) => (i * 4) % 256)).toString('base64');
+    const r = await send(alice, (fd) => {
+      fd.append('files', new Blob([PNG], { type: 'image/png' }), 'foto.png');
+      fd.append('thumb_0', new Blob([PNG], { type: 'image/png' }), 'thumb');
+      fd.append('meta_0', JSON.stringify({ placeholder: 'data:image/jpeg;base64,AAAA', durationMs: 3200, waveform: wave }));
+    });
+    expect(r.status).toBe(201);
+    expect(r.data[0].thumbUrl).toMatch(/\/thumb\.png$/);
+    expect(r.data[0].placeholder).toBe('data:image/jpeg;base64,AAAA');
+    expect(r.data[0].durationMs).toBe(3200);
+    expect(r.data[0].waveform).toHaveLength(64);
+    const thumb = await fetch(env.base + new URL(r.data[0].thumbUrl, env.base).pathname);
+    expect(thumb.status).toBe(200);
+    expect(thumb.headers.get('cache-control')).toContain('immutable');
+  });
+
+  it('rejeita borrão que não é imagem e miniatura falsa', async () => {
+    const badMeta = await send(alice, (fd) => {
+      fd.append('files', new Blob([PNG], { type: 'image/png' }), 'foto.png');
+      fd.append('meta_0', JSON.stringify({ placeholder: 'javascript:alert(1)' }));
+    });
+    expect(badMeta.status).toBe(400);
+    const badThumb = await send(alice, (fd) => {
+      fd.append('files', new Blob([PNG], { type: 'image/png' }), 'foto.png');
+      fd.append('thumb_0', new Blob(['<script>alert(1)</script>'], { type: 'image/png' }), 'thumb');
+    });
+    expect(badThumb.status).toBe(400);
+  });
+
+  it('só chama alguém para a call quem está nela', async () => {
+    const r = await alice.req('POST', `/voice/${voiceId}/invite`, { userId: carol.user.id });
+    expect(r.status).toBe(400);
+    expect(r.data.message).toMatch(/Entre na call/);
+  });
+});
+
 describe('persistência', () => {
   it('dados permanecem após reiniciar a API', async () => {
     for (const c of [alice, bob, carol]) c.disconnect();

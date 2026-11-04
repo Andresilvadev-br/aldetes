@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import { VoiceMessage } from './VoiceMessage';
 import { Permissions, hasPermission, type Attachment, type Channel, type Message } from '@aldetes/shared';
 import { useStore, channelPermissions, memberColor, displayName, get, type ClientMessage } from '@/store';
 import { renderMarkdown, isJumbo } from '@/lib/markdown';
@@ -282,32 +283,61 @@ function fmtSize(n: number) {
   return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 }
 
-export function AttachmentView({ a }: { a: Attachment }) {
+/**
+ * Photos never "print" line by line anymore: the tiny blurred preview shows instantly at the final size,
+ * the light thumbnail fades in over it, and the original is only downloaded when the photo is opened.
+ */
+function ImageAttachment({ a }: { a: Attachment }) {
   const [lightbox, setLightbox] = useState(false);
-  if (a.contentType.startsWith('image/')) {
-    const w = Math.min(400, a.width ?? 400);
-    const h = a.width && a.height ? Math.round((a.height / a.width) * w) : undefined;
-    return (
-      <>
+  const [loaded, setLoaded] = useState(false);
+  const [fullLoaded, setFullLoaded] = useState(false);
+  const w = Math.min(400, a.width ?? 400);
+  const hRaw = a.width && a.height ? Math.round((a.height / a.width) * w) : undefined;
+  const h = hRaw && hRaw > 350 ? 350 : hRaw;
+  const wFinal = hRaw && h && hRaw > 350 ? Math.round((w * 350) / hRaw) : w;
+  const src = a.thumbUrl ?? a.url;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setLightbox(true)}
+        aria-label={`Abrir imagem ${a.filename}`}
+        className="group/img relative block cursor-zoom-in overflow-hidden rounded-xl border border-line/[0.06] bg-line/[0.04]"
+        style={{ width: wFinal, height: h ?? 220, maxWidth: '100%' }}
+      >
+        {a.placeholder && (
+          <img src={a.placeholder} alt="" aria-hidden className={clsx('absolute inset-0 h-full w-full scale-110 object-cover blur-xl transition-opacity duration-500', loaded && 'opacity-0')} />
+        )}
+        {!a.placeholder && !loaded && <span className="absolute inset-0 animate-pulse bg-line/[0.06]" />}
         <img
-          src={a.url}
+          src={src}
           alt={a.filename}
           loading="lazy"
-          onClick={() => setLightbox(true)}
-          className="max-h-[350px] cursor-zoom-in rounded-xl border border-line/[0.06] object-contain transition-transform duration-300 hover:scale-[1.01]"
-          style={{ width: w, height: h && h > 350 ? 350 : h, maxWidth: '100%' }}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          className={clsx('relative h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out group-hover/img:scale-[1.02]', loaded ? 'opacity-100 blur-0' : 'opacity-0 blur-md')}
         />
-        {lightbox && (
-          <Modal onClose={() => setLightbox(false)} className="!max-w-[90vw] bg-transparent shadow-none">
-            <img src={a.url} alt={a.filename} className="max-h-[80vh] max-w-full rounded" />
-            <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-fg-muted hover:underline">
-              Abrir original
-            </a>
-          </Modal>
-        )}
-      </>
-    );
-  }
+      </button>
+      {lightbox && (
+        <Modal onClose={() => setLightbox(false)} className="!max-w-[92vw] bg-transparent shadow-none">
+          <div className="relative flex items-center justify-center">
+            {!fullLoaded && <img src={src} alt="" aria-hidden className="max-h-[80vh] max-w-full rounded" />}
+            <img src={a.url} alt={a.filename} onLoad={() => setFullLoaded(true)} className={clsx('max-h-[80vh] max-w-full rounded', !fullLoaded && 'absolute inset-0 m-auto opacity-0')} />
+            {!fullLoaded && <span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] text-white/80">carregando original…</span>}
+          </div>
+          <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-fg-muted hover:underline">
+            Abrir original ({fmtSize(a.size)})
+          </a>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+export function AttachmentView({ a }: { a: Attachment }) {
+  // voice messages first: a WebM voice note is detected as video/webm by its container
+  if ((a.contentType.startsWith('audio/') || a.contentType === 'video/webm' || a.contentType === 'video/mp4') && (a.waveform || a.durationMs)) return <VoiceMessage a={a} />;
+  if (a.contentType.startsWith('image/')) return <ImageAttachment a={a} />;
   if (a.contentType.startsWith('video/')) return <video src={a.url} controls preload="metadata" className="max-h-[350px] max-w-[min(100%,480px)] rounded-lg bg-black" />;
   if (a.contentType.startsWith('audio/'))
     return (

@@ -1,4 +1,5 @@
 import type { Attachment, Message } from '@aldetes/shared';
+import { prepareImage, type Prepared } from './mediaPrep';
 import { api, upload } from './api';
 import { get, set, upsertMessage, type ClientMessage } from '../store';
 import { setUpload, endUpload } from './island';
@@ -67,7 +68,7 @@ function nonce() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export async function sendMessage(channelId: string, content: string, opts: { replyTo?: Message | null; files?: File[]; onProgress?: (p: number) => void } = {}) {
+export async function sendMessage(channelId: string, content: string, opts: { replyTo?: Message | null; files?: File[]; onProgress?: (p: number) => void; voice?: { durationMs: number; waveform: string } } = {}) {
   const me = get().me!;
   const n = nonce();
   let attachments: Attachment[] = [];
@@ -96,7 +97,14 @@ export async function sendMessage(channelId: string, content: string, opts: { re
   try {
     if (opts.files?.length) {
       const fd = new FormData();
-      for (const f of opts.files) fd.append('files', f, f.name);
+      // Photos are shrunk + given a thumbnail and a blur preview on this device (receivers download little).
+      const prepared: Prepared[] = await Promise.all(opts.files.map((f) => (opts.voice ? Promise.resolve({ file: f }) : prepareImage(f))));
+      prepared.forEach((p, i) => {
+        fd.append('files', p.file, p.file.name);
+        if (p.thumb) fd.append(`thumb_${i}`, p.thumb, 'thumb');
+        const meta = { ...(p.placeholder ? { placeholder: p.placeholder } : {}), ...(opts.voice && i === 0 ? opts.voice : {}) };
+        if (Object.keys(meta).length) fd.append(`meta_${i}`, JSON.stringify(meta));
+      });
       const label = opts.files.length === 1 ? opts.files[0]!.name : `${opts.files.length} arquivos`;
       setUpload(n, label, 0);
       try {

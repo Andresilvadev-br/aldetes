@@ -87,6 +87,13 @@ export interface Attachment {
   url: string;
   width: number | null;
   height: number | null;
+  /** light version for the chat (null for old uploads, GIFs and non-images) */
+  thumbUrl?: string | null;
+  /** tiny blurred data-URL preview, shown instantly */
+  placeholder?: string | null;
+  /** voice message: duration and 0–255 amplitude bars */
+  durationMs?: number | null;
+  waveform?: number[] | null;
 }
 
 export interface ReactionGroup {

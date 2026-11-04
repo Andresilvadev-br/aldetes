@@ -13,6 +13,22 @@ import { requireServer } from '../services/permissions';
 import { broadcastUserUpdate } from './users';
 import { audit } from '../services/audit';
 
+const attachmentMeta = z
+  .object({
+    placeholder: z
+      .string()
+      .max(4000)
+      .regex(/^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/)
+      .optional(),
+    durationMs: z.number().int().min(0).max(30 * 60_000).optional(),
+    waveform: z
+      .string()
+      .max(176)
+      .regex(/^[A-Za-z0-9+/=]*$/)
+      .optional(),
+  })
+  .strict();
+
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 // Types the CDN may render inline. Everything else is forced to download.
 const INLINE_TYPES: Record<string, string> = {
@@ -23,6 +39,8 @@ const INLINE_TYPES: Record<string, string> = {
   webp: 'image/webp',
   mp4: 'video/mp4',
   webm: 'video/webm',
+  weba: 'audio/webm',
+  opus: 'audio/ogg',
   mov: 'video/quicktime',
   mp3: 'audio/mpeg',
   ogg: 'audio/ogg',
@@ -74,23 +92,58 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
     return { buf, info };
   }
 
+  /**
+   * Upload attachments. For each file `files` (index i in order) the client may also send:
+   *  - `thumb_<i>`: a small image it generated itself (validated: real PNG/JPEG/WebP, ≤ 1 MB),
+   *  - `meta_<i>`: JSON { placeholder?: data:image/...;base64 (≤ 4 KB), durationMs?, waveform?: base64 (≤ 128 bars) }.
+   * The server never decodes or re-encodes images; it only checks what it stores.
+   */
   app.post('/api/attachments', { ...auth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
-    const out = [];
-    for await (const part of req.files()) {
+    const created: Array<{ id: string; storageKey: string }> = [];
+    for await (const part of req.parts()) {
+      if (part.type === 'field') {
+        const m = /^meta_(\d{1,2})$/.exec(part.fieldname);
+        const target = m ? created[Number(m[1])] : undefined;
+        if (!target || typeof part.value !== 'string' || part.value.length > 8000) continue;
+        let meta: unknown;
+        try {
+          meta = JSON.parse(part.value);
+        } catch {
+          continue;
+        }
+        const parsed = attachmentMeta.safeParse(meta);
+        if (!parsed.success) throw badRequest('Metadados do anexo inválidos');
+        const { placeholder, durationMs, waveform } = parsed.data;
+        await db.attachment.update({ where: { id: target.id }, data: { placeholder: placeholder ?? null, durationMs: durationMs ?? null, waveform: waveform ?? null } });
+        continue;
+      }
       const buf = await readFile(part);
       if (!buf.length) continue;
+      const tm = /^thumb_(\d{1,2})$/.exec(part.fieldname);
+      if (tm) {
+        const target = created[Number(tm[1])];
+        if (!target || buf.length > 1024 * 1024) continue;
+        const ft = await fileTypeFromBuffer(buf);
+        if (!ft || !['image/png', 'image/jpeg', 'image/webp'].includes(ft.mime)) throw badRequest('Miniatura inválida');
+        const key = `${target.storageKey.slice(0, target.storageKey.lastIndexOf('/'))}/thumb.${ft.ext}`;
+        await storage.put(key, buf, ft.mime);
+        await db.attachment.update({ where: { id: target.id }, data: { thumbKey: key } });
+        continue;
+      }
       const info = await detect(buf, part.mimetype, part.filename);
       const id = snowflake();
       const filename = sanitizeFilename(part.filename);
       const key = `attachments/${id}/${randomToken(9)}/${filename}`;
       await storage.put(key, buf, info.contentType);
-      const att = await db.attachment.create({
+      await db.attachment.create({
         data: { id, uploaderId: req.auth.userId, storageKey: key, filename, contentType: info.contentType, size: buf.length, width: info.width, height: info.height },
       });
-      out.push(S.attachment(att));
+      created.push({ id, storageKey: key });
     }
-    if (!out.length) throw badRequest('Nenhum arquivo enviado');
-    return reply.status(201).send(out);
+    if (!created.length) throw badRequest('Nenhum arquivo enviado');
+    const rows = await db.attachment.findMany({ where: { id: { in: created.map((c) => c.id) } } });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return reply.status(201).send(created.map((c) => S.attachment(byId.get(c.id)!)));
   });
 
   for (const kind of ['avatar', 'banner'] as const) {
@@ -194,6 +247,9 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
 /** Remove uploads never attached to a message (older than 1h). */
 export async function cleanupOrphanAttachments(ctx: AppContext) {
   const old = await ctx.db.attachment.findMany({ where: { messageId: null, createdAt: { lt: new Date(Date.now() - 3600_000) } }, take: 500 });
-  for (const a of old) await ctx.storage.delete(a.storageKey);
+  for (const a of old) {
+    await ctx.storage.delete(a.storageKey);
+    if (a.thumbKey) await ctx.storage.delete(a.thumbKey);
+  }
   if (old.length) await ctx.db.attachment.deleteMany({ where: { id: { in: old.map((a) => a.id) } } });
 }

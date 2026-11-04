@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
@@ -8,8 +8,8 @@ import { Avatar } from '../common/Avatar';
 import { useContextMenu, confirmDialog, toastError, Popover } from '../common/overlay';
 import { InviteModal } from '../modals/InviteModal';
 import { CreateChannelModal } from '../modals/CreateChannelModal';
-import { ServerSettings } from '../settings/ServerSettings';
-import { ChannelSettings } from '../settings/ChannelSettings';
+const ServerSettings = lazy(() => import('../settings/ServerSettings').then((m) => ({ default: m.ServerSettings })));
+const ChannelSettings = lazy(() => import('../settings/ChannelSettings').then((m) => ({ default: m.ChannelSettings })));
 import { api } from '@/lib/api';
 import { joinVoice, useVoice, focusStream } from '@/lib/voice';
 import { ackChannel } from '@/lib/actions';
@@ -101,7 +101,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   return (
     <div className="flex h-full flex-col">
       {/* hero header: banner (or animated accent aurora), big icon, name, live online count */}
-      <div className="relative shrink-0 overflow-hidden">
+      <div className="cz-hover relative shrink-0 overflow-hidden">
         <div className="absolute inset-0" style={server.bannerUrl ? { background: `center/cover url(${server.bannerUrl})` } : undefined}>
           {!server.bannerUrl && (
             <div className="cz">

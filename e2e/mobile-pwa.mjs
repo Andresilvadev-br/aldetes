@@ -98,14 +98,14 @@ try {
     await q.getByLabel('Senha').fill('senha-forte-123');
     await q.getByRole('button', { name: /Entrar/ }).click();
     await q.waitForURL(/channels/);
-    const shown = await q.getByText('O Aldetes evoluiu!').waitFor({ timeout: 8000 }).then(() => true, () => false);
+    const shown = await q.locator('#whatsnew-title').waitFor({ timeout: 8000 }).then(() => true, () => false);
     await q.waitForTimeout(900);
     await q.screenshot({ path: `${SHOTS}/whatsnew.png` });
     check('Depois de atualizar, o painel de novidades aparece uma vez', shown);
     if (shown) await q.getByRole('button', { name: 'Começar' }).click();
     await q.reload();
     await q.waitForURL(/channels/);
-    const again = await q.getByText('O Aldetes evoluiu!').waitFor({ timeout: 4000 }).then(() => true, () => false);
+    const again = await q.locator('#whatsnew-title').waitFor({ timeout: 4000 }).then(() => true, () => false);
     check('Recarregar não mostra as mesmas novidades de novo', !again);
     await c2.close();
   }

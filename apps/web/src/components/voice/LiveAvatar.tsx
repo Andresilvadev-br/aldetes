@@ -7,6 +7,8 @@ import { trackVoiceLevel } from '@/lib/voiceLevel';
 import { spring, dur } from '@/lib/motion';
 import { usePrefs } from '@/lib/prefs';
 import { Avatar } from '../common/Avatar';
+import { createPortal } from 'react-dom';
+import { useIsMobile } from '@/lib/mobile';
 import { Icon } from '../common/Icon';
 
 const NONE: LiveReaction[] = [];
@@ -84,6 +86,56 @@ export function LiveAvatar({ identity, size = 48, showBadges = true }: { identit
 
 /** Reaction menu (opens above the dock button; Alt+1…8 also work). */
 export function ReactionPicker({ onClose }: { onClose: () => void }) {
+  const mobile = useIsMobile();
+  if (mobile) return <ReactionSheet onClose={onClose} />;
+  return <ReactionPopover onClose={onClose} />;
+}
+
+/** Phones: a bottom sheet with big targets (doesn't cover the video controls). */
+function ReactionSheet({ onClose }: { onClose: () => void }) {
+  const [blocked, setBlocked] = useState(false);
+  return createPortal(
+    <motion.div className="fixed inset-0 z-[75] flex items-end bg-black/50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div
+        role="menu"
+        aria-label="Reações"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%', transition: { duration: dur.short } }}
+        transition={{ duration: dur.spatial, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full rounded-t-[26px] border border-line/10 bg-bg-float px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-line/20" />
+        <div className="grid grid-cols-4 gap-2">
+          {REACTIONS.map((e) => (
+            <motion.button
+              key={e}
+              role="menuitem"
+              whileTap={{ scale: 0.85 }}
+              transition={spring.snappy}
+              aria-label={`Reagir com ${e}`}
+              className="flex h-16 items-center justify-center rounded-2xl bg-line/[0.05] text-[30px] active:bg-line/[0.12]"
+              onClick={async () => {
+                const ok = await sendReaction(e);
+                if (!ok) {
+                  setBlocked(true);
+                  setTimeout(() => setBlocked(false), 900);
+                } else onClose();
+              }}
+            >
+              {e}
+            </motion.button>
+          ))}
+        </div>
+        <div className="mt-2 h-4 text-center text-xs text-fg-faint">{blocked ? 'Calma! Espere um instante.' : ''}</div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+}
+
+function ReactionPopover({ onClose }: { onClose: () => void }) {
   const [blocked, setBlocked] = useState(false);
   const enabled = usePrefs((p) => p.reactionsEnabled);
   const box = useRef<HTMLDivElement>(null);

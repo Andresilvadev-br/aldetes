@@ -13,6 +13,24 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.6.0',
+    date: '2026-11-04',
+    title: 'Mais rápido e com áudio!',
+    highlights: [
+      { title: 'Mensagens de áudio', body: 'Segure o microfone para gravar, deslize para cancelar ou para cima para travar. Ouça em 1x, 1,5x ou 2x.' },
+      { title: 'Fotos que aparecem na hora', body: 'Um borrão aparece na hora e fica nítido em seguida. A foto original só é baixada quando você abre.' },
+      { title: 'Botão de enviar', body: 'No celular, o microfone vira botão de enviar quando você digita, como no WhatsApp.' },
+      { title: 'Janela flutuante', body: 'Saiu da call? A transmissão continua num mini player. Também dá para soltar o vídeo por cima de tudo.' },
+      { title: 'App mais leve', body: 'Abre baixando 45% menos código. A parte de voz só carrega quando precisa.' },
+    ],
+    fixes: [
+      'Chamar alguém para a call ou entrar na call de um amigo direto pelo perfil',
+      'Escolha a qualidade que você recebe (Auto/Leve) e o enquadramento da transmissão',
+      'Celular: sem faixa vazia acima do teclado, reações em painel e deslizar para trocar de tela',
+      'Busca na lista de quem está na call e entrada animada ao conectar',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-11-04',
     title: 'O Aldetes evoluiu!',

@@ -168,3 +168,38 @@ Cenários da matriz da especificação cobertos por automação:
 - **Novidades:** aparecem uma vez após atualizar e não se repetem ao recarregar.
 
 Não automatizado: o adiamento das novidades durante a call (o código espera a call terminar), movimento reduzido e monitor de alta taxa.
+
+## 12. Versão 0.6.0: fotos rápidas, áudio, pendências do PDF e desempenho
+
+| Teste | Resultado |
+|---|---|
+| `pnpm test` (shared 5 · web 7 · API 31: anexos com miniatura/borrão/onda, metadados e miniatura falsa rejeitados, chamar para a call só estando nela) | **43/43** |
+| `e2e/two-clients.mjs` | **17/17** |
+| `e2e/multi-stream.mjs` (inclui travadas da interface com 2 transmissões) | **8/8** |
+| `e2e/media.mjs` (foto grande e mensagem de voz entre dois navegadores) | **5/5** |
+| `e2e/mobile-pwa.mjs` (build de produção) | **10/10** |
+| `e2e/desktop-smoke.mjs` / `desktop-island.mjs` / `desktop-update.mjs` | **11/11** / **9/9** / **4/4** |
+
+**Foto** (o teste gera uma foto de 4000×3000):
+- original de 8,4 MB;
+- enviada com 1,7 MB;
+- quem recebe baixa uma miniatura de poucos KB e um borrão de cerca de 1 KB;
+- a original só é baixada ao abrir.
+
+**Mensagem de voz:** gravada com o microfone falso, chega com 64 barras de onda, duração de 2,8 s e toca para quem recebe.
+
+**Carregamento** (`e2e/perf-load.mjs`: build de produção, CPU 4× mais lenta, 4G de 4 Mbps com 120 ms):
+
+| | 0.5.0 | 0.6.0 |
+|---|---|---|
+| JavaScript para abrir o app | 1.347 KB | **740 KB (−45%)** |
+| Login até o app | ~2,7 s | ~2,7 s |
+
+O tempo de login é dominado pela verificação da senha com Argon2id (lenta de propósito) e pelos dados iniciais, não pelo código. A biblioteca de voz agora é baixada só depois que o app abre (em segundo plano) ou ao entrar numa call.
+
+**Fluidez:** com 3 pessoas e 2 transmissões, nenhuma tarefa travou a interface por mais de 50 ms em 4 s. O FPS medido aqui (≈10–20) é limitado por esta máquina, que não tem placa de vídeo e roda 3 navegadores codificando vídeo; até a tela só de voz fica em 20 FPS. Esse número não vale para um PC real.
+
+**Não testado aqui:**
+- iPhone real (teclado, gravação de áudio no Safari);
+- Android real;
+- codificação por GPU no Windows.

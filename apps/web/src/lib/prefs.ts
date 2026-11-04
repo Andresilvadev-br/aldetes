@@ -28,6 +28,8 @@ export interface Prefs {
   shareGame: boolean;
   /** explicit opt-in for automatic detection (games/music). Off until the person turns it on. */
   activityConsent: boolean;
+  /** screen share: also send a light version for weak connections */
+  streamLite: boolean;
   /** pause all rich presence without losing the choices above */
   presencePaused: boolean;
   /** games the person never wants shown */
@@ -74,6 +76,7 @@ const defaults: Prefs = {
   islandHover: true,
   shareGame: true,
   activityConsent: false,
+  streamLite: false,
   presencePaused: false,
   ignoredGames: [],
   reactionsEnabled: true,

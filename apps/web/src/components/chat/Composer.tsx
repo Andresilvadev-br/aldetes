@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
+import { AnimatePresence } from 'motion/react';
+import { useVoiceRecorder, RecordingBar, SendOrMic } from './VoiceRecorder';
 import { Permissions, hasPermission, type Message } from '@aldetes/shared';
 import { useStore, useStoreShallow, get, channelPermissions, displayName } from '@/store';
 import { sendMessage } from '@/lib/actions';
@@ -142,6 +144,16 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
     setFiles((f) => [...f, ...arr].slice(0, 10));
   }
 
+  const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+  const recorder = useVoiceRecorder((clip) => {
+    const reply = replyTo;
+    onClearReply();
+    setProgress(0);
+    sendMessage(channelId, '', { replyTo: reply, files: [clip.file], voice: { durationMs: clip.durationMs, waveform: clip.waveform }, onProgress: setProgress })
+      .catch(toastError)
+      .finally(() => setProgress(null));
+  });
+
   async function submit() {
     const content = encodeMentions(text.trim(), channel.serverId, channelId);
     if (!content && !files.length) return;
@@ -164,7 +176,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
   const placeholder = channel.serverId ? `Conversar em #${channel.name}` : `Conversar com ${dmName(channel)}`;
 
   return (
-    <div className="relative shrink-0 px-4 pb-6 pt-1">
+    <div data-composer className="relative shrink-0 px-2 pb-6 pt-1 sm:px-4">
       {suggestions.length > 0 && (
         <div className="absolute bottom-full left-4 right-4 mb-2 max-h-72 animate-pop overflow-y-auto rounded-2xl border border-line/[0.08] bg-bg-float p-1.5 shadow-float">
           {suggestions.map((s, i) => (
@@ -215,7 +227,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
       )}
       <div
         className={clsx(
-          'flex items-start gap-2 border border-line/[0.08] bg-bg-input/80 px-4 transition-[border-color,box-shadow] duration-200 focus-within:border-brand/45 focus-within:shadow-[0_0_0_4px_rgb(var(--brand)/0.1)]',
+          'flex items-end gap-2 border border-line/[0.08] bg-bg-input/80 py-1 pl-3 pr-1.5 transition-[border-color,box-shadow] duration-200 focus-within:border-brand/45 focus-within:shadow-[0_0_0_4px_rgb(var(--brand)/0.1)] sm:pl-4',
           replyTo || files.length ? 'rounded-b-2xl' : 'rounded-2xl',
         )}
         onDragOver={(e) => e.preventDefault()}
@@ -224,14 +236,18 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
           if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         }}
       >
-        {canAttach && (
-          <button className="mt-2 flex h-7 w-7 items-center justify-center rounded-lg bg-line/[0.07] text-fg-muted transition-[transform,color,background-color] hover:bg-brand/20 hover:text-brand active:scale-90" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
+        {canAttach && recorder.phase === 'idle' && (
+          <button className="mb-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-line/[0.07] text-fg-muted transition-[transform,color,background-color] hover:bg-brand/20 hover:text-brand active:scale-90" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
             <Icon name="plus" size={17} strokeWidth={2.5} />
           </button>
         )}
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+        <AnimatePresence mode="popLayout" initial={false}>
+          {recorder.phase !== 'idle' && <RecordingBar key="rec" r={recorder} />}
+        </AnimatePresence>
         <textarea
           ref={ta}
+          hidden={recorder.phase !== 'idle'}
           aria-label={placeholder}
           className="scroll-thin max-h-[50vh] min-h-[44px] flex-1 resize-none bg-transparent py-[11px] text-fg-strong outline-none placeholder:text-fg-faint"
           placeholder={placeholder}
@@ -270,15 +286,17 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
                 return applySuggestion(suggestions[sel]!);
               }
             }
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // phones: Enter makes a new line and the send button sends (like WhatsApp)
+            if (e.key === 'Enter' && !e.shiftKey && !coarse) {
               e.preventDefault();
               void submit();
             }
             if (e.key === 'Escape' && replyTo) onClearReply();
           }}
         />
+        {recorder.phase === 'idle' && (
         <button
-          className="mt-2.5 text-fg-muted hover:text-fg-strong"
+          className="mb-2.5 shrink-0 text-fg-muted hover:text-fg-strong"
           title="Emoji"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
@@ -287,6 +305,8 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         >
           <Icon name="smile" size={22} />
         </button>
+        )}
+        <SendOrMic canSend={!!text.trim() || files.length > 0} onSend={() => void submit()} recorder={recorder} canRecord={canAttach} />
       </div>
       <div className="absolute bottom-1 left-4 h-5 text-xs text-fg-muted">
         {typingUsers.length > 0 && (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { Permissions, hasPermission } from '@aldetes/shared';
-import { useStore, get, displayName, serverPermissions } from '@/store';
+import { useStore, useStoreShallow, get, displayName, serverPermissions } from '@/store';
 import { Avatar, STATUS_LABEL } from './Avatar';
 import { Popover, useContextMenu, confirmDialog, toastError, toast, Modal, type MenuItem } from './overlay';
 import { api, upload } from '@/lib/api';
@@ -11,7 +11,7 @@ import { elapsed } from '@/lib/activity';
 import { ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
 import { Icon } from './Icon';
 import { openDm } from '@/lib/actions';
-import { setLocalMute, setUserVolume, joinVoice } from '@/lib/voice';
+import { setLocalMute, setUserVolume, joinVoice, useVoice } from '@/lib/voice';
 import { usePrefs } from '@/lib/prefs';
 
 export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string; serverId?: string | null; x: number; y: number; onClose: () => void }) {
@@ -42,6 +42,34 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
       onClose();
       nav(`/channels/@me/${await openDm(userId)}`);
     } catch (e) {
+      toastError(e);
+    }
+  };
+  // Real call state: where they are, and whether I'm in a server voice channel they could join
+  const theirRaw = useStoreShallow((s) => {
+    const v = s.voiceStates[userId];
+    const ch = v ? s.channels[v.channelId] : undefined;
+    return { id: ch?.serverId ? ch.id : null, name: ch?.name ?? '', serverId: ch?.serverId ?? null };
+  });
+  const theirCall = theirRaw.id && theirRaw.serverId ? { id: theirRaw.id, name: theirRaw.name, serverId: theirRaw.serverId } : null;
+  const myCallId = useVoice((v) => (v.state === 'connected' ? v.channelId : null));
+  const myCall = useStore((s) => (myCallId && s.channels[myCallId]?.serverId ? s.channels[myCallId] : null));
+  const [inviting, setInviting] = useState<'idle' | 'busy' | 'done'>('idle');
+  const joinTheirs = () => {
+    if (!theirCall) return;
+    onClose();
+    nav(`/channels/${theirCall.serverId}/${theirCall.id}`);
+    void joinVoice(theirCall.id);
+  };
+  const inviteToMine = async () => {
+    if (!myCall) return;
+    setInviting('busy');
+    try {
+      await api('POST', `/voice/${myCall.id}/invite`, { userId });
+      setInviting('done');
+      toast(`Chamando para ${myCall.name}…`, 'success');
+    } catch (e) {
+      setInviting('idle');
       toastError(e);
     }
   };
@@ -129,6 +157,17 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
                 )}
               </div>
             )}
+
+            {/* contextual call actions (only real ones: based on the live voice state) */}
+            {!isMe && (theirCall && theirCall.id !== myCallId ? (
+              <button className="btn mt-2 w-full bg-ok/15 text-ok hover:bg-ok/25" onClick={joinTheirs}>
+                <Icon name="speaker" size={16} /> Entrar na call · {theirCall.name}
+              </button>
+            ) : myCall && theirCall?.id !== myCall.id ? (
+              <button className="btn-secondary mt-2 w-full" disabled={inviting !== 'idle'} onClick={() => void inviteToMine()}>
+                <Icon name="phone" size={16} /> {inviting === 'done' ? 'Chamado!' : inviting === 'busy' ? 'Chamando…' : `Chamar para ${myCall.name}`}
+              </button>
+            ) : null)}
 
             {/* activity */}
             {act && (

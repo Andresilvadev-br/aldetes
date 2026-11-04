@@ -28,6 +28,7 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
   const [hint, setHint] = useState<Hint>('motion');
   const aNote = audioNote();
   const [audio, setAudio] = useState(aNote.ok);
+  const [lite, setLite] = useState(() => usePrefs.getState().streamLite);
   const [sources, setSources] = useState<DesktopSource[] | null>(null);
   const [tab, setTab] = useState<'screen' | 'window'>('screen');
   const [selected, setSelected] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
 
   const go = async () => {
     setBusy(true);
-    await startScreenShare({ quality, audio: audio && aNote.ok, desktopSourceId: selected ?? undefined, contentHint: hint });
+    await startScreenShare({ quality, audio: audio && aNote.ok, desktopSourceId: selected ?? undefined, contentHint: hint, lite });
     setBusy(false);
     onClose();
   };
@@ -188,6 +189,18 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
               {res === '1440p' && ' 1440p só faz diferença se o seu monitor for 2K ou maior.'}
             </p>
           </Section>
+
+          {/* light version for weak connections (optional: costs some extra encoding) */}
+          <div className="mb-3 flex items-center gap-4 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-4">
+            <span className="tile h-11 w-11 bg-sky-400/15 text-sky-400">
+              <Icon name="signal" size={19} />
+            </span>
+            <div className="flex-1">
+              <div className="font-bold text-fg-strong">Versão leve para internet fraca</div>
+              <div className="text-sm text-fg-muted">Quem tiver conexão ruim recebe em resolução menor, no mesmo FPS. Usa um pouco mais do seu PC. Deixe desligado se todos têm boa internet.</div>
+            </div>
+            <Switch checked={lite} onChange={setLite} />
+          </div>
 
           {/* 4. audio */}
           <div className={clsx('mb-5 flex items-center gap-4 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-4', !aNote.ok && 'opacity-60')}>

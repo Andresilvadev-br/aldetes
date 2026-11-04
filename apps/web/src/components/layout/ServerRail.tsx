@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission } from '@aldetes/shared';
@@ -11,7 +11,7 @@ import { Tooltip, useContextMenu, confirmDialog, toastError } from '../common/ov
 import { Avatar } from '../common/Avatar';
 import { CreateServerModal } from '../modals/CreateServerModal';
 import { InviteModal } from '../modals/InviteModal';
-import { ServerSettings } from '../settings/ServerSettings';
+const ServerSettings = lazy(() => import('../settings/ServerSettings').then((m) => ({ default: m.ServerSettings })));
 import { api } from '@/lib/api';
 import { ackChannel } from '@/lib/actions';
 
