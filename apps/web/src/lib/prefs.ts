@@ -26,6 +26,18 @@ export interface Prefs {
   islandWidth: number;
   islandHover: boolean;
   shareGame: boolean;
+  /** explicit opt-in for automatic detection (games/music). Off until the person turns it on. */
+  activityConsent: boolean;
+  /** pause all rich presence without losing the choices above */
+  presencePaused: boolean;
+  /** games the person never wants shown */
+  ignoredGames: string[];
+  /** live reactions in calls */
+  reactionsEnabled: boolean;
+  /** keep showing reactions over a stream in focus/full screen */
+  reactionsOverStreams: boolean;
+  /** last release whose "what's new" this device already showed, per user id */
+  seenRelease: Record<string, string>;
   shareMusic: boolean;
   /** null = default spot (top center). Otherwise capsule center-x and top as fractions of the window. */
   islandPos: { fx: number; fy: number } | null;
@@ -61,6 +73,12 @@ const defaults: Prefs = {
   islandWidth: 420,
   islandHover: true,
   shareGame: true,
+  activityConsent: false,
+  presencePaused: false,
+  ignoredGames: [],
+  reactionsEnabled: true,
+  reactionsOverStreams: true,
+  seenRelease: {},
   shareMusic: true,
   islandPos: null,
   desktopNotifications: true,
@@ -82,6 +100,14 @@ const defaults: Prefs = {
 };
 
 const KEY = 'aldetes.prefs';
+/** Whether this device already had Aldetes preferences before this load (→ it's an update, not a first install). */
+export const HAD_PREFS = (() => {
+  try {
+    return localStorage.getItem(KEY) !== null;
+  } catch {
+    return false;
+  }
+})();
 function load(): Prefs {
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };

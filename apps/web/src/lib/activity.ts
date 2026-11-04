@@ -14,7 +14,9 @@ let lastSent = '';
 
 function compute(): Activity | null {
   const p = getPrefs();
-  if (p.shareGame && game) return { type: 'playing', name: game.name, startedAt: game.startedAt };
+  // Nothing leaves this device without explicit consent, and "pause" hides everything at once.
+  if (!p.activityConsent || p.presencePaused) return null;
+  if (p.shareGame && game && !p.ignoredGames.includes(game.name)) return { type: 'playing', name: game.name, startedAt: game.startedAt };
   const np = useMedia.getState().np;
   if (p.shareMusic && np?.playing && np.title) {
     const key = `${np.title}|${np.artist}`;
@@ -47,9 +49,20 @@ export function installActivity() {
     });
   }
   useMedia.subscribe(() => send());
-  usePrefs.subscribe(() => send());
+  // The desktop only scans the process list after consent (and stops when it is withdrawn).
+  const syncDetector = () => desktop?.setGameDetection?.(getPrefs().activityConsent && getPrefs().shareGame && !getPrefs().presencePaused);
+  syncDetector();
+  usePrefs.subscribe(() => {
+    syncDetector();
+    send();
+  });
   onGateway('ready', () => setTimeout(() => send(true), 500));
   setInterval(() => lastSent !== 'null' && send(true), 5 * 60_000);
+}
+
+/** What the current game is called (for the "ignore this game" control). */
+export function currentGame() {
+  return game;
 }
 
 export function activityLine(a: Activity | null | undefined): string | null {

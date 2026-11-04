@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useStore, channelPermissions } from '@/store';
 import { Icon } from '../common/Icon';
 import { Modal, toastError } from '../common/overlay';
+import { MobileBack } from '../layout/MobileBack';
 import { onGateway } from '@/lib/gateway';
 
 type Post = Channel & { messageCount: number; archived: boolean };
@@ -22,7 +23,8 @@ export function ForumView({ channelId }: { channelId: string }) {
   }, [channelId]);
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-3 sm:px-5">
+        <MobileBack />
         <span className="tile h-8 w-8 bg-brand/15 text-brand"><Icon name="forum" size={17} /></span>
         <h1 className="text-[15px] font-extrabold tracking-tight text-fg-strong">{channel.name}</h1>
         {channel.topic && <p className="ml-2 truncate text-sm text-fg-muted">{channel.topic}</p>}

@@ -90,6 +90,8 @@ export function LiveIsland() {
   const streamers = useStoreShallow((st) => (myChannel ? Object.values(st.voiceStates).filter((x) => x.channelId === myChannel && x.streaming && x.userId !== st.me?.id).map((x) => x.userId) : []));
   const prevStreamers = useRef<string[]>([]);
   useEffect(() => {
+    for (const id of prevStreamers.current)
+      if (!streamers.includes(id) && useVoice.getState().channelId === myChannel) pushIsland({ kind: 'info', title: `${displayName(id)} parou de transmitir`, userId: id, ttl: 1800, key: `unlive:${id}`, cooldown: 8000 });
     for (const id of streamers) {
       if (!prevStreamers.current.includes(id))
         pushIsland({ kind: 'info', title: `${displayName(id)} está ao vivo`, body: 'Começou a transmitir a tela', userId: id, channelId: myChannel ?? undefined, ttl: 7000, action: 'Assistir', watch: id, key: `live:${id}`, cooldown: 20000 });
@@ -97,6 +99,20 @@ export function LiveIsland() {
     prevStreamers.current = streamers;
   }, [streamers, myChannel]);
 
+  // Brief events (≈1.8 s): someone joins/leaves my call, someone stops streaming
+  const members = useStoreShallow((st) => (myChannel ? Object.values(st.voiceStates).filter((x) => x.channelId === myChannel && x.userId !== st.me?.id).map((x) => x.userId) : []));
+  const prevMembers = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (!myChannel || v.state !== 'connected') {
+      prevMembers.current = null;
+      return;
+    }
+    if (prevMembers.current) {
+      for (const id of members) if (!prevMembers.current.includes(id)) pushIsland({ kind: 'info', title: `${displayName(id)} entrou na call`, userId: id, ttl: 1800, key: `join:${id}`, cooldown: 8000 });
+      for (const id of prevMembers.current) if (!members.includes(id)) pushIsland({ kind: 'info', title: `${displayName(id)} saiu da call`, userId: id, ttl: 1800, key: `leave:${id}`, cooldown: 8000 });
+    }
+    prevMembers.current = members;
+  }, [members, myChannel, v.state]);
   // Ring sound loop while a ring is showing; stop if the caller leaves
   const ring = events.find((e) => e.kind === 'ring');
   const callerHere = useStore((s) => (ring ? s.voiceStates[ring.userId!]?.channelId === ring.channelId : false));
@@ -151,12 +167,13 @@ export function LiveIsland() {
   }, [expanded]);
 
   type Mode = 'ring' | 'event' | 'expanded' | 'split' | 'call' | 'music' | 'upload' | 'reconnect' | 'idle';
+  // An open (expanded) island keeps its controls: brief events wait instead of covering them.
   const mode: Mode = ring
     ? 'ring'
-    : event
-      ? 'event'
-      : expanded
-        ? 'expanded'
+    : expanded
+      ? 'expanded'
+      : event
+        ? 'event'
         : connection !== 'connected'
           ? 'reconnect'
           : inCall && (v.screen || np)
@@ -383,9 +400,26 @@ function CallCompact({ onClick }: { onClick: () => void }) {
       <span className="max-w-[150px] truncate text-[13px] font-semibold">{name}</span>
       <SpeakingStack ids={participants} />
       <span className="flex-1" />
+      <ReactionChip />
       {(v.selfMute || v.selfDeaf) && <Icon name="micOff" size={14} className="text-danger" />}
       <span className="text-[12px] font-semibold tabular-nums text-white/60">{ok && v.connectedAt ? fmt(now - v.connectedAt) : v.state === 'connecting' ? 'conectando' : 'reconectando'}</span>
     </Row>
+  );
+}
+
+/** At most one reaction indicator at a time; repeated ones are grouped (×3). */
+function ReactionChip() {
+  const list = useVoice((v) => v.reactions);
+  const last = list[list.length - 1];
+  if (!last) return null;
+  const same = list.filter((r) => r.emoji === last.emoji).length;
+  return (
+    <AnimatePresence mode="popLayout">
+      <motion.span key={`${last.emoji}${same}`} initial={{ scale: 0.3, opacity: 0, y: 4 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.6, opacity: 0 }} transition={spring.snappy} className="flex items-center text-[15px] leading-none" aria-label={`Reação ${last.emoji}`}>
+        {last.emoji}
+        {same > 1 && <span className="ml-0.5 text-[10px] font-bold text-white/70">×{same}</span>}
+      </motion.span>
+    </AnimatePresence>
   );
 }
 
@@ -432,7 +466,7 @@ function UploadCompact({ label, progress }: { label: string; progress: number })
 
 /* ------------------------------------------------------------------ expanded */
 
-function CtrlBtn({ icon, label, active, danger, onClick, disabled }: { icon: Parameters<typeof Icon>[0]['name']; label: string; active?: boolean; danger?: boolean; onClick: () => void; disabled?: boolean }) {
+function CtrlBtn({ icon, label, active, danger, onClick, disabled, pending }: { icon: Parameters<typeof Icon>[0]['name']; label: string; active?: boolean; danger?: boolean; onClick: () => void; disabled?: boolean; pending?: boolean }) {
   return (
     <motion.button
       whileTap={{ scale: 0.88 }}
@@ -442,11 +476,37 @@ function CtrlBtn({ icon, label, active, danger, onClick, disabled }: { icon: Par
       title={label}
       aria-label={label}
       className={clsx(
-        'flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-40',
+        'relative flex h-11 w-11 items-center justify-center rounded-full transition-colors disabled:opacity-40',
         danger ? 'bg-danger text-white hover:bg-danger/85' : active ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20',
       )}
+      aria-busy={pending || undefined}
     >
+      {pending && <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-current" style={{ animation: 'cz-spin 0.7s linear infinite' }} />}
       <Icon name={icon} size={19} />
+    </motion.button>
+  );
+}
+
+/** "Sair" needs a deliberate second tap (protects against accidental clicks). */
+export function LeaveBtn({ onLeave }: { onLeave: () => void }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 2500);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <motion.button
+      layout
+      whileTap={{ scale: 0.9 }}
+      transition={spring.snappy}
+      onClick={() => (armed ? onLeave() : setArmed(true))}
+      aria-label={armed ? 'Confirmar: sair da call' : 'Sair da call'}
+      title={armed ? 'Clique de novo para sair' : 'Sair da call'}
+      className={clsx('flex h-11 items-center justify-center gap-1.5 rounded-full bg-danger text-white hover:bg-danger/85', armed ? 'px-4 shadow-[0_0_24px_rgb(var(--danger)/0.7)]' : 'w-11')}
+    >
+      <Icon name="hangup" size={19} />
+      {armed && <span className="whitespace-nowrap text-[12px] font-bold">Sair?</span>}
     </motion.button>
   );
 }
@@ -502,11 +562,12 @@ function CallExpanded({ onShare }: { onShare: () => void }) {
         </div>
       )}
       <div className="mt-4 flex items-center justify-center gap-2.5">
-        <CtrlBtn icon={v.selfMute || v.selfDeaf ? 'micOff' : 'mic'} label="Microfone" active={v.selfMute || v.selfDeaf} onClick={() => void toggleMute()} />
+        <CtrlBtn icon={v.selfMute || v.selfDeaf ? 'micOff' : 'mic'} label="Microfone" active={v.selfMute || v.selfDeaf} pending={v.pending.mic} onClick={() => void toggleMute()} />
         <CtrlBtn icon={v.selfDeaf ? 'headphonesOff' : 'headphones'} label="Fones" active={v.selfDeaf} onClick={() => void toggleDeaf()} />
-        <CtrlBtn icon={v.camera ? 'camera' : 'cameraOff'} label="Câmera" active={v.camera} disabled={!v.canVideo} onClick={() => void toggleCamera()} />
+        <CtrlBtn icon={v.camera ? 'camera' : 'cameraOff'} label="Câmera" active={v.camera} disabled={!v.canVideo || v.pending.cam} pending={v.pending.cam} onClick={() => void toggleCamera()} />
         <CtrlBtn icon={v.screen ? 'screenOff' : 'screen'} label="Tela" active={v.screen} disabled={!v.canVideo} onClick={() => (v.screen ? void stopScreenShare() : onShare())} />
-        <CtrlBtn icon="hangup" label="Desconectar" danger onClick={() => (setIslandExpanded(false), void leaveVoice())} />
+        <span className="w-1" />
+        <LeaveBtn onLeave={() => (setIslandExpanded(false), void leaveVoice())} />
       </div>
     </div>
   );

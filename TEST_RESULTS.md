@@ -147,3 +147,24 @@ Roda contra um servidor de atualização local (provedor "generic" do electron-u
 ```
 
 No modo de teste o app para logo antes de `quitAndInstall` (não substitui o executável em uso). **A instalação silenciosa e o reinício no Windows** só podem ser confirmados com duas versões reais publicadas no GitHub.
+
+## 11. Versão 0.5.0: especificação "Experiência Premium" V1.2
+
+| Teste | Resultado |
+|---|---|
+| `pnpm test` (shared 5 · web 7 · API 28) | **40/40** |
+| `e2e/two-clients.mjs` | **17/17** |
+| `e2e/multi-stream.mjs`: 3 navegadores na mesma call | **7/7** |
+| `e2e/mobile-pwa.mjs`: Pixel 7 emulado, build de produção | **10/10** |
+| `e2e/desktop-smoke.mjs` / `desktop-island.mjs` / `desktop-update.mjs` | **11/11** / **9/9** / **4/4** |
+
+Cenários da matriz da especificação cobertos por automação:
+- **B. Mutar:** pelo dock o estado chega aos outros; pela ilha flutuante, o app muta.
+- **D. Duas transmissões:** as duas chegam ao espectador. Trocar Foco/Grade e o destaque não reinicia nenhum vídeo (o mesmo elemento `<video>` continua tocando).
+- **G. Reação em grupo:** chega uma vez para cada pessoa, some sozinha, e 15 cliques rápidos viram 1.
+- **H. Saída:** sem bloco fantasma.
+- **Celular:** navegação em dois painéis, sem rolagem lateral; dock com botões de 44 px ou mais dentro da tela.
+- **PWA:** manifest com ícones, service worker ativo e app abrindo sem internet com aviso.
+- **Novidades:** aparecem uma vez após atualizar e não se repetem ao recarregar.
+
+Não automatizado: o adiamento das novidades durante a call (o código espera a call terminar), movimento reduzido e monitor de alta taxa.

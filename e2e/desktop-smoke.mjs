@@ -59,7 +59,7 @@ try {
   await page.locator('[role=button]', { hasText: /^Geral/ }).first().click({ position: { x: 60, y: 20 } });
   await page.getByText('Voz conectada').waitFor({ timeout: 20000 });
   check('Entra no canal de voz pelo desktop', true);
-  await page.getByRole('button', { name: /^Tela$/ }).click();
+  await page.getByRole('button', { name: /^Tela$/ }).first().click();
   await page.locator('[role=dialog] .grid button').first().waitFor();
   await page.locator('[role=dialog] .grid button').first().click();
   await page.waitForTimeout(700);

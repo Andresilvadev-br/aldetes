@@ -13,6 +13,7 @@ import { MiniMessage } from '@/components/chat/MiniMessage';
 import { joinVoice } from '@/lib/voice';
 import { activityLine } from '@/lib/activity';
 import { motion } from 'motion/react';
+import { MobileBack } from '../components/layout/MobileBack';
 import { spring, greeting } from '@/lib/motion';
 
 /** Home header: greeting, clock and live stats (all real data). */
@@ -94,7 +95,8 @@ export function FriendsPage() {
   return (
     <div className="flex h-full flex-col">
       <Greeting />
-      <header className="mx-6 flex shrink-0 flex-wrap items-center gap-1 rounded-xl border border-line/[0.07] bg-line/[0.03] p-1">
+      <header className="mx-3 flex shrink-0 flex-wrap items-center gap-1 rounded-xl border border-line/[0.07] bg-line/[0.03] p-1 sm:mx-6">
+        <MobileBack />
         {tabBtn('online', 'Disponível')}
         {tabBtn('all', 'Todos')}
         {tabBtn('pending', 'Pendente', pendingCount > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-bold text-white">{pendingCount}</span>)}

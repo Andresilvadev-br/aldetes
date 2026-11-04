@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { Icon } from '../common/Icon';
 import { ConnectionTest } from './ConnectionTest';
+import { openWhatsNew, runningVersion } from '../common/WhatsNew';
 import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
@@ -256,12 +257,60 @@ function PickTile({ active, label, tag, onClick, children }: { active: boolean; 
 
 function ActivityPrivacy() {
   const p = usePrefs();
+  const game = useGameNow();
+  const on = p.activityConsent;
   return (
     <>
-      <Toggle label="Mostrar o jogo que estou jogando" desc={desktop ? 'O app reconhece jogos abertos (VALORANT, LoL, CS2, Fortnite, Minecraft e outros) e mostra “Jogando…” no seu perfil.' : 'Disponível no app para computador.'} checked={p.shareGame} disabled={!desktop} onChange={(v) => setPrefs({ shareGame: v })} />
-      <Toggle label="Mostrar a música que estou ouvindo" desc={desktop ? 'Mostra “Ouvindo…” com a música tocando no PC (Spotify, YouTube no navegador e outros).' : 'Disponível no app para computador.'} checked={p.shareMusic} disabled={!desktop} onChange={(v) => setPrefs({ shareMusic: v })} />
+      <h3 className="mb-1 mt-8 font-semibold text-fg-strong">Atividade (presença inteligente)</h3>
+      <p className="mb-3 text-sm text-fg-muted">
+        Fica desligada até você permitir. O app só reconhece jogos de uma lista conhecida pelo nome do processo; nunca lê títulos de janelas, sites, documentos ou o que você digita.
+      </p>
+      <Toggle
+        label="Permitir mostrar minha atividade"
+        desc={desktop ? 'Libera a detecção automática no app para computador. Você escolhe abaixo o que aparece.' : 'A detecção automática só existe no app para computador.'}
+        checked={on}
+        disabled={!desktop}
+        onChange={(v) => setPrefs({ activityConsent: v, ...(v ? { presencePaused: false } : {}) })}
+      />
+      <div className={clsx('ml-4 border-l border-line/10 pl-4', !on && 'pointer-events-none opacity-45')}>
+        <Toggle label="Mostrar o jogo que estou jogando" desc="Ex.: “Jogando VALORANT” no perfil, na lista de membros e na call." checked={p.shareGame} disabled={!on} onChange={(v) => setPrefs({ shareGame: v })} />
+        <Toggle label="Mostrar a música que estou ouvindo" desc="“Ouvindo…” com a música tocando no PC (Spotify, YouTube no navegador e outros)." checked={p.shareMusic} disabled={!on} onChange={(v) => setPrefs({ shareMusic: v })} />
+        <Toggle label="Pausar toda a atividade" desc="Esconde tudo agora sem perder suas escolhas." checked={p.presencePaused} disabled={!on} onChange={(v) => setPrefs({ presencePaused: v })} />
+        {game && !p.ignoredGames.includes(game.name) && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-line/[0.07] bg-line/[0.03] p-3 text-sm">
+            <span className="flex-1 text-fg">
+              Detectado agora: <b className="text-fg-strong">{game.name}</b>
+            </span>
+            <button className="btn-secondary h-8 px-3 text-xs" onClick={() => setPrefs({ ignoredGames: [...p.ignoredGames, game.name] })}>
+              Nunca mostrar este jogo
+            </button>
+          </div>
+        )}
+        {p.ignoredGames.length > 0 && (
+          <div className="mb-4">
+            <div className="label">Jogos que nunca aparecem</div>
+            <div className="flex flex-wrap gap-2">
+              {p.ignoredGames.map((g) => (
+                <button key={g} className="flex items-center gap-1.5 rounded-full bg-line/[0.07] py-1 pl-3 pr-2 text-xs text-fg hover:bg-line/[0.12]" onClick={() => setPrefs({ ignoredGames: p.ignoredGames.filter((x) => x !== g) })} title="Voltar a mostrar">
+                  {g} <Icon name="x" size={12} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
+}
+
+function useGameNow() {
+  const [g, setG] = useState<{ name: string; startedAt: number } | null>(null);
+  useEffect(() => {
+    if (!desktop) return;
+    void desktop.getGame().then(setG);
+    return desktop.onGame(setG);
+  }, []);
+  return g;
 }
 
 function PrivacyTab() {
@@ -583,6 +632,11 @@ function VoiceTab() {
     <>
       <SettingsTitle>Voz e vídeo</SettingsTitle>
       <ConnectionTest />
+      <div className="mb-6">
+        <div className="label">Reações nas calls</div>
+        <Toggle label="Mostrar reações" desc="Corações, risadas, aplausos… que o pessoal manda durante a call (Alt+1…8). Sem som." checked={p.reactionsEnabled} onChange={(v) => setPrefs({ reactionsEnabled: v })} />
+        <Toggle label="Mostrar reações por cima das transmissões" desc="Aparecem discretas no canto do vídeo. Desligue para assistir sem nada na tela." checked={p.reactionsOverStreams} disabled={!p.reactionsEnabled} onChange={(v) => setPrefs({ reactionsOverStreams: v })} />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <div className="label">Dispositivo de entrada</div>
@@ -733,7 +787,7 @@ function AboutTab() {
       <SettingsTitle>Sobre o Aldetes</SettingsTitle>
       <p className="text-fg">Aldetes — plataforma de comunicação de código aberto e auto-hospedável.</p>
       <p className="mt-2 text-sm text-fg-muted">
-        Versão do cliente: {import.meta.env.VITE_APP_VERSION ?? '0.1.0'} {desktop ? `· Desktop ${desktop.version} (${desktop.platform})` : '· Web'}
+        Versão: {runningVersion()} {desktop ? `· Desktop ${desktop.version} (${desktop.platform})` : '· Web'}
       </p>
       {desktop && (
         <button
@@ -747,6 +801,14 @@ function AboutTab() {
         </button>
       )}
       {upd && <p className="mt-2 text-sm text-fg">{upd}</p>}
+      <div className="mt-6 flex gap-2">
+        <button className="btn-secondary" onClick={() => openWhatsNew(false)}>
+          Ver novidades
+        </button>
+        <button className="btn-ghost" onClick={() => openWhatsNew(true)}>
+          Histórico de versões
+        </button>
+      </div>
     </>
   );
 }

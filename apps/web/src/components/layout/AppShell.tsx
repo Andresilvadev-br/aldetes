@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useStore, get } from '@/store';
@@ -10,7 +11,9 @@ import { ChannelView } from '../chat/ChannelView';
 import { FriendsPage } from '@/pages/Friends';
 import { DiscoverPage } from '@/pages/Discover';
 import { onGateway } from '@/lib/gateway';
-import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice } from '@/lib/voice';
+import { useIsMobile, useMobilePane } from '@/lib/mobile';
+import { WhatsNew } from '../common/WhatsNew';
+import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice, sendReaction, REACTIONS } from '@/lib/voice';
 import { getPrefs, usePrefs } from '@/lib/prefs';
 import { playSound } from '@/lib/sounds';
 import { desktop } from '@/lib/desktop';
@@ -21,7 +24,7 @@ import { LiveIsland } from '../island/LiveIsland';
 import { useFloatingIslandSync } from '@/lib/islandSync';
 import { useUi, closeSettings } from '@/lib/ui';
 import { UserSettings } from '../settings/UserSettings';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 export function AppShell() {
   useFloatingIslandSync();
@@ -47,6 +50,11 @@ export function AppShell() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         void toggleDeaf();
+      }
+      // Alt+1…8: live reactions while in a call (ignored while typing)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !typing && /^Digit[1-8]$/.test(e.code) && useVoice.getState().state === 'connected') {
+        e.preventDefault();
+        void sendReaction(REACTIONS[Number(e.code.slice(5)) - 1]!);
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -110,12 +118,14 @@ export function AppShell() {
     document.title = mentionTotal ? `(${mentionTotal}) Aldetes` : 'Aldetes';
   }, [mentionTotal]);
 
+  const mobile = useIsMobile();
+  const pane = useMobilePane((m) => m.pane);
   return (
-    <div className="flex h-full bg-bg-rail">
-      <ServerRail />
+    <div className="flex h-full bg-bg-rail pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+      {(!mobile || pane === 'nav') && <ServerRail />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setSwitcher(true)} />
-        <div className="flex min-h-0 flex-1 gap-2 pb-2 pr-2">
+        <div className={clsx('flex min-h-0 flex-1 gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]', mobile ? 'pr-2' : 'pr-2')}>
           <Routes>
             <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
             <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
@@ -125,6 +135,7 @@ export function AppShell() {
         </div>
       </div>
       <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
+      <WhatsNew />
       {settingsTab && <UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} />}
     </div>
   );
@@ -137,11 +148,12 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
     <div className="drag relative z-40 flex h-12 shrink-0 items-center gap-3 pr-2">
       <button
         onClick={onSearch}
-        className="no-drag flex h-8 w-64 items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 text-[13px] text-fg-faint transition-colors hover:border-line/15 hover:text-fg-muted"
+        aria-label="Buscar"
+        className="no-drag flex h-8 items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 text-[13px] text-fg-faint transition-colors hover:border-line/15 hover:text-fg-muted max-md:ml-2 max-md:w-9 max-md:justify-center max-md:px-0 md:w-64"
       >
         <Icon name="search" size={15} />
-        <span className="flex-1 text-left">Buscar ou ir para…</span>
-        <span className="kbd">Ctrl K</span>
+        <span className="flex-1 text-left max-md:hidden">Buscar ou ir para…</span>
+        <span className="kbd max-md:hidden">Ctrl K</span>
       </button>
       <div className="pointer-events-none absolute inset-x-0 top-1.5 flex justify-center">
         <div className="pointer-events-auto">
@@ -155,6 +167,24 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
 }
 
 function Sidebarred({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
+  const mobile = useIsMobile();
+  const pane = useMobilePane((m) => m.pane);
+  if (mobile)
+    return (
+      <AnimatePresence mode="popLayout" initial={false}>
+        {pane === 'nav' ? (
+          <motion.div key="nav" initial={{ x: -24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="panel min-h-0 flex-1 overflow-hidden">{sidebar}</div>
+            <VoicePanel />
+            <UserPanel />
+          </motion.div>
+        ) : (
+          <motion.main key="content" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 24, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="panel haze relative -mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-none border-x-0 bg-bg-main pl-0">
+            {children}
+          </motion.main>
+        )}
+      </AnimatePresence>
+    );
   return (
     <>
       <div className="flex w-[272px] shrink-0 flex-col gap-2">

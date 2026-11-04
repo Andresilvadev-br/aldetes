@@ -413,6 +413,17 @@ function registerIpc() {
   });
   ipcMain.handle('media:get', () => media.current());
   ipcMain.handle('game:get', () => games.get());
+  // Game detection runs only after the person opts in (Configurações → Privacidade).
+  let detecting = false;
+  ipcMain.on('game:detect', (e, on: unknown) => {
+    if (e.sender !== win?.webContents || (on === true) === detecting) return;
+    detecting = on === true;
+    if (detecting) games.start();
+    else {
+      games.stop();
+      games.clear();
+    }
+  });
   ipcMain.on('media:command', (_e, cmd: MediaCommand) => {
     if (['toggle', 'next', 'prev'].includes(cmd)) media.command(cmd);
   });
@@ -485,7 +496,6 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     createIslandWindow();
     media.start();
-    games.start();
     screen.on('display-metrics-changed', positionIsland);
     const ds = desktopSettings();
     applyAutoStart(ds.autoStart, ds.startHidden);

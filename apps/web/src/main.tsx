@@ -8,8 +8,12 @@ import { applyAppearance } from './lib/prefs';
 import { installCursorLight } from './lib/motion';
 import { installMediaBridge } from './lib/media';
 import { installActivity } from './lib/activity';
+import { installPwa } from './lib/pwa';
 
 applyAppearance();
+const syncHidden = () => (document.documentElement.dataset.hidden = String(document.hidden));
+document.addEventListener('visibilitychange', syncHidden);
+syncHidden();
 installCursorLight();
 
 // Test hook (dev builds only): lets automated E2E tests inspect the LiveKit room and store.
@@ -27,6 +31,7 @@ if (window.location.hash.startsWith('#/island-overlay')) {
 } else {
   installMediaBridge();
   installActivity();
+  installPwa();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <HashRouter>

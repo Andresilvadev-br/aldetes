@@ -17,6 +17,7 @@ import { usePrefs } from './lib/prefs';
 import { spring } from './lib/motion';
 import { Intro } from './components/common/Intro';
 import { UpdateCenter } from './components/common/UpdateCenter';
+import { PwaBanners } from './components/common/PwaBanners';
 import { useState } from 'react';
 
 export async function bootSession() {
@@ -83,6 +84,7 @@ export function App() {
       {intro && <Intro onDone={() => setIntro(false)} />}
       <Toasts />
       <UpdateCenter />
+      <PwaBanners />
       <ConfirmHost />
     </ContextMenuProvider>
     </MotionConfig>

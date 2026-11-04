@@ -18,6 +18,7 @@ import { UserPopoutTrigger } from '../common/UserPopout';
 import { ServerIcon } from './ServerRail';
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { spring } from '@/lib/motion';
+import { showContent } from '@/lib/mobile';
 
 export const channelIcon = (t: string): IconName =>
   t === 'voice' ? 'speaker' : t === 'announcement' ? 'megaphone' : t === 'forum' ? 'forum' : t === 'thread' ? 'thread' : 'hash';
@@ -272,6 +273,7 @@ function ChannelRow({
       if (voiceChannel !== channel.id) void joinVoice(channel.id);
     }
     nav(`/channels/${channel.serverId}/${channel.id}`);
+    showContent();
   };
 
   const onContextMenu = (e: React.MouseEvent) =>
@@ -468,6 +470,7 @@ function VoiceRoom({
     if (!mine) await joinVoice(channel.id);
     focusStream(userId);
     nav(`/channels/${serverId}/${channel.id}`);
+    showContent();
   };
 
   return (

@@ -7,6 +7,7 @@ import { spring } from '@/lib/motion';
 import { usePrefs, setPrefs } from '@/lib/prefs';
 import { Icon, Logo } from '@/components/common/Icon';
 import { MusicCompact, MusicPanel, ResizeGrip, Art, useTicker } from '@/components/island/parts';
+import { LeaveBtn } from '@/components/island/LiveIsland';
 
 const fmt = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -148,7 +149,8 @@ export function IslandOverlay() {
                       <div className="mt-4 flex items-center justify-center gap-2.5">
                         <Ctl icon={call.selfMute ? 'micOff' : 'mic'} label="Microfone" active={call.selfMute} onClick={() => cmd('mute')} />
                         <Ctl icon={call.selfDeaf ? 'headphonesOff' : 'headphones'} label="Fones" active={call.selfDeaf} onClick={() => cmd('deaf')} />
-                        <Ctl icon="hangup" label="Sair da call" danger onClick={() => cmd('leave')} />
+                        <span className="w-1" />
+                        <LeaveBtn onLeave={() => cmd('leave')} />
                       </div>
                     </>
                   )}

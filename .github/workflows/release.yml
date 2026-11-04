@@ -48,6 +48,7 @@ jobs:
         run: |
           if [ -n "$INPUT_VERSION" ]; then V="$INPUT_VERSION"; else V="${GITHUB_REF_NAME#v}"; fi
           npm pkg set version="$V"
+          echo "ALDETES_VERSION=$V" >> "$GITHUB_ENV"   # the bundled web UI shows the same version
           echo "Versão: $V"
       - name: Build web + main process
         working-directory: apps/desktop

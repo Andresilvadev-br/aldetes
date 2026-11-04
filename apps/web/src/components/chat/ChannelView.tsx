@@ -19,11 +19,16 @@ import { joinVoice, useVoice } from '@/lib/voice';
 import { Avatar } from '../common/Avatar';
 import { useNavigate } from 'react-router-dom';
 import type { Message } from '@aldetes/shared';
+import { MobileBack } from '../layout/MobileBack';
+import { useIsMobile } from '@/lib/mobile';
 import { loadServerEmojis } from './emojiData';
 
 export function ChannelView({ channelId }: { channelId: string }) {
   const channel = useStore((s) => s.channels[channelId]);
-  const [showMembers, setShowMembers] = useState(() => localStorage.getItem('aldetes.members') !== '0');
+  const [showMembersDesk, setShowMembers] = useState(() => localStorage.getItem('aldetes.members') !== '0');
+  const mobile = useIsMobile();
+  const [mobileMembers, setMobileMembers] = useState(false);
+  const showMembers = mobile ? mobileMembers : showMembersDesk;
   const [panel, setPanel] = useState<null | 'pins' | 'threads'>(null);
   const [search, setSearch] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -48,7 +53,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-5">
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-3 sm:px-5">
+        <MobileBack />
         {isDm ? (
           channel.type === 'dm' && other ? <Avatar userId={other.id} size={28} showStatus /> : <span className="tile grad h-8 w-8 text-white"><Icon name="users" size={16} /></span>
         ) : (
@@ -62,8 +68,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
             <Icon name="chevronRight" size={14} className="text-fg-faint" />
           </>
         )}
-        <h1 className="text-[15px] font-extrabold tracking-tight text-fg-strong">{isDm ? dmName(channel) : channel.name}</h1>
-        {channel.topic && (
+        <h1 className="min-w-0 truncate text-[15px] font-extrabold tracking-tight text-fg-strong">{isDm ? dmName(channel) : channel.name}</h1>
+        {channel.topic && !mobile && (
           <>
             <div className="mx-2 h-6 w-px bg-line/10" />
             <p className="truncate text-sm text-fg-muted" title={channel.topic}>
@@ -98,6 +104,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
               <button
                 className={`icon-btn ${showMembers ? 'text-fg-strong' : ''}`}
                 onClick={() => {
+                  if (mobile) return setMobileMembers(!mobileMembers);
                   localStorage.setItem('aldetes.members', showMembers ? '0' : '1');
                   setShowMembers(!showMembers);
                 }}
@@ -106,7 +113,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
               </button>
             </Tooltip>
           ) : null}
-          <SearchBox onSearch={(q) => setSearch(q)} />
+          {!mobile && <SearchBox onSearch={(q) => setSearch(q)} />}
         </div>
       </header>
       {isDm && (callActive || voiceChannel === channelId) && <CallStage channelId={channelId} />}
@@ -122,7 +129,17 @@ export function ChannelView({ channelId }: { channelId: string }) {
         {search !== null ? (
           <SearchPanel channel={channel} initial={search} onClose={() => setSearch(null)} />
         ) : (
-          showMembers && (!isDm || channel.type === 'group_dm') && <MemberList channel={channel} />
+          showMembers &&
+          (!isDm || channel.type === 'group_dm') &&
+          (mobile ? (
+            <div className="absolute inset-0 z-30 flex justify-end bg-black/60" onClick={() => setMobileMembers(false)}>
+              <div className="h-full w-[82%] max-w-[320px] bg-bg-side" onClick={(e) => e.stopPropagation()}>
+                <MemberList channel={channel} />
+              </div>
+            </div>
+          ) : (
+            <MemberList channel={channel} />
+          ))
         )}
         {panel === 'pins' && <PinsPopover channelId={channelId} onClose={() => setPanel(null)} />}
         {panel === 'threads' && <ThreadsPopover channelId={channelId} onClose={() => setPanel(null)} />}

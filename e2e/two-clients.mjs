@@ -158,7 +158,7 @@ try {
   await B.page.screenshot({ path: `${SHOTS}/05-video.png` });
 
   // screen share (Chromium fake display capture)
-  await A.page.getByRole('button', { name: /^Tela$/ }).click();
+  await A.page.getByRole('button', { name: /^Tela$/ }).first().click();
   await A.page.getByRole('button', { name: /Começar transmissão/ }).click();
   const screenOk = await B.page
     .waitForFunction(

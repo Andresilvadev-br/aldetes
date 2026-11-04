@@ -47,7 +47,22 @@ export interface VoiceStore {
   screenInfo: string | null;
   /** live encoder stats of our own stream (sampled every 2 s) */
   screenStats: StreamStats | null;
+  /** actions waiting for the real result (button shows loading; state confirmed only after it returns) */
+  pending: { mic: boolean; cam: boolean; screen: boolean };
+  /** stage layout when 2+ videos: one in focus + thumbnails, or a mosaic (kept for the session) */
+  stageLayout: 'focus' | 'grid';
+  /** live reactions currently on screen */
+  reactions: LiveReaction[];
 }
+
+export interface LiveReaction {
+  id: string;
+  from: string;
+  emoji: string;
+  at: number;
+}
+/** The 8 reactions (order = Alt+1…Alt+8). */
+export const REACTIONS = ['❤️', '😂', '👏', '😮', '🔥', '👍', '🎉', '💀'] as const;
 
 export interface StreamStats {
   width: number;
@@ -86,7 +101,30 @@ export const useVoice = create<VoiceStore>()(() => ({
   screenSince: null,
   screenInfo: null,
   screenStats: null,
+  pending: { mic: false, cam: false, screen: false },
+  stageLayout: (() => {
+    try {
+      return sessionStorage.getItem('aldetes.stageLayout') === 'grid' ? 'grid' : 'focus';
+    } catch {
+      return 'focus';
+    }
+  })(),
+  reactions: [],
 }));
+export function setStageLayout(l: 'focus' | 'grid') {
+  vset({ stageLayout: l });
+  try {
+    sessionStorage.setItem('aldetes.stageLayout', l);
+  } catch {
+    /* ignore */
+  }
+}
+const setPending = (k: keyof VoiceStore['pending'], v: boolean) => vset((s) => ({ pending: { ...s.pending, [k]: v } }));
+/** Participant by identity (local included) — used by live avatars to read the real audio level. */
+export function getParticipant(identity: string): Participant | undefined {
+  if (!room) return undefined;
+  return room.localParticipant.identity === identity ? room.localParticipant : room.remoteParticipants.get(identity);
+}
 const vset = useVoice.setState;
 const vget = useVoice.getState;
 const bump = () => vset((s) => ({ version: s.version + 1 }));
@@ -199,6 +237,9 @@ function attachRoomEvents(r: Room) {
       }
       bump();
     })
+    .on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+      if (topic === 'reaction' && participant) onReactionData(payload, participant.identity);
+    })
     .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       vset({ speaking: Object.fromEntries(speakers.map((s) => [s.identity, true])) });
     })
@@ -246,7 +287,8 @@ function cleanupRoom() {
   room?.removeAllListeners();
   room = null;
   stopStreamStats();
-  vset({ speaking: {}, quality: {}, camera: false, screen: false, focused: null, pingMs: null, screenSince: null });
+  seenReactions.clear();
+  vset({ speaking: {}, quality: {}, camera: false, screen: false, focused: null, pingMs: null, screenSince: null, reactions: [], pending: { mic: false, cam: false, screen: false } });
   bump();
 }
 
@@ -344,7 +386,12 @@ export async function toggleMute() {
     for (const p of room?.remoteParticipants.values() ?? []) applyRemoteAudio(p);
   } else vset({ selfMute: !s.selfMute });
   playSound(vget().selfMute ? 'mute' : 'unmute');
-  await syncMic();
+  setPending('mic', true);
+  try {
+    await syncMic();
+  } finally {
+    setPending('mic', false);
+  }
   publishSelfState();
 }
 
@@ -382,6 +429,8 @@ export async function onVoiceModeChanged() {
 export async function toggleCamera() {
   if (!room) return;
   const on = !vget().camera;
+  if (vget().pending.cam) return;
+  setPending('cam', true);
   try {
     const p = getPrefs();
     await room.localParticipant.setCameraEnabled(on, {
@@ -393,6 +442,8 @@ export async function toggleCamera() {
     const name = (err as Error)?.name;
     toast(name === 'NotAllowedError' ? 'Permissão de câmera negada.' : name === 'NotFoundError' ? 'Nenhuma câmera encontrada.' : `Falha na câmera: ${(err as Error).message}`, 'error');
     vset({ camera: false });
+  } finally {
+    setPending('cam', false);
   }
   publishSelfState();
 }
@@ -622,4 +673,54 @@ export function setStreamVolume(identity: string, v: number) {
 export function focusStream(identity: string) {
   setWatching(identity, true);
   vset({ focused: `${identity}:${Track.Source.ScreenShare}` });
+}
+
+// ---------- live reactions (ephemeral, synced through the LiveKit data channel) ----------
+const REACTION_TTL = 2400;
+const seenReactions = new Map<string, number>(); // id → time (dedupe, also across reconnects)
+const recvLog = new Map<string, number[]>(); // per-sender timestamps (abuse limit on the receiving side)
+let sendLog: number[] = [];
+
+function showReaction(r: LiveReaction) {
+  vset((s) => ({ reactions: [...s.reactions.slice(-11), r] }));
+  setTimeout(() => vset((s) => ({ reactions: s.reactions.filter((x) => x.id !== r.id) })), REACTION_TTL);
+}
+
+function onReactionData(payload: Uint8Array, from: string) {
+  try {
+    const msg = JSON.parse(new TextDecoder().decode(payload)) as { id?: unknown; e?: unknown };
+    const id = typeof msg.id === 'string' ? msg.id.slice(0, 40) : null;
+    const emoji = typeof msg.e === 'string' ? msg.e : null;
+    if (!id || !emoji || !(REACTIONS as readonly string[]).includes(emoji)) return;
+    const now = Date.now();
+    if (seenReactions.has(id)) return;
+    seenReactions.set(id, now);
+    if (seenReactions.size > 300) for (const [k, t] of seenReactions) if (now - t > 60_000) seenReactions.delete(k);
+    const log = (recvLog.get(from) ?? []).filter((t) => now - t < 3000);
+    if (log.length >= 6) return; // someone spamming: drop
+    log.push(now);
+    recvLog.set(from, log);
+    if (!getPrefs().reactionsEnabled) return;
+    showReaction({ id, from, emoji, at: now });
+  } catch {
+    /* malformed: ignore */
+  }
+}
+
+/** Send a reaction to everyone in the call. Returns false when the cooldown blocks it. */
+export async function sendReaction(emoji: string): Promise<boolean> {
+  if (!room || room.state !== ConnectionState.Connected || !(REACTIONS as readonly string[]).includes(emoji)) return false;
+  const now = Date.now();
+  sendLog = sendLog.filter((t) => now - t < 4000);
+  if (sendLog.length >= 5 || (sendLog.length && now - sendLog[sendLog.length - 1]! < 350)) return false;
+  sendLog.push(now);
+  const id = `${room.localParticipant.identity}-${now.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  seenReactions.set(id, now);
+  showReaction({ id, from: room.localParticipant.identity, emoji, at: now });
+  try {
+    await room.localParticipant.publishData(new TextEncoder().encode(JSON.stringify({ id, e: emoji })), { reliable: true, topic: 'reaction' });
+  } catch {
+    /* the local one already showed; others just miss it */
+  }
+  return true;
 }

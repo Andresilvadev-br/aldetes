@@ -86,6 +86,8 @@ export interface DesktopBridge {
   getDesktopSettings(): Promise<DesktopSettings>;
   getMedia(): Promise<NowPlaying | null>;
   getGame(): Promise<{ name: string; startedAt: number } | null>;
+  /** start/stop scanning for games (only with the person's consent) — optional on older app versions */
+  setGameDetection?(on: boolean): void;
   onGame(cb: (g: { name: string; startedAt: number } | null) => void): () => void;
   mediaCommand(cmd: 'toggle' | 'next' | 'prev'): void;
   onMedia(cb: (np: NowPlaying | null) => void): () => void;

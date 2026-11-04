@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Permissions, hasPermission, computePermissions, type Channel, type Role } from '@aldetes/shared';
-import { useStore, displayName, memberColor } from '@/store';
+import { useStore, displayName, memberColor, useStoreShallow } from '@/store';
 import { Avatar } from '../common/Avatar';
 import { UserPopoutTrigger } from '../common/UserPopout';
 import { Icon } from '../common/Icon';
@@ -63,7 +63,7 @@ export function MemberList({ channel }: { channel: Channel }) {
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => parent.current, estimateSize: (i) => (rows[i]!.kind === 'header' ? 40 : 44), overscan: 12 });
 
   return (
-    <aside ref={parent} className="scroll-thin w-64 shrink-0 overflow-y-auto border-l border-line/[0.06] bg-line/[0.015] px-2" aria-label="Membros">
+    <aside ref={parent} className="scroll-thin h-full w-full shrink-0 overflow-y-auto md:w-64 border-l border-line/[0.06] bg-line/[0.015] px-2" aria-label="Membros">
       <div style={{ height: v.getTotalSize(), position: 'relative' }}>
         {v.getVirtualItems().map((vi) => {
           const r = rows[vi.index]!;
@@ -87,6 +87,13 @@ export function MemberList({ channel }: { channel: Channel }) {
 
 function MemberRow({ userId, serverId, offline, ownerId }: { userId: string; serverId: string | null; offline: boolean; ownerId?: string }) {
   const presence = useStore((s) => s.presences[userId]);
+  // "Em call / transmitindo" comes from state Aldetes already has (no scanning)
+  const voiceRaw = useStoreShallow((s) => {
+    const v = s.voiceStates[userId];
+    const ch = v ? s.channels[v.channelId] : undefined;
+    return { inCall: !!v, streaming: !!v?.streaming, where: ch?.serverId === serverId ? (ch?.name ?? null) : null };
+  });
+  const voice = voiceRaw.inCall ? voiceRaw : null;
   const color = useStore(() => memberColor(serverId, userId));
   const name = useStore(() => displayName(userId, serverId));
   const timedOut = useStore((s) => {
@@ -109,6 +116,11 @@ function MemberRow({ userId, serverId, offline, ownerId }: { userId: string; ser
             <div className="flex items-center gap-1 truncate text-xs text-fg-muted">
               <Icon name={presence.activity.type === 'playing' ? 'signal' : 'volume'} size={11} className={presence.activity.type === 'playing' ? 'shrink-0 text-brand' : 'shrink-0 text-ok'} />
               <span className="truncate">{activityLine(presence.activity)}</span>
+            </div>
+          ) : voice && !offline ? (
+            <div className={`flex items-center gap-1 truncate text-xs ${voice.streaming ? 'font-semibold text-danger' : 'text-ok'}`}>
+              <Icon name={voice.streaming ? 'screen' : 'speaker'} size={11} className="shrink-0" />
+              <span className="truncate">{voice.streaming ? 'Transmitindo' : 'Em call'}{voice.where ? ` · ${voice.where}` : ''}</span>
             </div>
           ) : (
             presence?.customStatus && !offline && <div className="truncate text-xs text-fg-muted">{presence.customStatus}</div>

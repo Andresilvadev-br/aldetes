@@ -4,6 +4,15 @@ import type { Transition } from 'motion/react';
  * Motion vocabulary (physics by intent). Springs are interruptible and keep velocity,
  * so reversing a panel mid-way never "teleports".
  */
+/**
+ * Duration tokens (seconds), from the product spec:
+ * instant 80–130 ms (press/hover/toggle) · short 150–230 ms (menu, tooltip, reaction) ·
+ * spatial 240–380 ms (video focus, grid ↔ stage, island) · structural 290–450 ms (joining a call, recomposition).
+ * Everything animates transform/opacity; reduced motion collapses them (MotionConfig + data-reduce-motion).
+ */
+export const dur = { instant: 0.11, short: 0.18, spatial: 0.3, structural: 0.38 } as const;
+export const ease = { out: [0.22, 1, 0.36, 1] as const, inOut: [0.65, 0, 0.35, 1] as const };
+
 export const spring = {
   /** clicks, presses, small toggles */
   snappy: { type: 'spring', stiffness: 700, damping: 38, mass: 0.6 } satisfies Transition,
@@ -13,6 +22,8 @@ export const spring = {
   gentle: { type: 'spring', stiffness: 340, damping: 32, mass: 0.9 } satisfies Transition,
   /** the Live Island morph */
   island: { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } satisfies Transition,
+  /** stage/tiles reorganizing (≈ 300 ms, no bounce on video) */
+  stage: { type: 'spring', stiffness: 300, damping: 36, mass: 1 } satisfies Transition,
 };
 
 /** Delegated cursor light: updates --mx/--my on the hovered [data-glow] element (one listener, rAF-throttled). */

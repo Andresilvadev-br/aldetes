@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import { Track, type Participant, type VideoTrack } from 'livekit-client';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, type Tile } from '@/lib/voice';
+import { spring, dur } from '@/lib/motion';
+import { usePrefs } from '@/lib/prefs';
+import { LiveAvatar, ReactionPicker } from './LiveAvatar';
+import { Segmented } from '../settings/SettingsLayout';
 import { Avatar } from '../common/Avatar';
 import { Icon } from '../common/Icon';
 import { Tooltip, useContextMenu } from '../common/overlay';
@@ -40,11 +45,11 @@ function TileView({ tile, serverId, big, onClick }: { tile: Tile; serverId: stri
       ref={ref}
       onClick={onClick}
       onDoubleClick={() => (document.fullscreenElement ? document.exitFullscreen() : ref.current?.requestFullscreen())}
+      title={big ? 'Duplo clique: tela cheia (Esc para sair)' : 'Clique para destacar'}
       onContextMenu={(e) => !tile.isLocal && menu(e, items())}
       className={clsx(
-        'group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-line/[0.06] bg-[radial-gradient(circle_at_50%_40%,rgb(var(--brand)/0.12),rgb(var(--bg-side))_70%)] transition-[box-shadow,transform] duration-200 hover:scale-[1.01]',
-        speaking && !isScreen && 'shadow-[0_0_0_2px_rgb(var(--ok)),0_0_32px_-6px_rgb(var(--ok)/0.7)]',
-        big ? 'h-full w-full' : 'aspect-video',
+        'group relative flex h-full w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl border bg-black transition-[box-shadow,border-color] duration-200',
+        speaking && !isScreen ? 'border-ok/70 shadow-[0_0_0_2px_rgb(var(--ok)),0_0_32px_-6px_rgb(var(--ok)/0.7)]' : 'border-line/[0.06]',
       )}
     >
       {hasVideo ? (
@@ -204,100 +209,307 @@ function OwnStreamBar() {
   );
 }
 
+type Rect = { x: number; y: number; w: number; h: number };
+const GAP = 10;
+
+/** Biggest 16:9 mosaic that fits (n tiles), centered; last row centered too. */
+function gridRects(n: number, W: number, H: number): Rect[] {
+  let best = { cols: 1, w: 0, h: 0 };
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const w = Math.min((W - (cols - 1) * GAP) / cols, ((H - (rows - 1) * GAP) / rows) * (16 / 9));
+    if (w > best.w) best = { cols, w, h: (w * 9) / 16 };
+  }
+  const rows = Math.ceil(n / best.cols);
+  const top = (H - (rows * best.h + (rows - 1) * GAP)) / 2;
+  return Array.from({ length: n }, (_, i) => {
+    const r = Math.floor(i / best.cols);
+    const inRow = r === rows - 1 ? n - r * best.cols : best.cols;
+    const left = (W - (inRow * best.w + (inRow - 1) * GAP)) / 2;
+    return { x: left + (i % best.cols) * (best.w + GAP), y: top + r * (best.h + GAP), w: best.w, h: best.h };
+  });
+}
+
+/** One big tile on top + thumbnail row below (thumbnails shrink to fit, never overflow). */
+function focusRects(n: number, W: number, H: number): Rect[] {
+  if (n === 1) return [{ x: 0, y: 0, w: W, h: H }];
+  const t = n - 1;
+  let th = Math.min(112, Math.max(64, H * 0.18));
+  let tw = (th * 16) / 9;
+  if (t * tw + (t - 1) * GAP > W) {
+    tw = (W - (t - 1) * GAP) / t;
+    th = (tw * 9) / 16;
+  }
+  const mainH = H - th - GAP;
+  const left = (W - (t * tw + (t - 1) * GAP)) / 2;
+  return [{ x: 0, y: 0, w: W, h: mainH }, ...Array.from({ length: t }, (_, i) => ({ x: left + i * (tw + GAP), y: mainH + GAP, w: tw, h: th }))];
+}
+
+/** Measures an element that may mount later (callback ref → re-subscribes when it appears). */
+function useSize() {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setSize({ w: r.width, h: r.height });
+    const ro = new ResizeObserver(([e]) => setSize({ w: e!.contentRect.width, h: e!.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, size] as const;
+}
+
+/**
+ * The call page as ONE stage: video you chose to watch → who is talking → call controls → the rest.
+ * - Media (screens + cameras) share a single absolutely-positioned container keyed by track, so switching
+ *   Foco ↔ Grade or changing the focused stream only moves tiles (one coordinated spring) — the <video>
+ *   elements are never remounted, so nothing goes black or restarts.
+ * - No video at all → big live-avatar grid instead of an empty rectangle.
+ */
 export function VoiceStage({ channelId, compact }: { channelId: string; compact?: boolean }) {
   useVoice((v) => v.version); // re-render on track changes
   const focused = useVoice((v) => v.focused);
+  const layout = useVoice((v) => v.stageLayout);
   const serverId = useStore((s) => s.channels[channelId]?.serverId ?? null);
   const all = listTiles();
-  // hide camera tiles of people without camera when someone streams in compact mode
-  const tiles = all.filter((t) => t.source === Track.Source.ScreenShare || !all.some((x) => x.identity === t.identity && x.source === Track.Source.ScreenShare) || t.participant.isCameraEnabled);
-  const focusTile = tiles.find((t) => t.key === focused);
+  const isVid = (t: Tile) => {
+    const pub = t.participant.getTrackPublication(t.source);
+    return t.source === Track.Source.ScreenShare ? !!pub && !pub.isMuted : !!pub?.track && !pub.isMuted;
+  };
+  // screens first (streams are what people came to see), then cameras
+  const media = all.filter(isVid).sort((a, b) => Number(b.source === Track.Source.ScreenShare) - Number(a.source === Track.Source.ScreenShare));
+  const people = [...new Set(all.map((t) => t.identity))];
   const setFocus = (k: string | null) => useVoice.setState({ focused: k });
 
-  // auto-focus the first screen share that appears
-  const firstScreen = tiles.find((t) => t.source === Track.Source.ScreenShare && !t.isLocal)?.key;
+  // auto-focus the first remote screen share that appears (doesn't steal focus once chosen)
+  const firstScreen = media.find((t) => t.source === Track.Source.ScreenShare && !t.isLocal)?.key;
   const prevScreen = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (firstScreen && firstScreen !== prevScreen.current && !useVoice.getState().focused) setFocus(firstScreen);
     prevScreen.current = firstScreen;
   }, [firstScreen]);
 
-  const cols = tiles.length <= 1 ? 1 : tiles.length <= 4 ? 2 : tiles.length <= 9 ? 3 : 4;
+  const [box, { w: W, h: H }] = useSize();
+  const focusKey = media.find((t) => t.key === focused)?.key ?? media[0]?.key;
+  const mode = media.length <= 1 ? 'focus' : layout;
+  const ordered = mode === 'focus' && focusKey ? [media.find((t) => t.key === focusKey)!, ...media.filter((t) => t.key !== focusKey)] : media;
+  const rects = W && H && ordered.length ? (mode === 'grid' ? gridRects(ordered.length, W, H) : focusRects(ordered.length, W, H)) : [];
+  const rectOf = new Map(ordered.map((t, i) => [t.key, rects[i]]));
+  const voiceOnly = media.length === 0;
 
   return (
-    <div className={clsx('flex min-h-0 flex-1 flex-col', compact ? 'h-[45vh] flex-none border-b border-line/[0.06] bg-black/30' : '')}>
-      <div className="min-h-0 flex-1 p-3">
-        {focusTile ? (
-          <div className="flex h-full flex-col gap-3">
-            <div className="min-h-0 flex-1">
-              <TileView tile={focusTile} serverId={serverId} big onClick={() => setFocus(null)} />
-            </div>
-            <div className="flex h-24 shrink-0 justify-center gap-3 overflow-x-auto">
-              {tiles
-                .filter((t) => t.key !== focusTile.key)
-                .map((t) => (
-                  <div key={t.key} className="h-full w-40 shrink-0">
-                    <TileView tile={t} serverId={serverId} onClick={() => setFocus(t.key)} />
-                  </div>
-                ))}
-            </div>
-          </div>
+    <div className={clsx('flex min-h-0 flex-1 flex-col', compact && 'h-[48vh] flex-none border-b border-line/[0.06] bg-black/30')}>
+      <div className={clsx('flex min-h-0 flex-1 gap-3 p-3', compact ? 'flex-col' : 'flex-col xl:flex-row')}>
+        {voiceOnly ? (
+          <VoiceGrid people={people} serverId={serverId} />
         ) : (
-          <div className="grid h-full content-center gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-            {tiles.map((t) => (
-              <TileView key={t.key} tile={t} serverId={serverId} onClick={() => setFocus(t.key)} />
-            ))}
+          <div className="relative min-h-0 min-w-0 flex-1">
+            {media.length >= 2 && (
+              <div className="absolute right-1 top-1 z-20">
+                <Segmented
+                  id={`stage-layout-${channelId}`}
+                  value={layout}
+                  onChange={(l) => setStageLayout(l)}
+                  options={[
+                    ['focus', 'Foco'],
+                    ['grid', 'Grade'],
+                  ]}
+                />
+              </div>
+            )}
+            <div ref={box} className={clsx('absolute inset-0', media.length >= 2 && 'top-11')}>
+              {media.map((t) => {
+                const r = rectOf.get(t.key);
+                if (!r) return null;
+                const isFocus = mode === 'focus' && t.key === focusKey;
+                return (
+                  <motion.div
+                    key={t.key}
+                    initial={false}
+                    animate={{ x: r.x, y: r.y, width: r.w, height: r.h, opacity: 1 }}
+                    transition={spring.stage}
+                    className="absolute left-0 top-0"
+                    style={{ zIndex: isFocus ? 1 : 2 }}
+                  >
+                    <TileView tile={t} serverId={serverId} big={isFocus || (mode === 'grid' && r.w > 380)} onClick={() => (mode === 'grid' ? (setFocus(t.key), setStageLayout('focus')) : setFocus(t.key))} />
+                  </motion.div>
+                );
+              })}
+            </div>
+            <StreamReactions />
           </div>
         )}
+        {!voiceOnly && <PeopleStrip people={people} serverId={serverId} vertical={!compact} />}
       </div>
-      <VoiceControls />
+      <CallDock />
     </div>
   );
 }
 
-export function VoiceControls() {
+/** Voice-only call: large, legible people with live voice rings (no empty video rectangle). */
+function VoiceGrid({ people, serverId }: { people: string[]; serverId: string | null }) {
+  const big = people.length <= 4 ? 112 : people.length <= 9 ? 88 : 64;
+  return (
+    <div className="flex min-h-0 flex-1 flex-wrap content-center items-center justify-center gap-x-8 gap-y-6 overflow-y-auto p-4">
+      <AnimatePresence initial={false}>
+        {people.map((id) => (
+          <motion.div key={id} layout initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }} transition={spring.stage} className="flex w-[150px] flex-col items-center gap-3">
+            <PersonMenu id={id} serverId={serverId}>
+              <LiveAvatar identity={id} size={big} />
+            </PersonMenu>
+            <span className="max-w-full truncate text-sm font-semibold text-fg-strong">{displayName(id, serverId)}</span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PersonMenu({ id, serverId, children }: { id: string; serverId: string | null; children: React.ReactNode }) {
+  const menu = useContextMenu();
+  const items = useMemberMenu(id, serverId);
+  const isMe = useStore((s) => s.me?.id === id);
+  return <span onContextMenu={(e) => !isMe && menu(e, items())}>{children}</span>;
+}
+
+/** Participants next to the stage: constant size, who talks, mute, camera, live — scrolls when many. */
+function PeopleStrip({ people, serverId, vertical }: { people: string[]; serverId: string | null; vertical: boolean }) {
+  return (
+    <aside
+      aria-label="Na chamada"
+      className={clsx(
+        'scroll-thin shrink-0 overflow-auto rounded-2xl border border-line/[0.06] bg-bg-side/60 p-2',
+        vertical ? 'flex max-h-full gap-1.5 xl:w-56 xl:flex-col max-xl:h-[84px]' : 'flex h-[84px] gap-1.5',
+      )}
+    >
+      <div className={clsx('eyebrow shrink-0 px-1.5 pt-1', vertical ? 'hidden xl:block' : 'hidden')}>Na chamada · {people.length}</div>
+      <AnimatePresence initial={false}>
+        {people.map((id) => (
+          <motion.div
+            key={id}
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={spring.stage}
+            className={clsx('flex shrink-0 items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-line/[0.05]', vertical ? 'xl:w-full max-xl:flex-col max-xl:justify-center max-xl:gap-1 max-xl:px-3' : 'flex-col justify-center gap-1 px-3')}
+          >
+            <PersonMenu id={id} serverId={serverId}>
+              <LiveAvatar identity={id} size={36} />
+            </PersonMenu>
+            <PersonLabel id={id} serverId={serverId} vertical={vertical} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </aside>
+  );
+}
+
+function PersonLabel({ id, serverId, vertical }: { id: string; serverId: string | null; vertical: boolean }) {
+  const vs = useStore((s) => s.voiceStates[id]);
+  return (
+    <span className={clsx('min-w-0 leading-tight', vertical ? 'xl:flex-1 max-xl:max-w-[72px] max-xl:text-center' : 'max-w-[72px] text-center')}>
+      <span className="block truncate text-[12.5px] font-semibold text-fg-strong">{displayName(id, serverId)}</span>
+      <span className={clsx('truncate text-[10.5px] text-fg-muted', vertical ? 'hidden xl:flex xl:items-center xl:gap-1' : 'hidden')}>
+        {vs?.streaming ? <b className="text-danger">transmitindo</b> : vs?.video ? 'câmera ligada' : vs?.selfDeaf || vs?.serverDeaf ? 'sem áudio' : vs?.selfMute || vs?.serverMute ? 'mutado' : 'na voz'}
+      </span>
+    </span>
+  );
+}
+
+/** Reactions shown on the periphery of the stage while a stream is on screen (viewer can turn it off). */
+function StreamReactions() {
+  const list = useVoice((v) => v.reactions);
+  const on = usePrefs((p) => p.reactionsOverStreams);
+  const serverId = null;
+  if (!on) return null;
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col-reverse gap-1.5" aria-live="polite">
+      <AnimatePresence initial={false}>
+        {list.slice(-4).map((r) => (
+          <motion.div
+            key={r.id}
+            layout
+            initial={{ opacity: 0, x: -16, scale: 0.8 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, transition: { duration: dur.short } }}
+            transition={spring.snappy}
+            className="flex items-center gap-1.5 rounded-full bg-black/70 py-0.5 pl-0.5 pr-2.5 text-xs font-semibold text-white"
+          >
+            <Avatar userId={r.from} size={20} />
+            <span className="max-w-[100px] truncate">{displayName(r.from, serverId)}</span>
+            <span className="text-base leading-none">{r.emoji}</span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function Spinner() {
+  return <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-current" style={{ animation: 'cz-spin 0.7s linear infinite' }} aria-hidden />;
+}
+
+/** Fixed dock: camera, screen, mic, audio, reactions — and "Sair" set apart so it is never hit by accident. */
+export function CallDock() {
   const v = useVoice();
   const [share, setShare] = useState(false);
-  const btn = (active: boolean, danger?: boolean) =>
+  const [react, setReact] = useState(false);
+  const btn = (active: boolean) =>
     clsx(
-      'flex h-12 w-12 items-center justify-center rounded-full transition-[transform,background-color] duration-150 active:scale-90 disabled:opacity-40',
-      danger ? 'bg-danger text-white hover:bg-danger/85 shadow-[0_8px_24px_-8px_rgb(var(--danger))]' : active ? 'bg-white text-black' : 'bg-line/[0.1] text-fg-strong hover:bg-line/[0.18]',
+      'relative flex h-11 w-11 items-center justify-center rounded-full transition-[background-color,color] duration-150 disabled:opacity-40 sm:h-12 sm:w-12',
+      active ? 'bg-white text-black' : 'bg-line/[0.1] text-fg-strong hover:bg-line/[0.18]',
     );
+  const tap = { whileTap: { scale: 0.88 }, transition: spring.snappy };
   return (
-    <div className="mx-auto mb-4 mt-1 flex shrink-0 items-center justify-center gap-2.5 rounded-full border border-line/[0.08] bg-bg-float/90 p-2 shadow-float">
+    <div className="mx-auto mb-[max(0.75rem,env(safe-area-inset-bottom))] mt-1 flex max-w-full shrink-0 items-center justify-center gap-1 rounded-full border border-line/[0.08] bg-bg-float/90 p-1.5 shadow-float sm:gap-2 sm:p-2">
       <Tooltip label={v.camera ? 'Desligar câmera' : 'Ligar câmera'}>
-        <button className={btn(v.camera)} disabled={!v.canVideo} onClick={() => void toggleCamera()}>
+        <motion.button {...tap} className={btn(v.camera)} disabled={!v.canVideo || v.pending.cam} onClick={() => void toggleCamera()} aria-label="Câmera" aria-pressed={v.camera}>
+          {v.pending.cam && <Spinner />}
           <Icon name={v.camera ? 'camera' : 'cameraOff'} />
-        </button>
+        </motion.button>
       </Tooltip>
       {v.camera && (
         <Tooltip label="Alternar câmera">
-          <button className={btn(false)} onClick={() => void switchCamera()}>
+          <motion.button {...tap} className={btn(false)} onClick={() => void switchCamera()} aria-label="Alternar câmera">
             <Icon name="flip" />
-          </button>
+          </motion.button>
         </Tooltip>
       )}
       <Tooltip label={v.screen ? 'Parar transmissão' : 'Compartilhar tela'}>
-        <button className={btn(v.screen)} disabled={!v.canVideo} onClick={() => (v.screen ? void stopScreenShare() : setShare(true))}>
+        <motion.button {...tap} className={clsx(btn(false), v.screen && '!bg-danger/20 !text-danger')} disabled={!v.canVideo} onClick={() => (v.screen ? void stopScreenShare() : setShare(true))} aria-label="Tela" aria-pressed={v.screen}>
           <Icon name={v.screen ? 'screenOff' : 'screen'} />
-        </button>
+        </motion.button>
       </Tooltip>
-      <Tooltip label={v.selfMute ? 'Ativar microfone' : 'Silenciar'}>
-        <button className={btn(v.selfMute || v.selfDeaf)} onClick={() => void toggleMute()}>
+      <Tooltip label={`${v.selfMute ? 'Ativar microfone' : 'Silenciar'} (Ctrl+Shift+M)`}>
+        <motion.button {...tap} className={clsx(btn(false), (v.selfMute || v.selfDeaf) && '!bg-danger/20 !text-danger')} onClick={() => void toggleMute()} aria-label="Microfone" aria-pressed={v.selfMute || v.selfDeaf}>
+          {v.pending.mic && <Spinner />}
           <Icon name={v.selfMute || v.selfDeaf ? 'micOff' : 'mic'} />
-        </button>
+        </motion.button>
       </Tooltip>
-      <Tooltip label={v.selfDeaf ? 'Desativar surdez' : 'Ensurdecer'}>
-        <button className={btn(v.selfDeaf)} onClick={() => void toggleDeaf()}>
+      <Tooltip label={`${v.selfDeaf ? 'Ativar áudio' : 'Desativar áudio'} (Ctrl+Shift+D)`}>
+        <motion.button {...tap} className={clsx(btn(false), v.selfDeaf && '!bg-danger/20 !text-danger')} onClick={() => void toggleDeaf()} aria-label="Áudio" aria-pressed={v.selfDeaf}>
           <Icon name={v.selfDeaf ? 'headphonesOff' : 'headphones'} />
-        </button>
+        </motion.button>
       </Tooltip>
-      <Tooltip label="Desconectar">
-        <button className={btn(false, true)} onClick={() => void leaveVoice()}>
+      <div className="relative">
+        <Tooltip label="Reações (Alt+1…8)">
+          <motion.button {...tap} className={btn(react)} onClick={() => setReact((o) => !o)} aria-label="Reações" aria-expanded={react} disabled={v.state !== 'connected'}>
+            <Icon name="smile" />
+          </motion.button>
+        </Tooltip>
+        <AnimatePresence>{react && <ReactionPicker onClose={() => setReact(false)} />}</AnimatePresence>
+      </div>
+      <span className="mx-0.5 h-7 w-px bg-line/10 sm:mx-1" />
+      <Tooltip label="Sair da call">
+        <motion.button {...tap} className="flex h-11 w-12 items-center justify-center rounded-full bg-danger sm:h-12 sm:w-14 text-white shadow-[0_8px_24px_-8px_rgb(var(--danger))] hover:bg-danger/85" onClick={() => void leaveVoice()} aria-label="Sair da call">
           <Icon name="hangup" />
-        </button>
+        </motion.button>
       </Tooltip>
       {share && <ScreenShareModal onClose={() => setShare(false)} />}
     </div>
   );
 }
+/** @deprecated kept for older imports */
+export const VoiceControls = CallDock;

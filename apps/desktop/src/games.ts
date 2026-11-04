@@ -102,6 +102,14 @@ export class GameDetector {
   }
   stop() {
     if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+  /** forget the current game and tell the renderer (detection turned off) */
+  clear() {
+    if (this.current) {
+      this.current = null;
+      this.onChange(null);
+    }
   }
   get() {
     return this.current;

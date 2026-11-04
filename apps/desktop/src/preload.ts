@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
   },
   // running game (process list)
   getGame: () => ipcRenderer.invoke('game:get'),
+  setGameDetection: (on: boolean) => ipcRenderer.send('game:detect', on === true),
   onGame: (cb: (g: unknown) => void) => {
     const h = (_e: unknown, g: unknown) => cb(g);
     ipcRenderer.on('aldetes:game', h);

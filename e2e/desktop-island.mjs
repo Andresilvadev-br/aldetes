@@ -90,6 +90,10 @@ try {
   }
 
   await ov.getByRole('button', { name: 'Sair da call' }).click();
+  // deliberate second tap (protection against accidental clicks)
+  const stillIn = await main.getByText('Voz conectada').isVisible();
+  check('Sair pela ilha pede confirmação (1º clique não derruba a call)', stillIn);
+  await ov.getByRole('button', { name: 'Confirmar: sair da call' }).click();
   const left = await main.getByText('Voz conectada').waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false);
   check('Sair da call pela ilha flutuante', left);
 } catch (e) {
