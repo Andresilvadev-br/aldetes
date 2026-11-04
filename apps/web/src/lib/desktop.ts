@@ -42,6 +42,16 @@ export interface IslandCommand {
   arg?: string;
 }
 
+/** Mirrors apps/desktop/src/updater.ts */
+export type UpdateState =
+  | { phase: 'idle'; current: string; checkedAt: number | null }
+  | { phase: 'checking'; current: string }
+  | { phase: 'available'; current: string; version: string; notes: string[]; date: string | null; sizeMB: number | null }
+  | { phase: 'downloading'; current: string; version: string; percent: number; bytesPerSecond: number; transferred: number; total: number; background: boolean }
+  | { phase: 'ready'; current: string; version: string; background: boolean }
+  | { phase: 'installing'; current: string; version: string }
+  | { phase: 'error'; current: string; message: string; version: string | null };
+
 export interface DesktopSettings {
   autoStart: boolean;
   startHidden: boolean;
@@ -66,6 +76,12 @@ export interface DesktopBridge {
   onGlobalShortcut(cb: (name: string) => void): () => void;
   setPushToTalkKey(accelerator: string | null): Promise<boolean>;
   checkForUpdates(): Promise<{ available: boolean; version?: string; error?: string }>;
+  /** New update flow (optional: app versions before 0.5 don't have it). */
+  getUpdateState?(): Promise<UpdateState>;
+  downloadUpdate?(background: boolean): void;
+  showUpdateProgress?(): void;
+  installUpdate?(): void;
+  onUpdate?(cb: (s: UpdateState) => void): () => void;
   onOpenChannel(cb: (channelId: string) => void): () => void;
   getDesktopSettings(): Promise<DesktopSettings>;
   getMedia(): Promise<NowPlaying | null>;

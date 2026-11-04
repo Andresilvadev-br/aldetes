@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
   setBadge: (count: number) => ipcRenderer.send('badge', count),
   setPushToTalkKey: (code: string | null) => ipcRenderer.invoke('ptt:set', code),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  getUpdateState: () => ipcRenderer.invoke('updates:state'),
+  downloadUpdate: (background: boolean) => ipcRenderer.send('updates:download', background === true),
+  showUpdateProgress: () => ipcRenderer.send('updates:foreground'),
+  installUpdate: () => ipcRenderer.send('updates:install'),
+  onUpdate: (cb: (s: unknown) => void) => {
+    const h = (_e: unknown, s: unknown) => cb(s);
+    ipcRenderer.on('aldetes:update', h);
+    return () => ipcRenderer.removeListener('aldetes:update', h);
+  },
   getDesktopSettings: () => ipcRenderer.invoke('desktop:getSettings'),
   // now playing (system media sessions)
   getMedia: () => ipcRenderer.invoke('media:get'),

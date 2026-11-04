@@ -133,3 +133,17 @@ Nesse teste, o vídeo da tela vem do dispositivo falso do Chromium (`--use-fake-
 - O dispositivo de tela **falso** do Chromium usado nos testes gera ~20 FPS fixos, por isso a medição de 60 FPS usa um canvas animado publicado com as mesmas configurações do app.
 - No app desktop sob Xvfb, a transmissão começa em resolução menor enquanto a estimativa de banda "aquece" e chega a **1080p · 60 FPS em cerca de 15 s**.
 - **Não testado aqui:** codificação por hardware (NVENC/AMF/QuickSync) no Windows. A barra "ao vivo" mostra se está usando GPU ou CPU.
+
+## 10. Novo fluxo de atualização do app desktop (`e2e/desktop-update.mjs`)
+
+Roda contra um servidor de atualização local (provedor "generic" do electron-updater) que publica a versão 9.9.9 com um pacote de 24 MB, enviado a ~6 MB/s:
+
+```
+✅ Pop-up aparece sozinho quando há versão nova — novidades: Novo aviso de atualização… | Transmissão em 1080p a 60 FPS | Barra de canais refeita
+✅ Tela de atualização em andamento com progresso real — 18,0 de 24,0 MB · 6,0 MB/s · faltam ~1 s
+✅ Download completo e verificado (sha512) → contagem para reiniciar — 24.0 MB servidos
+✅ Contagem termina e o app passa a instalar/reiniciar sozinho
+4/4 verificações passaram
+```
+
+No modo de teste o app para logo antes de `quitAndInstall` (não substitui o executável em uso). **A instalação silenciosa e o reinício no Windows** só podem ser confirmados com duas versões reais publicadas no GitHub.

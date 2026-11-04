@@ -16,6 +16,7 @@ import { MotionConfig } from 'motion/react';
 import { usePrefs } from './lib/prefs';
 import { spring } from './lib/motion';
 import { Intro } from './components/common/Intro';
+import { UpdateCenter } from './components/common/UpdateCenter';
 import { useState } from 'react';
 
 export async function bootSession() {
@@ -81,6 +82,7 @@ export function App() {
       {isDesktop && status !== 'ready' && <div className="drag fixed inset-x-0 top-0 z-[90] h-9" />}
       {intro && <Intro onDone={() => setIntro(false)} />}
       <Toasts />
+      <UpdateCenter />
       <ConfirmHost />
     </ContextMenuProvider>
     </MotionConfig>

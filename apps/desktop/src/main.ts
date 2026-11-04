@@ -24,7 +24,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { constants as osConstants, setPriority } from 'node:os';
-import { autoUpdater } from 'electron-updater';
+import { Updater } from './updater';
 import { startPtt, stopPtt } from './ptt';
 import { MediaBridge, type MediaCommand, type NowPlaying } from './media';
 import { GameDetector, type GameActivity } from './games';
@@ -92,6 +92,12 @@ const readCfg = (): Cfg => {
 const writeCfg = (c: Cfg) => writeFileSync(cfgPath, JSON.stringify({ ...readCfg(), ...c }, null, 2));
 
 let win: BrowserWindow | null = null;
+const updater = new Updater(
+  () => win,
+  () => {
+    quitting = true;
+  },
+);
 let tray: Tray | null = null;
 let quitting = false;
 let pendingSource: { id: string; audio: boolean } | null = null;
@@ -451,16 +457,11 @@ function registerIpc() {
     if (!code) return true;
     return startPtt(code, (down) => win?.webContents.send('aldetes:shortcut', down ? 'ptt-down' : 'ptt-up'));
   });
-  ipcMain.handle('updates:check', async () => {
-    if (!app.isPackaged) return { available: false, error: 'Atualizações só funcionam no app instalado.' };
-    try {
-      const r = await autoUpdater.checkForUpdates();
-      const v = r?.updateInfo?.version;
-      return { available: !!v && v !== app.getVersion(), version: v };
-    } catch (err) {
-      return { available: false, error: (err as Error).message };
-    }
-  });
+  ipcMain.handle('updates:check', (e) => (e.sender === win?.webContents ? updater.check() : null));
+  ipcMain.handle('updates:state', () => updater.getState());
+  ipcMain.on('updates:download', (e, background: unknown) => e.sender === win?.webContents && void updater.download(background === true));
+  ipcMain.on('updates:foreground', (e) => e.sender === win?.webContents && updater.foreground());
+  ipcMain.on('updates:install', (e) => e.sender === win?.webContents && updater.install());
 }
 
 // Single instance
@@ -490,11 +491,7 @@ if (!app.requestSingleInstanceLock()) {
     applyAutoStart(ds.autoStart, ds.startHidden);
     globalShortcut.register('CommandOrControl+Shift+Alt+M', () => win?.webContents.send('aldetes:shortcut', 'toggle-mute'));
     globalShortcut.register('CommandOrControl+Shift+Alt+D', () => win?.webContents.send('aldetes:shortcut', 'toggle-deafen'));
-    if (app.isPackaged) {
-      autoUpdater.autoDownload = true;
-      autoUpdater.autoInstallOnAppQuit = true;
-      autoUpdater.checkForUpdates().catch(() => {});
-    }
+    updater.start();
   });
 
   app.on('before-quit', () => (quitting = true));

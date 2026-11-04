@@ -740,7 +740,7 @@ function AboutTab() {
           className="btn-primary mt-4"
           onClick={async () => {
             const r = await desktop!.checkForUpdates();
-            setUpd(r.error ? `Erro: ${r.error}` : r.available ? `Nova versão ${r.version} disponível — será instalada ao reiniciar.` : 'Você está na versão mais recente.');
+            setUpd(r.error ? `Erro: ${r.error}` : r.available ? (desktop!.onUpdate ? `Nova versão ${r.version} encontrada!` : `Nova versão ${r.version} disponível — será instalada ao reiniciar.`) : 'Você está na versão mais recente.');
           }}
         >
           Verificar atualizações

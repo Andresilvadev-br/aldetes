@@ -11,6 +11,10 @@ on:
         description: 'Versão a publicar (ex.: 0.2.0)'
         required: true
         default: '0.2.0'
+      notes:
+        description: 'Novidades (aparecem no aviso de atualização; separe os itens com ;)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -48,6 +52,15 @@ jobs:
       - name: Build web + main process
         working-directory: apps/desktop
         run: pnpm build
+      - name: Release notes (shown in the app's update popup)
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
+        run: |
+          # one item per line; the app turns them into the list in the popup
+          # electron-builder reads build/release-notes.md by default and puts it in the GitHub release
+          if [ -n "$NOTES" ]; then printf '%s' "$NOTES" | tr ';' '\n' | sed 's/^ *//; /^$/d; s/^/- /' > build/release-notes.md; fi
       - name: Package and publish
         working-directory: apps/desktop
         run: pnpm exec electron-builder ${{ matrix.target }} --publish always
