@@ -62,7 +62,9 @@ try {
   await page.getByRole('button', { name: /^Tela$/ }).click();
   await page.locator('[role=dialog] .grid button').first().waitFor();
   await page.locator('[role=dialog] .grid button').first().click();
-  await page.getByRole('button', { name: 'Transmitir' }).click();
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${shots}/share-modal.png` });
+  await page.getByRole('button', { name: 'Começar transmissão' }).click();
   const live = await page.getByText('AO VIVO').first().waitFor({ timeout: 15000 }).then(() => true, () => false);
   check('Compartilha a tela escolhida no seletor nativo', live);
   await page.screenshot({ path: `${shots}/desktop-share.png` });

@@ -38,7 +38,7 @@ export interface IslandSnapshot {
 }
 
 export interface IslandCommand {
-  type: 'mute' | 'deaf' | 'leave' | 'open' | 'accept' | 'decline' | 'media';
+  type: 'mute' | 'deaf' | 'leave' | 'open' | 'accept' | 'decline' | 'media' | 'resetPos';
   arg?: string;
 }
 

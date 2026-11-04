@@ -7,6 +7,8 @@ import {
   ConnectionQuality,
   DisconnectReason,
   VideoPresets,
+  VideoPreset,
+  AudioPresets,
   type Participant,
   type RemoteParticipant,
   type RemoteTrack,
@@ -41,6 +43,8 @@ export interface VoiceStore {
   pingMs: number | null;
   connectedAt: number | null;
   screenSince: number | null;
+  /** what is really being sent, e.g. "1080p · 60 FPS" */
+  screenInfo: string | null;
 }
 
 export const useVoice = create<VoiceStore>()(() => ({
@@ -62,6 +66,7 @@ export const useVoice = create<VoiceStore>()(() => ({
   pingMs: null,
   connectedAt: null,
   screenSince: null,
+  screenInfo: null,
 }));
 const vset = useVoice.setState;
 const vget = useVoice.getState;
@@ -239,7 +244,8 @@ export async function joinVoice(channelId: string, isRejoin = false) {
     if (vget().channelId !== channelId) return; // user switched meanwhile
     const prefs = getPrefs();
     const r = new Room({
-      adaptiveStream: true,
+      // pixelDensity 'screen': request layers for the real (HiDPI) pixel size of each tile → sharper video
+      adaptiveStream: { pixelDensity: 'screen' },
       dynacast: true,
       webAudioMix: true,
       disconnectOnPageLeave: true,
@@ -251,7 +257,15 @@ export async function joinVoice(channelId: string, isRejoin = false) {
       },
       audioOutput: prefs.outputDeviceId !== 'default' ? { deviceId: prefs.outputDeviceId } : undefined,
       videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
-      publishDefaults: { simulcast: true, dtx: true, red: true, videoCodec: 'vp8' },
+      publishDefaults: {
+        simulcast: true,
+        dtx: true,
+        red: true,
+        videoCodec: 'vp8',
+        audioPreset: AudioPresets.musicHighQuality, // 64 kbps Opus: clearer voices than the 32 kbps speech default
+        videoEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
+        videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+      },
     });
     room = r;
     attachRoomEvents(r);
@@ -371,39 +385,51 @@ export async function switchCamera() {
   await room.switchActiveDevice('videoinput', next.deviceId);
 }
 
+/**
+ * Screen share presets. Bitrates are generous on purpose: screen content (text, HUDs, fast games)
+ * pixelates quickly when starved. Viewers on weaker connections automatically get the lower layer.
+ */
 export const STREAM_PRESETS = {
-  '720p30': { width: 1280, height: 720, frameRate: 30, maxBitrate: 2_500_000 },
-  '720p60': { width: 1280, height: 720, frameRate: 60, maxBitrate: 4_000_000 },
-  '1080p30': { width: 1920, height: 1080, frameRate: 30, maxBitrate: 4_500_000 },
-  '1080p60': { width: 1920, height: 1080, frameRate: 60, maxBitrate: 7_000_000 },
+  '720p30': { width: 1280, height: 720, frameRate: 30, maxBitrate: 3_500_000 },
+  '720p60': { width: 1280, height: 720, frameRate: 60, maxBitrate: 5_500_000 },
+  '1080p30': { width: 1920, height: 1080, frameRate: 30, maxBitrate: 6_500_000 },
+  '1080p60': { width: 1920, height: 1080, frameRate: 60, maxBitrate: 10_000_000 },
 } as const;
 
 /** Browser: getDisplayMedia shows the native picker. Desktop: `sourceId` was pre-selected through the bridge. */
 export async function startScreenShare(opts: { quality: keyof typeof STREAM_PRESETS; audio: boolean; desktopSourceId?: string; contentHint?: 'motion' | 'detail' }) {
   if (!room) return;
+  // Switching source/quality while live: stop the current stream first, then start the new one.
+  if (vget().screen) await room.localParticipant.setScreenShareEnabled(false);
   const preset = STREAM_PRESETS[opts.quality];
   if (desktop && opts.desktopSourceId) await desktop.selectScreenSource(opts.desktopSourceId, opts.audio);
   const capture: ScreenShareCaptureOptions = {
     audio: opts.audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
     resolution: { width: preset.width, height: preset.height, frameRate: preset.frameRate },
-    contentHint: opts.contentHint ?? 'motion',
+    contentHint: opts.contentHint ?? 'detail',
     selfBrowserSurface: 'exclude',
     surfaceSwitching: 'include',
     systemAudio: opts.audio ? 'include' : 'exclude',
     suppressLocalAudioPlayback: true,
   };
   try {
+    const motion = opts.contentHint === 'motion';
     await room.localParticipant.setScreenShareEnabled(true, capture, {
-      screenShareEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.frameRate },
-      videoCodec: 'vp9',
+      screenShareEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.frameRate, priority: 'high' },
+      // One lower layer (720p/15) for viewers with weak connections; everyone else gets full quality.
+      screenShareSimulcastLayers: [new VideoPreset(1280, 720, 1_500_000, 15, 'medium')],
+      // Text/detail: VP9 is sharper per bit. Games/motion at high FPS: H.264 usually runs on the GPU's hardware encoder.
+      videoCodec: motion ? 'h264' : 'vp9',
       backupCodec: { codec: 'vp8' },
       simulcast: true,
-      degradationPreference: opts.contentHint === 'detail' ? 'maintain-resolution' : 'maintain-framerate',
+      // Never drop resolution for text; for motion, balance FPS and sharpness instead of blurring.
+      degradationPreference: motion ? 'balanced' : 'maintain-resolution',
     });
     vset({ screen: true, screenSince: Date.now() });
     setPrefs({ streamQuality: opts.quality });
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     const settings = (pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined)?.getSettings();
+    if (settings?.height) vset({ screenInfo: `${settings.height}p · ${Math.round(settings.frameRate ?? preset.frameRate)} FPS` });
     if (settings && (settings.height ?? 0) < preset.height - 10) {
       toast(`Transmitindo em ${settings.width}x${settings.height}@${Math.round(settings.frameRate ?? 0)} (limitado pela fonte capturada).`);
     }
@@ -419,7 +445,7 @@ export async function startScreenShare(opts: { quality: keyof typeof STREAM_PRES
 
 export async function stopScreenShare() {
   await room?.localParticipant.setScreenShareEnabled(false);
-  vset({ screen: false });
+  vset({ screen: false, screenInfo: null, screenSince: null });
   publishSelfState();
 }
 
@@ -477,3 +503,18 @@ export function listTiles(): Tile[] {
 }
 
 export { ConnectionQuality, Track };
+
+/** Viewer side: stop/resume receiving someone's stream (saves bandwidth), and its audio volume. */
+export function setWatching(identity: string, watch: boolean) {
+  const p = room?.remoteParticipants.get(identity);
+  p?.getTrackPublication(Track.Source.ScreenShare)?.setSubscribed(watch);
+  p?.getTrackPublication(Track.Source.ScreenShareAudio)?.setSubscribed(watch);
+  bump();
+}
+export function setStreamVolume(identity: string, v: number) {
+  room?.remoteParticipants.get(identity)?.setVolume(v, Track.Source.ScreenShareAudio);
+}
+export function focusStream(identity: string) {
+  setWatching(identity, true);
+  vset({ focused: `${identity}:${Track.Source.ScreenShare}` });
+}

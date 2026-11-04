@@ -83,10 +83,19 @@ export function IslandOverlay() {
           clearTimeout(leaveT.current);
           leaveT.current = setTimeout(() => setOpen(false), 280);
         }}
-        className="h-fit"
+        className="group/island relative h-fit pl-7"
       >
+        {/* native window drag (Electron app-region); double-click → back to the top center */}
+        <span
+          className="drag absolute left-0 top-1.5 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-black/70 text-white/50 opacity-0 transition-opacity group-hover/island:opacity-100"
+          title="Arraste para mover a ilha"
+        >
+          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+            {[2, 7, 12].map((y) => [2.5, 7.5].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.3" />))}
+          </svg>
+        </span>
         <motion.div
-          layout
+          layout="size"
           transition={spring.island}
           style={big ? { borderRadius: 26, width: ring ? 400 : width } : { borderRadius: 22 }}
           className={clsx('overflow-hidden border bg-black shadow-[0_14px_40px_-10px_rgb(0_0_0/0.8)]', call || ring ? 'border-brand/45 shadow-glow' : 'border-white/10', !big && 'min-w-[170px] max-w-[480px]')}
@@ -153,6 +162,11 @@ export function IslandOverlay() {
                       <Logo size={16} /> Nada acontecendo agora
                     </div>
                   )}
+                  <div className="flex justify-center pt-2">
+                    <button className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/20" onClick={() => cmd('resetPos')}>
+                      <Icon name="arrowLeft" size={12} className="rotate-90" /> Voltar ao topo
+                    </button>
+                  </div>
                   <ResizeGrip width={width} onWidth={setWidth} onCommit={(w) => setPrefs({ islandWidth: w })} />
                 </div>
               ) : call ? (

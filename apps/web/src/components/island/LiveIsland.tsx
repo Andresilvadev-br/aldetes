@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import { useStore, useStoreShallow, get, displayName } from '@/store';
 import { useIsland, dismissIsland, setIslandExpanded, pushIsland, type IslandEvent } from '@/lib/island';
-import { useVoice, toggleMute, toggleDeaf, toggleCamera, leaveVoice, stopScreenShare, joinVoice } from '@/lib/voice';
+import { useVoice, toggleMute, toggleDeaf, toggleCamera, leaveVoice, stopScreenShare, joinVoice, focusStream } from '@/lib/voice';
 import { onGateway } from '@/lib/gateway';
 import { playSound } from '@/lib/sounds';
 import { desktop } from '@/lib/desktop';
@@ -84,6 +85,18 @@ export function LiveIsland() {
     [],
   );
 
+  // Someone in my call goes live → "Fulano está ao vivo · Assistir"
+  const myChannel = v.channelId;
+  const streamers = useStoreShallow((st) => (myChannel ? Object.values(st.voiceStates).filter((x) => x.channelId === myChannel && x.streaming && x.userId !== st.me?.id).map((x) => x.userId) : []));
+  const prevStreamers = useRef<string[]>([]);
+  useEffect(() => {
+    for (const id of streamers) {
+      if (!prevStreamers.current.includes(id))
+        pushIsland({ kind: 'info', title: `${displayName(id)} está ao vivo`, body: 'Começou a transmitir a tela', userId: id, channelId: myChannel ?? undefined, ttl: 7000, action: 'Assistir', watch: id, key: `live:${id}`, cooldown: 20000 });
+    }
+    prevStreamers.current = streamers;
+  }, [streamers, myChannel]);
+
   // Ring sound loop while a ring is showing; stop if the caller leaves
   const ring = events.find((e) => e.kind === 'ring');
   const callerHere = useStore((s) => (ring ? s.voiceStates[ring.userId!]?.channelId === ring.channelId : false));
@@ -159,11 +172,74 @@ export function LiveIsland() {
   const big = mode === 'ring' || mode === 'expanded';
   const accentEdge = mode === 'call' || mode === 'split' || mode === 'expanded' || mode === 'ring';
 
-  return (
-    <div className="no-drag relative flex justify-center" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+  const pos = usePrefs((p) => p.islandPos);
+  const [dragPos, setDragPos] = useState<{ fx: number; fy: number } | null>(null);
+  const livePos = dragPos ?? pos;
+  const [, reflow] = useState(0);
+  useEffect(() => {
+    if (!pos) return;
+    const r = () => reflow((x) => x + 1);
+    window.addEventListener('resize', r);
+    return () => window.removeEventListener('resize', r);
+  }, [pos]);
+  const startDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const capsule = ref.current!.getBoundingClientRect();
+    const grabDx = e.clientX - (capsule.left + capsule.width / 2);
+    const grabDy = e.clientY - capsule.top;
+    const sx = e.clientX;
+    const sy = e.clientY;
+    let moved = false;
+    let last: { fx: number; fy: number } | null = null;
+    // Listen on window: the island re-mounts into a portal mid-drag, so element listeners would be lost.
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+      moved = true;
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const cx = Math.min(W - 60, Math.max(60, ev.clientX - grabDx));
+      const top = Math.min(H - 40, Math.max(4, ev.clientY - grabDy));
+      last = { fx: cx / W, fy: top / H };
+      setDragPos(last);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (moved && last) setPrefs({ islandPos: last });
+      setDragPos(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const resetPos = () => setPrefs({ islandPos: null });
+
+  const island = (
+    <div
+      className={clsx('no-drag group/island flex justify-center', livePos ? 'fixed z-[45] -translate-x-1/2' : 'relative')}
+      style={livePos ? { left: livePos.fx * window.innerWidth, top: livePos.fy * window.innerHeight } : undefined}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onDoubleClick={(e) => (e.target as HTMLElement).closest('[data-island-grip]') && resetPos()}
+    >
+      <span
+        data-island-grip
+        role="button"
+        aria-label="Mover a Live Island (arraste) · duplo clique volta ao topo"
+        title="Arraste para mover · duplo clique volta ao topo"
+        onPointerDown={startDrag}
+        className={clsx(
+          'absolute -left-7 top-1.5 flex h-6 w-5 cursor-grab touch-none items-center justify-center rounded-md text-fg-faint opacity-0 transition-opacity hover:bg-line/10 hover:text-fg-strong active:cursor-grabbing group-hover/island:opacity-100',
+          dragPos && 'opacity-100',
+        )}
+      >
+        <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+          {[2, 7, 12].map((y) => [2.5, 7.5].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.3" />))}
+        </svg>
+      </span>
       <motion.div
         ref={ref}
-        layout
+        layout="size"
         transition={spring.island}
         style={big ? { borderRadius: 26, width: mode === 'ring' ? 400 : width } : { borderRadius: 22 }}
         data-testid="live-island"
@@ -194,6 +270,7 @@ export function LiveIsland() {
                   dismissIsland(event.id);
                   const c = event.channelId ? get().channels[event.channelId] : null;
                   if (c) nav(c.serverId ? `/channels/${c.serverId}/${c.id}` : `/channels/@me/${c.id}`);
+                  if (event.watch) focusStream(event.watch);
                 }}
               />
             )}
@@ -203,6 +280,13 @@ export function LiveIsland() {
                 {np && (
                   <div className={clsx('px-4 pb-1', inCall ? 'border-t border-white/[0.08] pt-3' : 'pt-4')}>
                     <MusicPanel np={np} onCmd={mediaCommand} compact={inCall} />
+                  </div>
+                )}
+                {pos && (
+                  <div className="flex justify-center pt-1">
+                    <button className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/20" onClick={resetPos}>
+                      <Icon name="arrowLeft" size={12} className="rotate-90" /> Voltar ao topo
+                    </button>
                   </div>
                 )}
                 <ResizeGrip width={width} onWidth={setWidth} onCommit={(w) => setPrefs({ islandWidth: w })} />
@@ -229,6 +313,8 @@ export function LiveIsland() {
       {share && <ScreenShareModal onClose={() => setShare(false)} />}
     </div>
   );
+  // Moved somewhere else: render on top of the app (outside the top bar)
+  return livePos ? createPortal(island, document.body) : island;
 }
 
 function Row({ children, onClick, className }: { children: ReactNode; onClick?: () => void; className?: string }) {
@@ -398,6 +484,23 @@ function CallExpanded({ onShare }: { onShare: () => void }) {
           <Participant key={id} id={id} serverId={channel?.serverId ?? null} />
         ))}
       </div>
+      {v.screen && (
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-3 py-2">
+          <span className="rec-dot h-2 w-2 rounded-full bg-danger" />
+          <span className="text-[13px] font-bold">Você está ao vivo</span>
+          <span className="truncate text-xs tabular-nums text-white/60">
+            {v.screenSince ? fmt(now - v.screenSince) : ''}
+            {v.screenInfo ? ` · ${v.screenInfo}` : ''}
+          </span>
+          <span className="flex-1" />
+          <button className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/20" onClick={onShare}>
+            Trocar
+          </button>
+          <button className="rounded-full bg-danger px-2.5 py-1 text-[11px] font-semibold hover:bg-danger/85" onClick={() => void stopScreenShare()}>
+            Parar
+          </button>
+        </div>
+      )}
       <div className="mt-4 flex items-center justify-center gap-2.5">
         <CtrlBtn icon={v.selfMute || v.selfDeaf ? 'micOff' : 'mic'} label="Microfone" active={v.selfMute || v.selfDeaf} onClick={() => void toggleMute()} />
         <CtrlBtn icon={v.selfDeaf ? 'headphonesOff' : 'headphones'} label="Fones" active={v.selfDeaf} onClick={() => void toggleDeaf()} />
@@ -487,7 +590,7 @@ function EventView({ ev, onOpen }: { ev: IslandEvent; onOpen: () => void }) {
         <span className="block truncate text-[13px] font-bold">{ev.title}</span>
         {ev.body && <span className="block truncate text-[12px] text-white/60">{ev.body}</span>}
       </span>
-      {ev.channelId && <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold">Abrir</span>}
+      {ev.channelId && <span className={clsx('shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', ev.watch ? 'bg-danger text-white' : 'bg-white/10')}>{ev.action ?? 'Abrir'}</span>}
     </button>
   );
 }

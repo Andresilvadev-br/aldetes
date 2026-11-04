@@ -25,6 +25,8 @@ export interface Prefs {
   introAnimation: boolean;
   islandWidth: number;
   islandHover: boolean;
+  /** null = default spot (top center). Otherwise capsule center-x and top as fractions of the window. */
+  islandPos: { fx: number; fy: number } | null;
   desktopNotifications: boolean;
   notificationSounds: boolean;
   inputDeviceId: string;
@@ -56,6 +58,7 @@ const defaults: Prefs = {
   introAnimation: true,
   islandWidth: 420,
   islandHover: true,
+  islandPos: null,
   desktopNotifications: true,
   notificationSounds: true,
   inputDeviceId: 'default',
@@ -71,7 +74,7 @@ const defaults: Prefs = {
   userVolumes: {},
   localMutes: {},
   favorites: [],
-  streamQuality: '720p30',
+  streamQuality: '1080p30',
 };
 
 const KEY = 'aldetes.prefs';

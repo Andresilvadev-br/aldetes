@@ -50,6 +50,8 @@ type Cfg = {
   autoStart?: boolean;
   startHidden?: boolean;
   floatingIsland?: boolean;
+  /** floating island position: capsule center-x and top, relative to the display's work area */
+  islandPos?: { cx: number; y: number; displayId: number } | null;
 };
 const readCfg = (): Cfg => {
   try {
@@ -86,7 +88,7 @@ function createIslandWindow() {
     frame: false,
     transparent: true,
     resizable: false,
-    movable: false,
+    movable: true, // dragged by its grip (-webkit-app-region: drag)
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -102,6 +104,7 @@ function createIslandWindow() {
   islandWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   islandWin.webContents.on('will-navigate', (e) => e.preventDefault());
   void islandWin.loadURL(appUrl('#/island-overlay'));
+  islandWin.on('moved', saveIslandPos);
   islandWin.on('closed', () => (islandWin = null));
 }
 
@@ -113,7 +116,25 @@ function positionIsland() {
   const d = win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay();
   const w = Math.min(ISLAND_W + 40, Math.max(120, islandSize.w));
   const h = Math.min(ISLAND_H, Math.max(36, islandSize.h));
-  islandWin.setBounds({ x: Math.round(d.workArea.x + (d.workArea.width - w) / 2), y: d.workArea.y + 6, width: w, height: h });
+  const saved = readCfg().islandPos;
+  const disp = saved ? (screen.getAllDisplays().find((x) => x.id === saved.displayId) ?? d) : d;
+  const wa = disp.workArea;
+  const cx = saved ? wa.x + saved.cx : wa.x + wa.width / 2;
+  const top = saved ? wa.y + saved.y : wa.y + 6;
+  const x = Math.round(Math.min(wa.x + wa.width - w, Math.max(wa.x, cx - w / 2)));
+  const y = Math.round(Math.min(wa.y + wa.height - h, Math.max(wa.y, top)));
+  positioning = true;
+  islandWin.setBounds({ x, y, width: w, height: h });
+  setTimeout(() => (positioning = false), 50);
+}
+let positioning = false;
+
+/** User dragged the floating island: remember where its center/top is. */
+function saveIslandPos() {
+  if (!islandWin || positioning) return;
+  const b = islandWin.getBounds();
+  const disp = screen.getDisplayMatching(b);
+  writeCfg({ islandPos: { cx: b.x + b.width / 2 - disp.workArea.x, y: b.y - disp.workArea.y, displayId: disp.id } });
 }
 function resizeIsland(w: number, h: number) {
   const grow = w >= islandSize.w && h >= islandSize.h;
@@ -339,6 +360,10 @@ function registerIpc() {
       return;
     }
     if (cmd.type === 'media' && cmd.arg) return media.command(cmd.arg as MediaCommand);
+    if (cmd.type === 'resetPos') {
+      writeCfg({ islandPos: null });
+      return positionIsland();
+    }
     win?.webContents.send('aldetes:island-command', cmd);
   });
   ipcMain.on('island:size', (e, w: number, h: number) => {

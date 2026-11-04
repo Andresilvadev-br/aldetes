@@ -13,6 +13,10 @@ export interface IslandEvent {
   channelId?: string;
   ttl: number; // ms
   createdAt: number;
+  /** button label on the event (default "Abrir") */
+  action?: string;
+  /** stream to focus when opened: participant identity */
+  watch?: string;
 }
 
 export interface UploadActivity {

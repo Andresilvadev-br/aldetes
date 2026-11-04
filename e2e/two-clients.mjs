@@ -159,7 +159,7 @@ try {
 
   // screen share (Chromium fake display capture)
   await A.page.getByRole('button', { name: /^Tela$/ }).click();
-  await A.page.getByRole('button', { name: /Escolher o que compartilhar/ }).click();
+  await A.page.getByRole('button', { name: /Começar transmissão/ }).click();
   const screenOk = await B.page
     .waitForFunction(
       () => {

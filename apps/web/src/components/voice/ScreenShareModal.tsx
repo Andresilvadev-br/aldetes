@@ -1,127 +1,254 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { Modal } from '../common/overlay';
+import { AnimatePresence, motion } from 'motion/react';
 import { desktop, type DesktopSource } from '@/lib/desktop';
 import { startScreenShare, STREAM_PRESETS } from '@/lib/voice';
 import { usePrefs } from '@/lib/prefs';
+import { spring } from '@/lib/motion';
+import { Icon, type IconName } from '../common/Icon';
+import { Switch, Segmented } from '../settings/SettingsLayout';
 
-const QUALITY_LABEL: Record<keyof typeof STREAM_PRESETS, string> = {
-  '720p30': '720p · 30 FPS',
-  '720p60': '720p · 60 FPS',
-  '1080p30': '1080p · 30 FPS',
-  '1080p60': '1080p · 60 FPS',
-};
+type Res = '720p' | '1080p';
+type Fps = '30' | '60';
+type Hint = 'motion' | 'detail';
 
-/** Browser getDisplayMedia can share tab audio (Chromium) and system audio on Windows/ChromeOS only. */
-function browserAudioHint(): string {
+function audioNote(): { ok: boolean; text: string } {
+  if (desktop) return desktop.supportsSystemAudio ? { ok: true, text: 'Leva junto o som do PC (jogo, música, vídeo).' } : { ok: false, text: 'Este sistema não permite capturar o som do PC.' };
   const ua = navigator.userAgent;
-  const chromium = /Chrome\//.test(ua);
-  if (!chromium) return 'Seu navegador não suporta captura de áudio da tela.';
-  if (/Windows/.test(ua)) return 'Áudio disponível ao compartilhar uma aba ou a tela inteira.';
-  return 'Áudio disponível apenas ao compartilhar uma aba do navegador.';
+  if (!/Chrome\//.test(ua)) return { ok: false, text: 'Este navegador não captura áudio da tela.' };
+  return { ok: true, text: /Windows/.test(ua) ? 'Funciona ao compartilhar uma aba ou a tela inteira.' : 'Funciona ao compartilhar uma aba do navegador.' };
 }
 
+/** Screen share setup — Ultra Motion: one panel, live previews, physical selection, honest numbers. */
 export function ScreenShareModal({ onClose }: { onClose: () => void }) {
-  const [quality, setQuality] = useState(usePrefs.getState().streamQuality);
-  const [audio, setAudio] = useState(true);
-  const [hint, setHint] = useState<'motion' | 'detail'>('motion');
+  const saved = usePrefs.getState().streamQuality;
+  const [res, setRes] = useState<Res>(saved.startsWith('1080') ? '1080p' : '720p');
+  const [fps, setFps] = useState<Fps>(saved.endsWith('60') ? '60' : '30');
+  const [hint, setHint] = useState<Hint>('motion');
+  const aNote = audioNote();
+  const [audio, setAudio] = useState(aNote.ok);
   const [sources, setSources] = useState<DesktopSource[] | null>(null);
   const [tab, setTab] = useState<'screen' | 'window'>('screen');
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const screenW = window.screen.width * devicePixelRatio;
+
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onClose]);
 
   useEffect(() => {
     if (!desktop) return;
     let alive = true;
-    const load = () => desktop!.getScreenSources().then((s) => alive && setSources(s));
+    const load = () =>
+      desktop!.getScreenSources().then((s) => {
+        if (!alive) return;
+        setSources(s);
+        setSelected((cur) => cur ?? s.find((x) => x.kind === 'screen')?.id ?? s[0]?.id ?? null);
+      });
     void load();
-    const t = setInterval(load, 3000);
+    const t = setInterval(load, 2500); // live thumbnails
     return () => {
       alive = false;
       clearInterval(t);
     };
   }, []);
 
-  const audioSupported = desktop ? desktop.supportsSystemAudio : /Chrome\//.test(navigator.userAgent);
+  const quality = `${res}${fps}` as keyof typeof STREAM_PRESETS;
+  const preset = STREAM_PRESETS[quality];
+  const mbps = (preset.maxBitrate / 1_000_000).toFixed(preset.maxBitrate % 1_000_000 ? 1 : 0);
+  const chosen = sources?.find((s) => s.id === selected);
+  const list = sources?.filter((s) => s.kind === tab) ?? [];
+
+  const pickHint = (h: Hint) => {
+    setHint(h);
+    // sensible defaults: games want FPS, text wants pixels
+    if (h === 'motion') setFps('60');
+    else {
+      setFps('30');
+      setRes('1080p');
+    }
+  };
 
   const go = async () => {
     setBusy(true);
-    await startScreenShare({ quality, audio: audio && audioSupported, desktopSourceId: selected ?? undefined, contentHint: hint });
+    await startScreenShare({ quality, audio: audio && aNote.ok, desktopSourceId: selected ?? undefined, contentHint: hint });
     setBusy(false);
     onClose();
   };
 
-  return (
-    <Modal
-      onClose={onClose}
-      title="Compartilhar tela"
-      wide={!!desktop}
-      footer={
-        <>
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        role="dialog"
+        aria-modal
+        aria-label="Compartilhar tela"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={spring.gentle}
+        className="haze flex max-h-[92vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[28px] border border-line/[0.08] bg-bg-side shadow-float"
+      >
+        {/* header */}
+        <div className="flex items-center gap-4 px-7 pb-4 pt-6">
+          <span className="grad flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-glow">
+            <Icon name="screen" size={22} />
+          </span>
+          <div className="flex-1">
+            <h2 className="text-[22px] font-extrabold tracking-tight text-fg-strong">Transmitir sua tela</h2>
+            <p className="text-sm text-fg-muted">Escolha o que mostrar e como a call vai ver.</p>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+            <Icon name="x" />
+          </button>
+        </div>
+
+        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-7 pb-2">
+          {/* 1. source */}
+          <Section n={1} title="O que compartilhar">
+            {desktop ? (
+              <>
+                <div className="mb-3">
+                  <Segmented id="share-tab" value={tab} onChange={setTab} options={[['screen', 'Telas'], ['window', 'Janelas e apps']]} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {sources === null &&
+                    [0, 1, 2].map((i) => <div key={i} className="aspect-video animate-pulse rounded-2xl bg-line/[0.05]" />)}
+                  {list.map((s, i) => (
+                    <motion.button
+                      key={s.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...spring.gentle, delay: Math.min(i, 8) * 0.03 }}
+                      whileHover={{ y: -3 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setSelected(s.id)}
+                      className="group relative rounded-2xl p-1.5 text-left"
+                    >
+                      {selected === s.id && (
+                        <motion.span layoutId="share-pick" transition={spring.responsive} className="absolute inset-0 rounded-2xl border-2 border-brand bg-brand/10 shadow-glow" />
+                      )}
+                      <span className="relative block overflow-hidden rounded-xl bg-black">
+                        <img src={s.thumbnail} alt="" className="aspect-video w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]" />
+                        {selected === s.id && (
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={spring.snappy} className="grad absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-white shadow-glow">
+                            <Icon name="check" size={13} strokeWidth={3} />
+                          </motion.span>
+                        )}
+                      </span>
+                      <span className="relative mt-1.5 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-fg">
+                        {s.appIcon ? <img src={s.appIcon} alt="" className="h-4 w-4" /> : <Icon name={s.kind === 'screen' ? 'screen' : 'file'} size={14} className="text-fg-muted" />}
+                        <span className="truncate">{s.kind === 'screen' && /entire|screen/i.test(s.name) ? 'Tela inteira' : s.name}</span>
+                      </span>
+                    </motion.button>
+                  ))}
+                  {sources && !list.length && <p className="col-span-full py-6 text-center text-sm text-fg-muted">Nada para mostrar aqui.</p>}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-4 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-4">
+                <span className="tile h-11 w-11 bg-sky-400/15 text-sky-400">
+                  <Icon name="globe" size={20} />
+                </span>
+                <p className="text-sm text-fg-muted">
+                  Ao clicar em <b className="text-fg-strong">Começar transmissão</b>, o navegador abre a janela dele para você escolher uma aba, janela ou tela.
+                </p>
+              </div>
+            )}
+          </Section>
+
+          {/* 2. optimize */}
+          <Section n={2} title="Otimizar para">
+            <div className="grid grid-cols-2 gap-3">
+              <HintCard active={hint === 'motion'} icon="signal" title="Jogos e vídeos" desc="Mais FPS e movimento suave." onClick={() => pickHint('motion')} />
+              <HintCard active={hint === 'detail'} icon="file" title="Texto e código" desc="Letras nítidas, sem borrão." onClick={() => pickHint('detail')} />
+            </div>
+          </Section>
+
+          {/* 3. quality */}
+          <Section n={3} title="Qualidade">
+            <div className="flex flex-wrap items-center gap-3">
+              <Segmented id="share-res" value={res} onChange={setRes} options={[['720p', '720p'], ['1080p', '1080p Full HD']]} />
+              <Segmented id="share-fps" value={fps} onChange={setFps} options={[['30', '30 FPS'], ['60', '60 FPS']]} />
+              <span className="ml-auto flex items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 py-2 text-xs text-fg-muted">
+                <Icon name="upload" size={14} className="text-brand" />
+                usa até <b className="tabular-nums text-fg-strong">{mbps} Mbps</b> de upload
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-fg-faint">Quem tem internet mais fraca recebe uma versão mais leve automaticamente; o resto vê na qualidade máxima.</p>
+          </Section>
+
+          {/* 4. audio */}
+          <div className={clsx('mb-5 flex items-center gap-4 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-4', !aNote.ok && 'opacity-60')}>
+            <span className="tile h-11 w-11 bg-emerald-400/15 text-emerald-400">
+              <Icon name="volume" size={19} />
+            </span>
+            <div className="flex-1">
+              <div className="font-bold text-fg-strong">Compartilhar o som</div>
+              <div className="text-sm text-fg-muted">{aNote.text}</div>
+            </div>
+            <Switch checked={audio && aNote.ok} disabled={!aNote.ok} onChange={setAudio} />
+          </div>
+        </div>
+
+        {/* footer */}
+        <div className="flex items-center gap-3 border-t border-line/[0.06] bg-line/[0.02] px-7 py-4">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div key={`${chosen?.id}-${quality}-${audio}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className="min-w-0 flex-1 truncate text-sm text-fg-muted">
+              <span className="rec-dot mr-2 inline-block h-2 w-2 rounded-full bg-danger align-middle" />
+              {desktop ? <b className="text-fg-strong">{chosen ? (chosen.kind === 'screen' ? 'Tela inteira' : chosen.name) : 'Escolha uma fonte'}</b> : <b className="text-fg-strong">Você escolhe no navegador</b>}
+              {' · '}
+              {res} {fps} FPS{audio && aNote.ok ? ' · com som' : ''}
+            </motion.div>
+          </AnimatePresence>
           <button className="btn-ghost" onClick={onClose}>
             Cancelar
           </button>
-          <button className="btn-primary" disabled={busy || (!!desktop && !selected)} onClick={go}>
-            {desktop ? 'Transmitir' : 'Escolher o que compartilhar…'}
-          </button>
-        </>
-      }
+          <motion.button whileTap={{ scale: 0.96 }} className="btn-primary px-6 py-2.5" disabled={busy || (!!desktop && !selected)} onClick={go}>
+            <Icon name="screen" size={17} />
+            {busy ? 'Iniciando…' : 'Começar transmissão'}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+}
+
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="mb-6">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grad flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black text-white">{n}</span>
+        <span className="eyebrow !text-fg-muted">{title}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HintCard({ active, icon, title, desc, onClick }: { active: boolean; icon: IconName; title: string; desc: string; onClick: () => void }) {
+  return (
+    <motion.button
+      data-glow
+      whileTap={{ scale: 0.97 }}
+      onClick={onClick}
+      className={clsx('relative flex items-center gap-3 rounded-2xl border p-4 text-left transition-colors', active ? 'border-brand/50' : 'border-line/[0.07] bg-line/[0.03] hover:border-line/15')}
     >
-      {desktop && (
-        <>
-          <div className="mb-3 flex gap-2">
-            {(['screen', 'window'] as const).map((t) => (
-              <button key={t} className={clsx('rounded px-3 py-1 text-sm', tab === t ? 'bg-fg/15 text-fg-strong' : 'text-fg-muted hover:bg-fg/10')} onClick={() => setTab(t)}>
-                {t === 'screen' ? 'Telas' : 'Aplicativos e janelas'}
-              </button>
-            ))}
-          </div>
-          <div className="mb-4 grid max-h-72 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-            {sources === null && <p className="col-span-3 py-6 text-center text-fg-muted">Carregando fontes…</p>}
-            {sources
-              ?.filter((s) => s.kind === tab)
-              .map((s) => (
-                <button key={s.id} onClick={() => setSelected(s.id)} className={clsx('rounded-lg p-1 text-left ring-2', selected === s.id ? 'ring-brand' : 'ring-transparent hover:ring-fg-faint')}>
-                  <img src={s.thumbnail} alt="" className="aspect-video w-full rounded bg-black object-contain" />
-                  <div className="mt-1 flex items-center gap-1 truncate text-xs text-fg">
-                    {s.appIcon && <img src={s.appIcon} alt="" className="h-4 w-4" />}
-                    <span className="truncate">{s.name}</span>
-                  </div>
-                </button>
-              ))}
-          </div>
-        </>
-      )}
-      <label className="label">Qualidade da transmissão</label>
-      <div className="mb-1 grid grid-cols-2 gap-2">
-        {(Object.keys(STREAM_PRESETS) as Array<keyof typeof STREAM_PRESETS>).map((q) => {
-          const tooBig = STREAM_PRESETS[q].height === 1080 && screenW < 1900 && !desktop;
-          return (
-            <button key={q} onClick={() => setQuality(q)} className={clsx('rounded border px-3 py-2 text-sm', quality === q ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/10 text-fg-muted hover:border-fg-faint')}>
-              {QUALITY_LABEL[q]}
-              {tooBig && <span className="block text-[10px] text-fg-faint">sua tela é menor que 1080p</span>}
-            </button>
-          );
-        })}
-      </div>
-      <p className="mb-4 text-xs text-fg-faint">A resolução e o FPS reais dependem da fonte, do hardware e da rede; o LiveKit reduz a qualidade automaticamente para quem tem conexão pior.</p>
-      <label className="label">Otimizar para</label>
-      <div className="mb-4 flex gap-2">
-        <button className={clsx('flex-1 rounded border px-3 py-2 text-sm', hint === 'motion' ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/10 text-fg-muted')} onClick={() => setHint('motion')}>
-          Movimento (jogos, vídeo)
-        </button>
-        <button className={clsx('flex-1 rounded border px-3 py-2 text-sm', hint === 'detail' ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/10 text-fg-muted')} onClick={() => setHint('detail')}>
-          Nitidez (texto, código)
-        </button>
-      </div>
-      <label className={clsx('flex items-center gap-2 text-sm', !audioSupported && 'opacity-50')}>
-        <input type="checkbox" className="accent-brand" checked={audio && audioSupported} disabled={!audioSupported} onChange={(e) => setAudio(e.target.checked)} />
-        Compartilhar áudio
-      </label>
-      <p className="mt-1 text-xs text-fg-faint">
-        {desktop ? (desktop.supportsSystemAudio ? 'Captura o áudio do sistema (loopback).' : 'Captura de áudio do sistema não é suportada neste sistema operacional pelo Electron.') : browserAudioHint()}
-      </p>
-    </Modal>
+      {active && <motion.span layoutId="share-hint" transition={spring.responsive} className="absolute inset-0 -z-10 rounded-2xl bg-brand/10" />}
+      <span className={clsx('tile h-11 w-11 transition-colors', active ? 'grad text-white shadow-glow' : 'bg-line/[0.07] text-fg-muted')}>
+        <Icon name={icon} size={20} />
+      </span>
+      <span>
+        <span className="block font-bold text-fg-strong">{title}</span>
+        <span className="block text-xs text-fg-muted">{desc}</span>
+      </span>
+    </motion.button>
   );
 }
