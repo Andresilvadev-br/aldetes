@@ -203,3 +203,39 @@ O tempo de login é dominado pela verificação da senha com Argon2id (lenta de 
 - iPhone real (teclado, gravação de áudio no Safari);
 - Android real;
 - codificação por GPU no Windows.
+
+## 13. Versão 0.7.0: reconstrução da experiência mobile (`e2e/mobile-nav.mjs`)
+
+| Teste | Resultado |
+|---|---|
+| `e2e/mobile-nav.mjs` (iPhone SE, iPhone 14 Pro, Pixel 7, Android 320 px, deitado) | **29/29** |
+| `e2e/mobile-pwa.mjs` (build de produção) | **10/10** |
+| `pnpm test` | **43/43** |
+| `e2e/multi-stream.mjs` / `e2e/media.mjs` | **8/8** / **5/5** |
+| `e2e/desktop-smoke.mjs` / `desktop-island.mjs` / `desktop-update.mjs` | **11/11** / **9/9** / **4/4** |
+| `e2e/two-clients.mjs` | **16/17** (ver abaixo) |
+
+O que o `mobile-nav` confere:
+- nada cobre o botão de cadastro;
+- 4 abas com a ativa marcada;
+- criar servidor mostra a lista;
+- o chat abre em tela cheia e a barra inferior some;
+- a rolagem da lista é mantida ao voltar (420 px → 420 px);
+- voltar e avançar do sistema funcionam;
+- o campo de mensagem continua visível com a área reduzida;
+- o toque longo abre um painel inferior, e o voltar do sistema fecha só o painel;
+- o seletor de emoji fica dentro da tela;
+- a call tem controles de 44 px ou mais;
+- a barra da call fica acima das abas e no topo de outro chat, sem sobrepor nada;
+- sair da call pede confirmação;
+- um pedido de amizade real aparece em Notificações e pode ser aceito;
+- as configurações funcionam em pilha;
+- arrastar da borda volta, e rolar na vertical não volta;
+- nada fica cortado em nenhum dos 4 tamanhos nem com o celular deitado.
+
+**Falha que não é regressão:** o teste "fonte real de 60 FPS" do `two-clients` deu 41–44 FPS. A própria fonte (um canvas animado) só gerou 51–54 FPS nesta máquina hoje. Rodei o mesmo teste contra o código da **0.6.0** (antes destas mudanças) e o resultado foi igual: 41 FPS com fonte de 54. Esse teste passava com 59–60 FPS em rodadas anteriores, num contêiner mais rápido.
+
+**Não testado:**
+- Safari do iPhone e PWA no iOS em aparelho real (não há WebKit aqui);
+- Android físico;
+- o teclado real do iOS.

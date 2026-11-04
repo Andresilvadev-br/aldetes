@@ -60,7 +60,7 @@ export function MiniPlayer() {
             <span className="truncate">{displayName(tile.identity, channel?.serverId ?? null)}</span>
           </div>
           <button
-            className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100 max-md:opacity-100"
+            className="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100 phone:opacity-100"
             onClick={(e) => {
               e.stopPropagation();
               useVoice.setState({ miniClosed: true });

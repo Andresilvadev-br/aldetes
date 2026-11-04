@@ -53,7 +53,11 @@ const fade = {
  * Live Island — a single physical capsule that morphs between states:
  * idle → compact activity → split (call + stream) → expanded controls → transient events.
  */
-export function LiveIsland() {
+/**
+ * `mobile`: phones show the call in the shell's call bar, so the island only appears for transient things
+ * (incoming call, brief events, uploads, reconnecting) — it never takes permanent space on a small screen.
+ */
+export function LiveIsland({ mobile = false }: { mobile?: boolean } = {}) {
   const nav = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
   const expanded = useIsland((s) => s.expanded);
@@ -203,7 +207,7 @@ export function LiveIsland() {
 
   const pos = usePrefs((p) => p.islandPos);
   const [dragPos, setDragPos] = useState<{ fx: number; fy: number } | null>(null);
-  const livePos = dragPos ?? pos;
+  const livePos = mobile ? null : (dragPos ?? pos);
   const [, reflow] = useState(0);
   useEffect(() => {
     if (!pos) return;
@@ -251,7 +255,7 @@ export function LiveIsland() {
       onMouseLeave={onLeave}
       onDoubleClick={(e) => (e.target as HTMLElement).closest('[data-island-grip]') && resetPos()}
     >
-      <span
+      {!mobile && <span
         data-island-grip
         role="button"
         aria-label="Mover a Live Island (arraste) · duplo clique volta ao topo"
@@ -265,12 +269,12 @@ export function LiveIsland() {
         <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
           {[2, 7, 12].map((y) => [2.5, 7.5].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.3" />))}
         </svg>
-      </span>
+      </span>}
       <motion.div
         ref={ref}
         layout="size"
         transition={spring.island}
-        style={big ? { borderRadius: 26, width: mode === 'ring' ? 400 : width } : { borderRadius: 22 }}
+        style={big ? { borderRadius: 26, width: mode === 'ring' ? (mobile ? 'min(400px, calc(100vw - 1rem))' : 400) : width } : { borderRadius: 22, ...(mobile ? { maxWidth: 'min(420px, calc(100vw - 1rem))' } : {}) }}
         data-testid="live-island"
         data-mode={mode}
         className={clsx(
@@ -343,6 +347,7 @@ export function LiveIsland() {
     </div>
   );
   // Moved somewhere else: render on top of the app (outside the top bar)
+  if (mobile && !(['ring', 'event', 'upload', 'reconnect'] as Mode[]).includes(mode)) return null;
   return livePos ? createPortal(island, document.body) : island;
 }
 

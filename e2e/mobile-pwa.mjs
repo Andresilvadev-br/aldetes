@@ -26,8 +26,9 @@ try {
   await p.waitForURL(/channels/);
   await p.waitForTimeout(1200);
   await p.screenshot({ path: `${SHOTS}/m-home.png` });
-  check('Celular: abre na navegação (servidores + conversas), sem rolagem lateral', (await p.locator('nav[aria-label=Servidores]').isVisible()) && (await noHScroll(p)));
+  check('Celular: abre com a barra inferior de navegação, sem rolagem lateral', (await p.locator('nav[aria-label="Navegação principal"]').isVisible()) && (await noHScroll(p)));
 
+  await p.getByRole('button', { name: 'Servidores' }).click();
   await p.getByRole('button', { name: 'Adicionar um servidor' }).click();
   await p.getByRole('button', { name: 'Criar', exact: true }).click();
   await p.waitForURL(/channels\/\d+\/\d+/);
@@ -35,7 +36,7 @@ try {
   await p.screenshot({ path: `${SHOTS}/m-channels.png` });
   await p.locator('[role=button]', { hasText: /^geral$/ }).first().click();
   await p.waitForTimeout(600);
-  const back = p.getByRole('button', { name: 'Voltar para os canais' });
+  const back = p.getByRole('button', { name: 'Voltar' }).first();
   const inChat = (await back.isVisible()) && (await p.getByPlaceholder(/Conversar em/).isVisible());
   await p.screenshot({ path: `${SHOTS}/m-chat.png` });
   check('Tocar num canal abre o chat em tela própria, com botão de voltar', inChat);
@@ -44,7 +45,7 @@ try {
   check('Voltar mostra os canais de novo', await p.getByText('Canais de voz', { exact: false }).isVisible());
 
   await p.locator('[role=button]', { hasText: /^Geral/ }).first().click({ position: { x: 40, y: 18 } });
-  await p.getByRole('button', { name: 'Sair da call' }).waitFor({ timeout: 20000 });
+  await p.getByRole('button', { name: 'Sair da call' }).last().waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
   await p.screenshot({ path: `${SHOTS}/m-call.png` });
   const dock = await p.evaluate(() => {
@@ -59,7 +60,7 @@ try {
   await p.getByRole('button', { name: 'Microfone' }).last().click();
   const muted = await p.getByRole('button', { name: 'Microfone' }).last().getAttribute('aria-pressed');
   check('Mutar pelo celular funciona', muted === 'true');
-  await p.getByRole('button', { name: 'Sair da call' }).click();
+  await p.getByRole('button', { name: 'Sair da call' }).last().click();
 
   // ---------- PWA ----------
   const man = await p.evaluate(async () => {

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense, useContext } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useStore, get } from '@/store';
 import { ServerRail } from './ServerRail';
@@ -11,7 +11,8 @@ import { ChannelView } from '../chat/ChannelView';
 import { FriendsPage } from '@/pages/Friends';
 import { DiscoverPage } from '@/pages/Discover';
 import { onGateway } from '@/lib/gateway';
-import { useIsMobile, useMobilePane } from '@/lib/mobile';
+import { useIsMobile, MobileContentVisible } from '@/lib/mobile';
+import { MobileShell } from '../mobile/MobileShell';
 import { WhatsNew } from '../common/WhatsNew';
 import { MiniPlayer } from '../voice/MiniPlayer';
 import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice, sendReaction, REACTIONS } from '@/lib/voice';
@@ -120,25 +121,38 @@ export function AppShell() {
   }, [mentionTotal]);
 
   const mobile = useIsMobile();
-  const pane = useMobilePane((m) => m.pane);
-  return (
-    <div className="flex h-full bg-bg-rail pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      {(!mobile || pane === 'nav') && <ServerRail />}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onSearch={() => setSwitcher(true)} />
-        <div data-safe-bottom className={clsx('flex min-h-0 flex-1 gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]', mobile ? 'pr-2' : 'pr-2')}>
-          <Routes>
-            <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
-            <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
-            <Route path="/discover" element={<Sidebarred sidebar={<HomeSidebar />}><DiscoverPage /></Sidebarred>} />
-            <Route path="*" element={<Navigate to="/channels/@me" replace />} />
-          </Routes>
-        </div>
-      </div>
+  const routes = (
+    <Routes>
+      <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
+      <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
+      <Route path="/discover" element={<Sidebarred sidebar={<HomeSidebar />}><DiscoverPage /></Sidebarred>} />
+      <Route path="*" element={<Navigate to="/channels/@me" replace />} />
+    </Routes>
+  );
+  const overlays = (
+    <>
       <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
       <WhatsNew />
       <MiniPlayer />
       {settingsTab && <Suspense fallback={null}><UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} /></Suspense>}
+    </>
+  );
+  // Phones get their own navigation (tabs + screen stack); desktop keeps the columns.
+  if (mobile)
+    return (
+      <>
+        <MobileShell content={routes} onSearch={() => setSwitcher(true)} />
+        {overlays}
+      </>
+    );
+  return (
+    <div className="flex h-full bg-bg-rail">
+      <ServerRail />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar onSearch={() => setSwitcher(true)} />
+        <div className="flex min-h-0 flex-1 gap-2 pb-2 pr-2">{routes}</div>
+      </div>
+      {overlays}
     </div>
   );
 }
@@ -151,11 +165,11 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
       <button
         onClick={onSearch}
         aria-label="Buscar"
-        className="no-drag flex h-8 items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 text-[13px] text-fg-faint transition-colors hover:border-line/15 hover:text-fg-muted max-md:ml-2 max-md:w-9 max-md:justify-center max-md:px-0 md:w-64"
+        className="no-drag flex h-8 items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 text-[13px] text-fg-faint transition-colors hover:border-line/15 hover:text-fg-muted phone:ml-2 phone:w-9 phone:justify-center phone:px-0 md:w-64"
       >
         <Icon name="search" size={15} />
-        <span className="flex-1 text-left max-md:hidden">Buscar ou ir para…</span>
-        <span className="kbd max-md:hidden">Ctrl K</span>
+        <span className="flex-1 text-left phone:hidden">Buscar ou ir para…</span>
+        <span className="kbd phone:hidden">Ctrl K</span>
       </button>
       <div className="pointer-events-none absolute inset-x-0 top-1.5 flex justify-center">
         <div className="pointer-events-auto">
@@ -170,23 +184,10 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
 
 function Sidebarred({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
   const mobile = useIsMobile();
-  const pane = useMobilePane((m) => m.pane);
-  if (mobile)
-    return (
-      <AnimatePresence mode="popLayout" initial={false}>
-        {pane === 'nav' ? (
-          <motion.div key="nav" initial={{ x: -24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="panel min-h-0 flex-1 overflow-hidden">{sidebar}</div>
-            <VoicePanel />
-            <UserPanel />
-          </motion.div>
-        ) : (
-          <motion.main key="content" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 24, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} className="panel haze relative -mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-none border-x-0 bg-bg-main pl-0">
-            {children}
-          </motion.main>
-        )}
-      </AnimatePresence>
-    );
+  const visible = useContext(MobileContentVisible);
+  // phones: lists live in the mobile shell's tabs; the route only provides the content screen
+  if (mobile && !visible) return null;
+  if (mobile) return <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-main">{children}</main>;
   return (
     <>
       <div className="flex w-[272px] shrink-0 flex-col gap-2">
@@ -225,7 +226,8 @@ function ServerLayout() {
       const target =
         chans.find((c) => c.id === last && c.type !== 'category' && c.type !== 'voice') ??
         chans.filter((c) => c.type === 'text' || c.type === 'announcement').sort((a, b) => a.position - b.position)[0];
-      if (target) nav(`/channels/${serverId}/${target.id}`, { replace: true });
+      // state m:'nav' → on phones this redirect shows the channel list, and "back" from a chat returns here
+      if (target) nav(`/channels/${serverId}/${target.id}`, { replace: true, state: { m: 'nav' } });
     } else if (channel.type !== 'voice') {
       try {
         localStorage.setItem(`aldetes.last.${serverId}`, channelId);

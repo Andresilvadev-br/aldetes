@@ -114,7 +114,7 @@ export function ServerRail() {
 function RailItem({ tooltip, active, unread, onClick, onContextMenu, children, badge }: { tooltip: string; active?: boolean; unread?: boolean; onClick: () => void; onContextMenu?: (e: React.MouseEvent) => void; children: React.ReactNode; badge?: number }) {
   const [hover, setHover] = useState(false);
   return (
-    <div className="group relative flex w-full justify-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+    <div className="group relative flex w-full justify-center" onPointerEnter={(e) => e.pointerType === "mouse" && setHover(true)} onPointerLeave={() => setHover(false)} onPointerDown={() => setHover(false)}>
       <Pill state={active ? 'active' : hover ? 'hover' : unread ? 'unread' : 'none'} />
       <Tooltip label={tooltip} side="right">
         <motion.button

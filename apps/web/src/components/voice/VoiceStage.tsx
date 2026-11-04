@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import type { Participant, VideoTrack } from 'livekit-client';
 import { Track } from '@/lib/lk';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, setTileFit, setViewQuality, streamHasLayers, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, type Tile } from '@/lib/voice';
 import { spring, dur } from '@/lib/motion';
 import { usePrefs } from '@/lib/prefs';
 import { LiveAvatar, ReactionPicker } from './LiveAvatar';
@@ -550,11 +550,13 @@ export function CallDock() {
           </motion.button>
         </Tooltip>
       )}
+{canShareScreen() && (
       <Tooltip label={v.screen ? 'Parar transmissão' : 'Compartilhar tela'}>
         <motion.button {...tap} className={clsx(btn(false), v.screen && '!bg-danger/20 !text-danger')} disabled={!v.canVideo} onClick={() => (v.screen ? void stopScreenShare() : setShare(true))} aria-label="Tela" aria-pressed={v.screen}>
           <Icon name={v.screen ? 'screenOff' : 'screen'} />
         </motion.button>
       </Tooltip>
+      )}
       <Tooltip label={`${v.selfMute ? 'Ativar microfone' : 'Silenciar'} (Ctrl+Shift+M)`}>
         <motion.button {...tap} className={clsx(btn(false), (v.selfMute || v.selfDeaf) && '!bg-danger/20 !text-danger')} onClick={() => void toggleMute()} aria-label="Microfone" aria-pressed={v.selfMute || v.selfDeaf}>
           {v.pending.mic && <Spinner />}

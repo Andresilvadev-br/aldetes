@@ -7,7 +7,7 @@ import { Avatar } from '../common/Avatar';
 import { api } from '@/lib/api';
 import { toastError, useContextMenu } from '../common/overlay';
 import { CreateGroupModal } from '../modals/CreateGroupModal';
-import { showContent } from '@/lib/mobile';
+import { isMobileNow, openContent } from '@/lib/mobile';
 import { QuickSwitcher } from '../modals/QuickSwitcher';
 
 export function dmName(c: { type: string; name: string; recipients?: { displayName: string }[] }) {
@@ -24,7 +24,7 @@ export function HomeSidebar() {
   const [switcher, setSwitcher] = useState(false);
   return (
     <div className="flex h-full flex-col">
-      <div className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-line/[0.06] px-4">
+      <div className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-line/[0.06] px-4 phone:hidden">
         <span className="haze pointer-events-none absolute inset-0 opacity-80" />
         <span className="tile grad relative text-white shadow-glow">
           <Icon name="at" size={18} />
@@ -40,7 +40,7 @@ export function HomeSidebar() {
         <button
           data-glow
           className={clsx('relative flex h-10 w-full items-center gap-3 rounded-xl border border-transparent px-3 font-semibold transition-colors', loc.pathname === '/channels/@me' ? 'nav-active' : 'text-fg-muted hover:bg-line/[0.05] hover:text-fg')}
-          onClick={() => (nav('/channels/@me'), showContent())}
+          onClick={() => (isMobileNow() ? openContent('/channels/@me') : nav('/channels/@me'))}
         >
           <Icon name="users" />
           <span className="flex-1 text-left">Amigos</span>
@@ -48,7 +48,7 @@ export function HomeSidebar() {
         </button>
         <div className="eyebrow mt-5 flex items-center justify-between px-2 pb-1.5">
           <span>Mensagens diretas</span>
-          <button className="hover:text-fg-strong" title="Criar DM em grupo" onClick={() => setGroup(true)}>
+          <button className="tap hover:text-fg-strong" title="Criar DM em grupo" aria-label="Criar DM em grupo" onClick={() => setGroup(true)}>
             <Icon name="plus" size={16} />
           </button>
         </div>
@@ -80,7 +80,7 @@ function DmRow({ channelId }: { channelId: string }) {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => (nav(`/channels/@me/${channelId}`), showContent())}
+      onClick={() => (isMobileNow() ? openContent(`/channels/@me/${channelId}`) : nav(`/channels/@me/${channelId}`))}
       onContextMenu={(e) => menu(e, [{ label: c.type === 'group_dm' ? 'Sair do grupo' : 'Fechar DM', onClick: close, danger: c.type === 'group_dm' }, { label: 'Copiar ID', onClick: () => navigator.clipboard.writeText(channelId) }])}
       data-glow
       className={clsx('group relative mt-0.5 flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-transparent px-2 transition-colors', active === channelId ? 'nav-active' : 'text-fg-muted hover:bg-line/[0.05] hover:text-fg')}

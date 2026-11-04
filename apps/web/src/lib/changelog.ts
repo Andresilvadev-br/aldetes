@@ -13,6 +13,24 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.7.0',
+    date: '2026-11-04',
+    title: 'O Aldetes no celular, do jeito certo',
+    highlights: [
+      { title: 'Barra inferior', body: 'Servidores, Mensagens, Notificações e Você sempre a um toque, com a aba ativa destacada.' },
+      { title: 'Telas que deslizam', body: 'O chat entra por cima da lista. Volte pelo ←, pelo botão do Android ou arrastando da borda; a lista continua onde você parou.' },
+      { title: 'Notificações', body: 'Menções, mensagens novas e pedidos de amizade num só lugar, e você aceita amigos dali mesmo.' },
+      { title: 'Call sempre à mão', body: 'Navegue à vontade: uma barra mostra a call, deixa mutar e voltar com um toque.' },
+      { title: 'Toque longo', body: 'Segure uma mensagem, um canal ou uma pessoa para ver as opções num painel que sobe de baixo.' },
+    ],
+    fixes: [
+      'O aviso de instalação não cobre mais o botão de cadastro',
+      'Configurações com telas próprias no celular (nada mais cortado)',
+      'Seletor de emoji, menus e cartões de perfil dentro da tela',
+      'Celular deitado usa o layout de celular; dicas de botão não ficam presas na tela',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-11-04',
     title: 'Mais rápido e com áudio!',

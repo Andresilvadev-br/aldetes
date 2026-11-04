@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Popover } from '../common/overlay';
 import { EMOJI_CATEGORIES, searchEmoji } from '@/lib/emoji';
+import { isMobileNow } from '@/lib/mobile';
 import { useStore, EMPTY } from '@/store';
 
 /** Picks a unicode emoji or a server custom emoji (returned as "custom:<id>" for reactions or "<:name:id>" for text). */
@@ -12,9 +13,9 @@ export function EmojiPicker({ x, y, serverId, onPick, onClose, forText }: { x: n
   const pickCustom = (e: (typeof custom)[number]) => onPick(forText ? `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>` : `custom:${e.id}`);
   return (
     <Popover x={Math.max(8, x)} y={y} onClose={onClose}>
-      <div className="flex h-[360px] w-[340px] flex-col rounded-2xl border border-line/[0.08] bg-bg-float shadow-float">
+      <div className="flex h-[360px] w-[340px] flex-col rounded-2xl border border-line/[0.08] bg-bg-float shadow-float phone:h-[min(420px,60dvh)] phone:w-full phone:rounded-none phone:border-0 phone:shadow-none">
         <div className="p-2">
-          <input className="input py-1.5 text-sm" placeholder="Encontre o emoji perfeito" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          <input className="input py-1.5 text-sm" placeholder="Encontre o emoji perfeito" value={q} onChange={(e) => setQ(e.target.value)} autoFocus={!isMobileNow()} />
         </div>
         <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-2">
           {customResults.length > 0 && (

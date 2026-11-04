@@ -18,7 +18,7 @@ import { UserPopoutTrigger } from '../common/UserPopout';
 import { ServerIcon } from './ServerRail';
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { spring } from '@/lib/motion';
-import { showContent } from '@/lib/mobile';
+import { isMobileNow, openContent } from '@/lib/mobile';
 
 export const channelIcon = (t: string): IconName =>
   t === 'voice' ? 'speaker' : t === 'announcement' ? 'megaphone' : t === 'forum' ? 'forum' : t === 'thread' ? 'thread' : 'hash';
@@ -272,8 +272,9 @@ function ChannelRow({
       if (!hasPermission(perms, Permissions.CONNECT)) return;
       if (voiceChannel !== channel.id) void joinVoice(channel.id);
     }
-    nav(`/channels/${channel.serverId}/${channel.id}`);
-    showContent();
+    const path = `/channels/${channel.serverId}/${channel.id}`;
+    if (isMobileNow()) openContent(path);
+    else nav(path);
   };
 
   const onContextMenu = (e: React.MouseEvent) =>
@@ -398,7 +399,7 @@ const itemV: Variants = { hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x:
 function CategoryHeader({ label, count, collapsed, onToggle, onAdd, icon }: { label: string; count: number; collapsed?: boolean; onToggle?: () => void; onAdd?: () => void; icon?: IconName }) {
   return (
     <div className="group flex items-center gap-1 pb-1 pl-1 pr-1">
-      <button className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-fg-faint transition-colors hover:text-fg-strong" onClick={onToggle}>
+      <button className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-[11px] font-black uppercase phone:min-h-[40px] tracking-[0.14em] text-fg-faint transition-colors hover:text-fg-strong" onClick={onToggle}>
         {icon ? (
           <Icon name={icon} size={11} strokeWidth={2.5} className="text-warn" />
         ) : (
@@ -411,7 +412,7 @@ function CategoryHeader({ label, count, collapsed, onToggle, onAdd, icon }: { la
         <span className="rounded-md bg-line/[0.06] px-1.5 text-[10px] tabular-nums tracking-normal">{count}</span>
       </button>
       {onAdd && (
-        <motion.button whileHover={{ rotate: 90 }} whileTap={{ scale: 0.85 }} transition={spring.snappy} className="rounded-md p-0.5 text-fg-muted opacity-0 hover:bg-line/10 hover:text-fg-strong group-hover:opacity-100" title="Criar canal" onClick={onAdd}>
+        <motion.button whileHover={{ rotate: 90 }} whileTap={{ scale: 0.85 }} transition={spring.snappy} className="tap rounded-md p-0.5 text-fg-muted opacity-0 hover:bg-line/10 hover:text-fg-strong group-hover:opacity-100 phone:opacity-100" title="Criar canal" aria-label="Criar canal" onClick={onAdd}>
           <Icon name="plus" size={15} />
         </motion.button>
       )}
@@ -469,8 +470,9 @@ function VoiceRoom({
   const watch = async (userId: string) => {
     if (!mine) await joinVoice(channel.id);
     focusStream(userId);
-    nav(`/channels/${serverId}/${channel.id}`);
-    showContent();
+    const path = `/channels/${serverId}/${channel.id}`;
+    if (isMobileNow()) openContent(path);
+    else nav(path);
   };
 
   return (

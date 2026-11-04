@@ -264,7 +264,7 @@ body {
 }
 
 /* Phones: the app follows the visible height (keyboard open → no empty strip under the message field) */
-@media (max-width: 767px) {
+@media (max-width: 767px), (pointer: coarse) and (max-height: 500px) {
   html,
   body,
   #root {
@@ -284,4 +284,64 @@ body {
 }
 .cz-hover:hover .cz > * {
   animation-play-state: running;
+}
+
+/* ===================== phones: sheets, touch targets, settings ===================== */
+/* content inside a bottom sheet takes the full width (menus, profile cards, pickers were sized for desktop) */
+[data-sheet] > :not(:first-child) {
+  width: 100% !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+[data-sheet] .menu {
+  background: transparent;
+  min-width: 0;
+  padding: 0.25rem 0.75rem;
+}
+[data-sheet] .menu-item,
+[data-sheet] .menu-item-danger {
+  min-height: 48px;
+  font-size: 15px;
+  border-radius: 14px;
+}
+@media (pointer: coarse) {
+  /* ≥ 44 px touch targets without changing the look: the hit area grows, the icon stays */
+  .tap {
+    position: relative;
+  }
+  .tap::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+  .icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  /* long-press shouldn't select text or open the iOS callout on interactive rows */
+  [role='button'],
+  button {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+@media (max-width: 767px), (pointer: coarse) and (max-height: 500px) {
+  .mobile-settings h2.settings-title {
+    display: none;
+  }
+  .mobile-settings .grid-cols-2:not(.keep-cols) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* toasts go to the top on phones so they never cover the message field or the tab bar */
+  .toasts {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+    bottom: auto !important;
+  }
 }

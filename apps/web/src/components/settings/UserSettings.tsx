@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { Icon } from '../common/Icon';
 import { ConnectionTest } from './ConnectionTest';
+import { logout as doLogout } from '@/lib/session';
 import { openWhatsNew, runningVersion } from '../common/WhatsNew';
 import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
@@ -21,13 +22,7 @@ import type { SelfUser } from '@aldetes/shared';
 export function UserSettings({ onClose, initialTab = 'account' }: { onClose: () => void; initialTab?: string }) {
   const [tab, setTab] = useState(initialTab);
   const logout = async () => {
-    if (!(await confirmDialog({ title: 'Sair', body: 'Tem certeza de que deseja sair?', confirm: 'Sair', danger: true }))) return;
-    await leaveVoice();
-    await api('POST', '/auth/logout').catch(() => {});
-    await setSessionToken(null);
-    disconnectGateway();
-    setStore({ ...initialState, status: 'unauthenticated' });
-    onClose();
+    if (await doLogout()) onClose();
   };
   const sections = [
     { id: 'account', label: 'Minha conta', group: 'Configurações de usuário' },

@@ -5,6 +5,8 @@ export default {
   darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
+      // phones, including landscape (a phone on its side is wider than 767 px but short and touch-only)
+      screens: { phone: { raw: '(max-width: 767px), (pointer: coarse) and (max-height: 500px)' } },
       colors: {
         bg: { rail: v('bg-rail'), side: v('bg-side'), main: v('bg-main'), float: v('bg-float'), input: v('bg-input') },
         fg: { DEFAULT: v('fg'), muted: v('fg-muted'), faint: v('fg-faint'), strong: v('fg-strong') },

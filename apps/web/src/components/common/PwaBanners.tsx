@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import clsx from 'clsx';
+import { useStore } from '@/store';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePwa, applyWebUpdate, promptInstall, isIos } from '@/lib/pwa';
 import { useVoice } from '@/lib/voice';
@@ -19,6 +21,7 @@ export function PwaBanners() {
   const { online, updateReady, canInstall, standalone } = usePwa();
   const inCall = useVoice((v) => !!v.channelId);
   const mobile = useIsMobile();
+  const loggedIn = useStore((s) => !!s.me);
   const [dismissed, setDismissed] = useState(() => {
     try {
       return localStorage.getItem(DISMISS) === '1';
@@ -35,10 +38,17 @@ export function PwaBanners() {
       /* ignore */
     }
   };
-  const showInstall = mobile && !standalone && !dismissed && (canInstall || isIos());
+  // only inside the app (never over the sign-up/login buttons), and only until dismissed
+  const showInstall = loggedIn && mobile && !standalone && !dismissed && (canInstall || isIos());
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[70] flex flex-col items-center gap-2 px-3">
+    <div
+      className={clsx(
+        'pointer-events-none fixed inset-x-0 z-[44] flex flex-col items-center gap-2 px-3',
+        // phones: top of the screen, so it never covers the message field, the call bar or the tabs
+        mobile ? 'top-[calc(env(safe-area-inset-top)+0.5rem)]' : 'bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[70]',
+      )}
+    >
       <AnimatePresence>
         {!online && (
           <motion.div key="off" role="status" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }} transition={spring.gentle} className="pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl border border-warn/30 bg-bg-float/95 px-4 py-3 text-sm shadow-float">

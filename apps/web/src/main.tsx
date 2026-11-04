@@ -9,7 +9,7 @@ import { installCursorLight } from './lib/motion';
 import { installMediaBridge } from './lib/media';
 import { installActivity } from './lib/activity';
 import { installPwa } from './lib/pwa';
-import { installViewport } from './lib/mobile';
+import { installViewport, installLongPress } from './lib/mobile';
 
 applyAppearance();
 const syncHidden = () => (document.documentElement.dataset.hidden = String(document.hidden));
@@ -34,6 +34,7 @@ if (window.location.hash.startsWith('#/island-overlay')) {
   installActivity();
   installPwa();
   installViewport();
+  installLongPress();
   // Voice SDK: not needed to open the app; fetch it quietly once the app is idle so joining a call stays instant.
   setTimeout(() => {
     const go = () => void import('./lib/lk').then((m) => m.loadLiveKit());

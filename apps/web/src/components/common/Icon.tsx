@@ -4,6 +4,8 @@ import type { SVGProps } from 'react';
 const paths: Record<string, string> = {
   hash: 'M5 9h14M4 15h14M10 3 8 21M16 3l-2 18',
   send: 'M4 12 20 4l-4 16-4-7-8-1Zm8 1 8-9',
+  chat: 'M4 5h16v11H9l-5 4V5Z',
+  servers: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7',
   play: 'M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z',
   pause: 'M7 4h3v16H7zM14 4h3v16h-3z',
   pip: 'M3 5h18v14H3zM12 12h7v5h-7z',

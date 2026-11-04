@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useIsMobile, showNav } from '@/lib/mobile';
+import { useIsMobile, mobileBack } from '@/lib/mobile';
 import { spring } from '@/lib/motion';
 import { Icon } from '../common/Icon';
 
@@ -8,7 +8,7 @@ export function MobileBack() {
   const mobile = useIsMobile();
   if (!mobile) return null;
   return (
-    <motion.button whileTap={{ scale: 0.88 }} transition={spring.snappy} onClick={showNav} aria-label="Voltar para os canais" className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fg-strong active:bg-line/10">
+    <motion.button whileTap={{ scale: 0.88 }} transition={spring.snappy} onClick={mobileBack} aria-label="Voltar" className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fg-strong active:bg-line/10">
       <Icon name="arrowLeft" size={21} />
     </motion.button>
   );

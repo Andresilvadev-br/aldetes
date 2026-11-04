@@ -4,10 +4,13 @@ import clsx from 'clsx';
 import { create } from 'zustand';
 import { AnimatePresence, motion } from 'motion/react';
 import { Icon } from './Icon';
+import { useIsMobile, useBackToClose } from '@/lib/mobile';
 import { spring } from '@/lib/motion';
 
 // ---------------- Modal ----------------
 export function Modal({ onClose, children, className, title, subtitle, footer, wide }: { onClose: () => void; children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; footer?: ReactNode; wide?: boolean }) {
+  const mobile = useIsMobile();
+  useBackToClose(onClose);
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', h);
@@ -15,7 +18,7 @@ export function Modal({ onClose, children, className, title, subtitle, footer, w
   }, [onClose]);
   return createPortal(
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className={clsx('fixed inset-0 z-50 flex justify-center bg-black/70', mobile ? 'items-end p-0' : 'items-center p-4')}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
@@ -24,10 +27,14 @@ export function Modal({ onClose, children, className, title, subtitle, footer, w
       <motion.div
         role="dialog"
         aria-modal
-        initial={{ opacity: 0, scale: 0.94, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={spring.gentle}
-        className={clsx('flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-side shadow-float', wide ? 'max-w-2xl' : 'max-w-md', className)}
+        initial={mobile ? { y: '100%' } : { opacity: 0, scale: 0.94, y: 12 }}
+        animate={mobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+        transition={mobile ? { duration: 0.28, ease: [0.22, 1, 0.36, 1] } : spring.gentle}
+        className={clsx(
+          'flex w-full flex-col overflow-hidden border border-line/[0.08] bg-bg-side shadow-float',
+          mobile ? 'max-h-[92dvh] rounded-t-[26px] border-b-0 pb-[env(safe-area-inset-bottom)]' : clsx('max-h-[90vh] rounded-3xl', wide ? 'max-w-2xl' : 'max-w-md'),
+          className,
+        )}
       >
         {title && (
           <div className="relative px-6 pb-2 pt-6">
@@ -47,7 +54,60 @@ export function Modal({ onClose, children, className, title, subtitle, footer, w
 }
 
 // ---------------- Popover / context menu ----------------
-export function Popover({ x, y, onClose, children, align = 'start' }: { x: number; y: number; onClose: () => void; children: ReactNode; align?: 'start' | 'end' }) {
+export function Popover(props: { x: number; y: number; onClose: () => void; children: ReactNode; align?: 'start' | 'end' }) {
+  const mobile = useIsMobile();
+  return mobile ? <Sheet onClose={props.onClose}>{props.children}</Sheet> : <FloatingPopover {...props} />;
+}
+
+/**
+ * Phones: menus, profile cards, pickers and status menus open as a bottom sheet — always inside the screen,
+ * above the keyboard/safe area, closable by tapping outside, dragging down, Esc or the system back gesture.
+ */
+export function Sheet({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  useBackToClose(onClose);
+  const y0 = useRef<number | null>(null);
+  const [dy, setDy] = useState(0);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+  return createPortal(
+    <motion.div className="fixed inset-0 z-[60] flex items-end bg-black/55" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.16 }} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        data-sheet
+        role="dialog"
+        aria-modal
+        initial={{ y: '100%' }}
+        animate={{ y: dy }}
+        transition={dy ? { duration: 0 } : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="scroll-thin max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-[26px] border border-b-0 border-line/[0.08] bg-bg-float pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-float"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div
+          className="sticky top-0 z-10 flex h-6 cursor-grab touch-none items-center justify-center bg-bg-float"
+          onPointerDown={(e) => {
+            y0.current = e.clientY;
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => y0.current !== null && setDy(Math.max(0, e.clientY - y0.current))}
+          onPointerUp={() => {
+            if (dy > 90) onClose();
+            y0.current = null;
+            setDy(0);
+          }}
+          aria-hidden
+        >
+          <span className="h-1 w-10 rounded-full bg-line/25" />
+        </div>
+        {children}
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+}
+
+function FloatingPopover({ x, y, onClose, children, align = 'start' }: { x: number; y: number; onClose: () => void; children: ReactNode; align?: 'start' | 'end' }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
   useLayoutEffect(() => {
@@ -164,7 +224,7 @@ export function toastError(err: unknown) {
 export function Toasts() {
   const list = useToasts((s) => s.list);
   return createPortal(
-    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-2">
+    <div className="toasts pointer-events-none fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-2">
       <AnimatePresence initial={false}>
         {list.map((t) => (
           <motion.div
@@ -198,7 +258,13 @@ export function Toasts() {
 export function Tooltip({ label, children, side = 'top' }: { label: ReactNode; children: ReactNode; side?: 'top' | 'right' | 'bottom' }) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   return (
-    <span className="contents" onMouseEnter={(e) => setRect((e.currentTarget.firstElementChild as HTMLElement | null)?.getBoundingClientRect() ?? null)} onMouseLeave={() => setRect(null)}>
+    // pointer (not mouse) events: touch screens fire a fake "mouseenter" with no "mouseleave", which left tooltips stuck
+    <span
+      className="contents"
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setRect((e.currentTarget.firstElementChild as HTMLElement | null)?.getBoundingClientRect() ?? null)}
+      onPointerLeave={() => setRect(null)}
+      onPointerDown={() => setRect(null)}
+    >
       {children}
       {rect &&
         createPortal(

@@ -237,7 +237,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         }}
       >
         {canAttach && recorder.phase === 'idle' && (
-          <button className="mb-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-line/[0.07] text-fg-muted transition-[transform,color,background-color] hover:bg-brand/20 hover:text-brand active:scale-90" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
+          <button className="tap mb-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-line/[0.07] text-fg-muted transition-[transform,color,background-color] hover:bg-brand/20 hover:text-brand active:scale-90" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
             <Icon name="plus" size={17} strokeWidth={2.5} />
           </button>
         )}
@@ -296,7 +296,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         />
         {recorder.phase === 'idle' && (
         <button
-          className="mb-2.5 shrink-0 text-fg-muted hover:text-fg-strong"
+          className="tap mb-2.5 shrink-0 text-fg-muted hover:text-fg-strong"
           title="Emoji"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();

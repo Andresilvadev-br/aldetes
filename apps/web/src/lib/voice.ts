@@ -117,6 +117,15 @@ export const useVoice = create<VoiceStore>()(() => ({
   viewQuality: {},
   miniClosed: false,
 }));
+/** Screen sharing needs getDisplayMedia (desktop browsers, Android Chrome; not iOS Safari) or the desktop app. */
+export const canShareScreen = () => !!desktop || typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+
+// Phones suspend audio when the app goes to the background or a phone call interrupts: resume when back.
+if (typeof document !== 'undefined')
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && room) void room.startAudio().catch(() => {});
+  });
+
 export function setStageLayout(l: 'focus' | 'grid') {
   vset({ stageLayout: l });
   try {

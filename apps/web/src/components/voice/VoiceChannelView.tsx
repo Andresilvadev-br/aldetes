@@ -38,7 +38,7 @@ export function VoiceChannelView({ channelId }: { channelId: string }) {
       <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-3 sm:px-5">
         <MobileBack />
         <span className="tile h-8 w-8 bg-ok/15 text-ok"><Icon name="speaker" size={17} /></span>
-        <h1 className="text-[15px] font-extrabold tracking-tight text-fg-strong">{channel.name}</h1>
+        <h1 className="min-w-0 truncate text-[15px] font-extrabold tracking-tight text-fg-strong">{channel.name}</h1>
         {inThis && <ConnChip state={v.state} />}
         {states.length > 0 && (
           <span className="truncate text-xs text-fg-muted">
