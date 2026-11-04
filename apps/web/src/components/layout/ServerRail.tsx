@@ -4,6 +4,9 @@ import clsx from 'clsx';
 import { Permissions, hasPermission } from '@aldetes/shared';
 import { useStore, saveServerOrder, isUnread, get, useStoreShallow } from '@/store';
 import { Icon, Logo } from '../common/Icon';
+import { motion } from 'motion/react';
+import { spring } from '@/lib/motion';
+import { desktop } from '@/lib/desktop';
 import { Tooltip, useContextMenu, confirmDialog, toastError } from '../common/overlay';
 import { Avatar } from '../common/Avatar';
 import { CreateServerModal } from '../modals/CreateServerModal';
@@ -19,12 +22,12 @@ export function ServerIcon({ name, iconUrl, size = 48, active }: { name: string;
     .join('')
     .slice(0, 3);
   return iconUrl ? (
-    <img src={iconUrl} alt="" draggable={false} className={clsx('object-cover transition-all duration-200', active ? 'rounded-2xl' : 'rounded-[24px] group-hover:rounded-2xl')} style={{ width: size, height: size }} />
+    <img src={iconUrl} alt="" draggable={false} className="rounded-2xl object-cover" style={{ width: size, height: size }} />
   ) : (
     <div
       className={clsx(
-        'flex items-center justify-center font-semibold transition-all duration-200',
-        active ? 'rounded-2xl bg-brand text-white' : 'rounded-[24px] bg-bg-main text-fg-strong group-hover:rounded-2xl group-hover:bg-brand group-hover:text-white',
+        'flex items-center justify-center rounded-2xl font-bold transition-colors duration-200',
+        active ? 'grad text-white' : 'bg-line/[0.06] text-fg-strong group-hover:bg-line/[0.1]',
       )}
       style={{ width: size, height: size, fontSize: initials.length > 2 ? 13 : 16 }}
     >
@@ -33,15 +36,17 @@ export function ServerIcon({ name, iconUrl, size = 48, active }: { name: string;
   );
 }
 
+/** Left indicator: unread dot, or the active bar that slides between items (shared layout). */
 function Pill({ state }: { state: 'none' | 'unread' | 'hover' | 'active' }) {
+  if (state === 'active')
+    return <motion.span layoutId="rail-active" transition={spring.responsive} className="grad absolute -left-[14px] top-1/2 h-9 w-1.5 -translate-y-1/2 rounded-r-full" />;
   return (
     <span
       className={clsx(
-        'absolute -left-3 top-1/2 w-1 -translate-y-1/2 rounded-r bg-fg-strong transition-all duration-200',
+        'absolute -left-[14px] top-1/2 w-1.5 -translate-y-1/2 rounded-r-full bg-fg-strong transition-all duration-200',
         state === 'none' && 'h-0',
         state === 'unread' && 'h-2',
         state === 'hover' && 'h-5',
-        state === 'active' && 'h-10',
       )}
     />
   );
@@ -59,16 +64,16 @@ export function ServerRail() {
   const unreadDms = useStoreShallow((s) => s.dmIds.filter((id) => (s.readStates[id]?.mentionCount ?? 0) > 0));
 
   return (
-    <nav className="scroll-none flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto bg-bg-rail py-3" aria-label="Servidores">
+    <nav className={clsx('scroll-none flex w-[76px] shrink-0 flex-col items-center gap-2 overflow-y-auto pb-3', desktop?.platform === 'darwin' ? 'pt-10' : 'pt-3')} aria-label="Servidores">
       <RailItem tooltip="Mensagens diretas" active={homeActive} onClick={() => nav('/channels/@me')}>
-        <div className={clsx('flex h-12 w-12 items-center justify-center transition-all duration-200', homeActive ? 'rounded-2xl bg-brand text-white' : 'rounded-[24px] bg-bg-main text-fg group-hover:rounded-2xl group-hover:bg-brand group-hover:text-white')}>
-          <Logo size={28} />
+        <div className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-200', homeActive ? 'grad text-white shadow-glow' : 'bg-line/[0.06] text-fg group-hover:text-fg-strong')}>
+          <Logo size={26} />
         </div>
       </RailItem>
       {unreadDms.map((id) => (
         <DmBubble key={id} channelId={id} />
       ))}
-      <div className="mx-auto h-0.5 w-8 rounded bg-line/10" />
+      <div className="mx-auto my-1 h-px w-8 bg-line/10" />
       {order.map((id) => {
         const s = servers[id];
         if (!s) return null;
@@ -92,12 +97,12 @@ export function ServerRail() {
         );
       })}
       <RailItem tooltip="Adicionar um servidor" onClick={() => setCreating(true)}>
-        <div className="flex h-12 w-12 items-center justify-center rounded-[24px] bg-bg-main text-ok transition-all duration-200 group-hover:rounded-2xl group-hover:bg-ok group-hover:text-white">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-line/15 text-fg-muted transition-colors duration-200 group-hover:border-ok/60 group-hover:bg-ok/10 group-hover:text-ok">
           <Icon name="plus" size={22} />
         </div>
       </RailItem>
       <RailItem tooltip="Explorar servidores públicos" active={loc.pathname === '/discover'} onClick={() => nav('/discover')}>
-        <div className={clsx('flex h-12 w-12 items-center justify-center transition-all duration-200', loc.pathname === '/discover' ? 'rounded-2xl bg-ok text-white' : 'rounded-[24px] bg-bg-main text-ok group-hover:rounded-2xl group-hover:bg-ok group-hover:text-white')}>
+        <div className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-200', loc.pathname === '/discover' ? 'grad text-white shadow-glow' : 'bg-line/[0.06] text-fg-muted group-hover:text-fg-strong')}>
           <Icon name="compass" size={22} />
         </div>
       </RailItem>
@@ -112,14 +117,22 @@ function RailItem({ tooltip, active, unread, onClick, onContextMenu, children, b
     <div className="group relative flex w-full justify-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <Pill state={active ? 'active' : hover ? 'hover' : unread ? 'unread' : 'none'} />
       <Tooltip label={tooltip} side="right">
-        <button onClick={onClick} onContextMenu={onContextMenu} className="relative" aria-label={tooltip}>
+        <motion.button
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+          className={clsx('relative rounded-2xl', active && 'shadow-glow')}
+          aria-label={tooltip}
+          whileHover={{ y: -1, scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
+          transition={spring.snappy}
+        >
           {children}
           {!!badge && (
-            <span className="absolute -bottom-0.5 -right-0.5 min-w-[18px] rounded-full border-[3px] border-bg-rail bg-danger px-1 text-center text-[11px] font-bold leading-[13px] text-white">
+            <span className="absolute -bottom-0.5 -right-0.5 min-w-[20px] rounded-full border-[3px] border-bg-rail bg-danger px-1 text-center text-[11px] font-bold leading-[13px] text-white">
               {badge > 99 ? '99+' : badge}
             </span>
           )}
-        </button>
+        </motion.button>
       </Tooltip>
     </div>
   );

@@ -9,4 +9,5 @@ export default defineConfig({
   external: ['electron', 'uiohook-napi'],
   noExternal: ['electron-updater'],
   outExtension: () => ({ js: '.cjs' }),
+  define: { 'process.env.ALDETES_DEFAULT_SERVER': JSON.stringify(process.env.ALDETES_DEFAULT_SERVER ?? '') },
 });

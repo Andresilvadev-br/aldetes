@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useStore, set as setStore, initialState, useStoreShallow } from '@/store';
 import { api, upload, setSessionToken } from '@/lib/api';
-import { usePrefs, setPrefs } from '@/lib/prefs';
-import { SettingsLayout, SettingsTitle, Toggle } from './SettingsLayout';
+import { usePrefs, setPrefs, ACCENTS, type AccentName } from '@/lib/prefs';
+import { motion } from 'motion/react';
+import { spring } from '@/lib/motion';
+import { Icon } from '../common/Icon';
+import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
 import { applyDevicePrefs, restartMic, onVoiceModeChanged, leaveVoice } from '@/lib/voice';
@@ -277,24 +280,109 @@ function AppearanceTab() {
   return (
     <>
       <SettingsTitle>Aparência</SettingsTitle>
-      <div className="label">Tema</div>
-      <div className="mb-6 flex gap-4">
-        {(
-          [
-            ['dark', 'Escuro', '#2e2f38'],
-            ['light', 'Claro', '#ffffff'],
-            ['system', 'Sistema', 'linear-gradient(135deg,#fff 50%,#2e2f38 50%)'],
-          ] as const
-        ).map(([v, l, bg]) => (
-          <button key={v} onClick={() => setPrefs({ theme: v })} className="text-center">
-            <span className={clsx('block h-14 w-14 rounded-full border-2', p.theme === v ? 'border-brand ring-2 ring-brand' : 'border-line/20')} style={{ background: bg }} />
-            <span className="mt-1 block text-sm text-fg">{l}</span>
-          </button>
-        ))}
+      <div className="card divide-y divide-line/[0.06] px-5">
+        <SettingRow icon="palette" tint="text-brand bg-brand/15" title="Cor de destaque" desc={`${ACCENTS[p.accent].label} · usada em botões, destaques, brilhos e na Live Island.`}>
+          <div className="flex gap-2.5">
+            {(Object.keys(ACCENTS) as AccentName[]).map((k) => {
+              const a = ACCENTS[k];
+              const on = p.accent === k;
+              return (
+                <motion.button
+                  key={k}
+                  title={a.label}
+                  aria-label={a.label}
+                  whileHover={{ scale: 1.12 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={spring.snappy}
+                  onClick={() => setPrefs({ accent: k })}
+                  className={clsx('flex h-9 w-9 items-center justify-center rounded-full text-white', on && 'ring-2 ring-white/80 ring-offset-2 ring-offset-bg-main')}
+                  style={{ background: `linear-gradient(135deg, rgb(${a.a.join(',')}), rgb(${a.b.join(',')}))`, boxShadow: on ? `0 0 22px rgb(${a.a.join(',')} / .6)` : undefined }}
+                >
+                  {on && <Icon name="check" size={16} strokeWidth={3} />}
+                </motion.button>
+              );
+            })}
+          </div>
+        </SettingRow>
+        <SettingRow icon="globe" tint="text-sky-400 bg-sky-400/15" title="Tema" desc="Escuro é o padrão. O claro acompanha a cor de destaque.">
+          <Segmented id="theme" value={p.theme} onChange={(v) => setPrefs({ theme: v })} options={[['dark', 'Escuro'], ['light', 'Claro'], ['system', 'Sistema']]} />
+        </SettingRow>
+        <SettingRow icon="screen" tint="text-fg bg-line/10" title="Modo preto total" desc="Fundo 100% preto. Fica lindo em telas OLED.">
+          <Switch checked={p.oled} onChange={(v) => setPrefs({ oled: v })} />
+        </SettingRow>
+        <SettingRow icon="star" tint="text-amber-400 bg-amber-400/15" title="Luz que segue o cursor" desc="Brilho suave nos itens sob o mouse.">
+          <Switch checked={p.cursorLight} onChange={(v) => setPrefs({ cursorLight: v })} />
+        </SettingRow>
+        <SettingRow icon="volume" tint="text-emerald-400 bg-emerald-400/15" title="Sons da interface" desc="Entrar/sair da voz, mudo e mensagens. Chamadas recebidas sempre tocam.">
+          <Switch checked={p.uiSounds} onChange={(v) => setPrefs({ uiSounds: v })} />
+        </SettingRow>
       </div>
-      <div className="label">Tamanho da fonte do chat: {p.fontSize}px</div>
+
+      <h3 className="mb-3 mt-8 text-lg font-extrabold tracking-tight text-fg-strong">Fluidez</h3>
+      <div className="card divide-y divide-line/[0.06] px-5">
+        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Animações" desc="Ultra: física completa e morphing. Equilibrado: mesmos efeitos, mais econômicos. Desempenho: resposta instantânea, sem animações decorativas.">
+          <Segmented id="motion" value={p.motion} onChange={(v) => setPrefs({ motion: v })} options={[['ultra', 'Ultra'], ['balanced', 'Equilibrado'], ['performance', 'Desempenho']]} />
+        </SettingRow>
+        <RefreshRateRow />
+      </div>
+
+      <div className="label mt-8">Tamanho da fonte do chat: {p.fontSize}px</div>
       <input type="range" min={12} max={20} value={p.fontSize} className="mb-6 w-full accent-brand" onChange={(e) => setPrefs({ fontSize: +e.target.value })} />
     </>
+  );
+}
+
+function SettingRow({ icon, tint, title, desc, children }: { icon: Parameters<typeof Icon>[0]['name']; tint: string; title: string; desc: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-4 py-4">
+      <span className={clsx('tile h-11 w-11', tint)}>
+        <Icon name={icon} size={19} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-bold text-fg-strong">{title}</div>
+        <div className="text-sm text-fg-muted">{desc}</div>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+/** Measures the real presentation rate with requestAnimationFrame (median of ~1s of frames). */
+function RefreshRateRow() {
+  const [hz, setHz] = useState<number | null>(null);
+  const [frame, setFrame] = useState<number | null>(null);
+  const measure = () => {
+    setHz(null);
+    const times: number[] = [];
+    let last = 0;
+    const tick = (t: number) => {
+      if (last) times.push(t - last);
+      last = t;
+      if (times.length < 120) requestAnimationFrame(tick);
+      else {
+        const sorted = times.sort((a, b) => a - b);
+        const med = sorted[Math.floor(sorted.length / 2)]!;
+        setFrame(med);
+        setHz(Math.round(1000 / med));
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+  useEffect(measure, []);
+  return (
+    <div className="flex items-center gap-4 py-4">
+      <span className="tile h-11 w-11 bg-ok/15 text-ok">
+        <Icon name="screen" size={19} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-bold text-fg-strong">Taxa de atualização medida</div>
+        <div className="text-sm text-fg-muted">As animações rodam no ritmo real da sua tela, sem limite fixo de 60 FPS. Medição feita agora pelo navegador/app.</div>
+      </div>
+      <button onClick={measure} className="shrink-0 rounded-xl border border-line/[0.08] bg-line/[0.03] px-4 py-2 text-right transition-transform active:scale-95" title="Medir de novo">
+        <div className="grad-text text-2xl font-extrabold tabular-nums leading-none">{hz ? `${hz} Hz` : '…'}</div>
+        <div className="mt-1 text-[11px] text-fg-faint">{frame ? `${frame.toFixed(1)} ms por quadro` : 'medindo'}</div>
+      </button>
+    </div>
   );
 }
 

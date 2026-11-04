@@ -3,6 +3,7 @@ import { desktop } from './desktop';
 import { get, displayName } from '../store';
 import { getPrefs } from './prefs';
 import { playSound } from './sounds';
+import { pushIsland } from './island';
 
 let activeChannelId: string | null = null;
 export const setActiveChannel = (id: string | null) => {
@@ -22,7 +23,13 @@ export function notifyMessage(m: Message) {
   const mentioned =
     m.mentions.includes(me.id) || m.mentionEveryone || (c.serverId ? m.mentionRoles.some((r) => st.members[c.serverId!]?.[me.id]?.roleIds.includes(r)) : false);
   if (!isDm && !mentioned) return;
-  const focused = document.hasFocus() && activeChannelId === m.channelId;
+  if (activeChannelId === m.channelId && document.hasFocus()) return;
+  const who = isDm ? displayName(m.author.id) : displayName(m.author.id, c.serverId);
+  const snippet = m.content.replace(/<@!?(\d+)>/g, (_, id) => '@' + displayName(id, c.serverId)).slice(0, 120) || '📎 Anexo';
+  if (activeChannelId !== m.channelId) {
+    pushIsland({ kind: 'message', title: isDm ? who : `${who} em #${c.name}`, body: snippet, userId: m.author.id, channelId: c.id, ttl: 5000, key: `msg:${c.id}`, cooldown: 2500 });
+  }
+  const focused = document.hasFocus();
   if (focused) return;
   if (prefs.notificationSounds) playSound('message');
   if (!prefs.desktopNotifications) return;

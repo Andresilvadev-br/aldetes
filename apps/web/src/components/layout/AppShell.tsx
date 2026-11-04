@@ -17,10 +17,10 @@ import { desktop } from '@/lib/desktop';
 import { QuickSwitcher } from '../modals/QuickSwitcher';
 import { Icon } from '../common/Icon';
 import { toast } from '../common/overlay';
-import { IncomingCall } from '../voice/IncomingCall';
+import { LiveIsland } from '../island/LiveIsland';
+import { AnimatePresence } from 'motion/react';
 
 export function AppShell() {
-  const connection = useStore((s) => s.connection);
   const [switcher, setSwitcher] = useState(false);
 
   // Global keyboard shortcuts + push-to-talk
@@ -106,23 +106,44 @@ export function AppShell() {
   }, [mentionTotal]);
 
   return (
-    <div className="flex h-full flex-col">
-      {connection !== 'connected' && (
-        <div className="flex items-center justify-center gap-2 bg-warn py-1 text-sm font-medium text-black">
-          <Icon name="wifiOff" size={16} /> Reconectando ao Aldetes…
+    <div className="flex h-full bg-bg-rail">
+      <ServerRail />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar onSearch={() => setSwitcher(true)} />
+        <div className="flex min-h-0 flex-1 gap-2 pb-2 pr-2">
+          <Routes>
+            <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
+            <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
+            <Route path="/discover" element={<Sidebarred sidebar={<HomeSidebar />}><DiscoverPage /></Sidebarred>} />
+            <Route path="*" element={<Navigate to="/channels/@me" replace />} />
+          </Routes>
         </div>
-      )}
-      <div className="flex min-h-0 flex-1">
-        <ServerRail />
-        <Routes>
-          <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
-          <Route path="/channels/:serverId/:channelId?" element={<ServerLayout />} />
-          <Route path="/discover" element={<Sidebarred sidebar={<HomeSidebar />}><DiscoverPage /></Sidebarred>} />
-          <Route path="*" element={<Navigate to="/channels/@me" replace />} />
-        </Routes>
       </div>
-      {switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}
-      <IncomingCall />
+      <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
+    </div>
+  );
+}
+
+/** Top bar: search, the Live Island (center) and room for the native window controls on desktop. */
+function TopBar({ onSearch }: { onSearch: () => void }) {
+  const winControls = desktop && desktop.platform !== 'darwin';
+  return (
+    <div className="drag relative z-40 flex h-12 shrink-0 items-center gap-3 pr-2">
+      <button
+        onClick={onSearch}
+        className="no-drag flex h-8 w-64 items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 text-[13px] text-fg-faint transition-colors hover:border-line/15 hover:text-fg-muted"
+      >
+        <Icon name="search" size={15} />
+        <span className="flex-1 text-left">Buscar ou ir para…</span>
+        <span className="kbd">Ctrl K</span>
+      </button>
+      <div className="pointer-events-none absolute inset-x-0 top-1.5 flex justify-center">
+        <div className="pointer-events-auto">
+          <LiveIsland />
+        </div>
+      </div>
+      <div className="flex-1" />
+      {winControls && <div className="w-[138px] shrink-0" />}
     </div>
   );
 }
@@ -130,12 +151,12 @@ export function AppShell() {
 function Sidebarred({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
   return (
     <>
-      <div className="flex w-60 shrink-0 flex-col bg-bg-side">
-        <div className="min-h-0 flex-1">{sidebar}</div>
+      <div className="flex w-64 shrink-0 flex-col gap-2">
+        <div className="panel min-h-0 flex-1 overflow-hidden">{sidebar}</div>
         <VoicePanel />
         <UserPanel />
       </div>
-      <main className="flex min-w-0 flex-1 flex-col bg-bg-main">{children}</main>
+      <main className="panel haze relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg-main">{children}</main>
     </>
   );
 }

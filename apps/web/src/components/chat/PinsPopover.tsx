@@ -16,9 +16,9 @@ export function PinsPopover({ channelId, onClose }: { channelId: string; onClose
     return onGateway('pin:update', (d: { channelId: string }) => d.channelId === channelId && load());
   }, [channelId]);
   return (
-    <div className="absolute right-4 top-2 z-30 flex max-h-[70vh] w-[420px] animate-pop flex-col overflow-hidden rounded-lg bg-bg-float shadow-2xl ring-1 ring-black/30">
+    <div className="absolute right-4 top-2 z-30 flex max-h-[70vh] w-[420px] animate-pop flex-col overflow-hidden rounded-2xl border border-line/[0.08] bg-bg-float shadow-float">
       <div className="flex items-center justify-between px-4 py-3">
-        <h3 className="font-semibold text-fg-strong">Mensagens fixadas</h3>
+        <h3 className="font-extrabold tracking-tight text-fg-strong">Mensagens fixadas</h3>
         <button className="icon-btn" onClick={onClose}>
           <Icon name="x" />
         </button>

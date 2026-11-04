@@ -100,7 +100,7 @@ export function MessageList({ channelId, onReply }: { channelId: string; onReply
               !!prev && !newDay && prev.author.id === m.author.id && prev.type === 'default' && m.type === 'default' && !m.replyTo && new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_MS;
             const showNew = newMarker && prev && prev.id <= newMarker && m.id > newMarker && m.author.id !== get().me?.id;
             return (
-              <Fragment key={m.nonce && m.pending ? m.nonce : m.id}>
+              <Fragment key={m.nonce ? `n${m.nonce}` : m.id}>
                 {newDay && (
                   <div className="mx-4 my-2 flex items-center gap-2 text-xs font-semibold text-fg-faint">
                     <div className="h-px flex-1 bg-line/10" />

@@ -12,7 +12,7 @@ export function EmojiPicker({ x, y, serverId, onPick, onClose, forText }: { x: n
   const pickCustom = (e: (typeof custom)[number]) => onPick(forText ? `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>` : `custom:${e.id}`);
   return (
     <Popover x={Math.max(8, x)} y={y} onClose={onClose}>
-      <div className="flex h-[360px] w-[340px] animate-pop flex-col rounded-lg bg-bg-float shadow-2xl ring-1 ring-black/30">
+      <div className="flex h-[360px] w-[340px] flex-col rounded-2xl border border-line/[0.08] bg-bg-float shadow-float">
         <div className="p-2">
           <input className="input py-1.5 text-sm" placeholder="Encontre o emoji perfeito" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         </div>
@@ -34,7 +34,7 @@ export function EmojiPicker({ x, y, serverId, onPick, onClose, forText }: { x: n
               <div className="sticky top-0 bg-bg-float py-1 text-xs font-semibold uppercase text-fg-muted">{cat.name}</div>
               <div className="grid grid-cols-8 gap-1">
                 {cat.items.map(([e, n]) => (
-                  <button key={e} title={n.split(' ')[0]} className="flex h-9 w-9 items-center justify-center rounded text-2xl hover:bg-fg/10" onClick={() => onPick(e)}>
+                  <button key={e} title={n.split(' ')[0]} className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl transition-transform duration-150 hover:scale-125 hover:bg-line/[0.06]" onClick={() => onPick(e)}>
                     {e}
                   </button>
                 ))}

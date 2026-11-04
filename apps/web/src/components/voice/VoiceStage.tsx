@@ -42,17 +42,19 @@ function TileView({ tile, serverId, big, onClick }: { tile: Tile; serverId: stri
       onDoubleClick={() => (document.fullscreenElement ? document.exitFullscreen() : ref.current?.requestFullscreen())}
       onContextMenu={(e) => !tile.isLocal && menu(e, items())}
       className={clsx(
-        'group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-bg-rail transition-shadow',
-        speaking && !isScreen && 'ring-2 ring-ok',
+        'group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-line/[0.06] bg-[radial-gradient(circle_at_50%_40%,rgb(var(--brand)/0.12),rgb(var(--bg-side))_70%)] transition-[box-shadow,transform] duration-200 hover:scale-[1.01]',
+        speaking && !isScreen && 'shadow-[0_0_0_2px_rgb(var(--ok)),0_0_32px_-6px_rgb(var(--ok)/0.7)]',
         big ? 'h-full w-full' : 'aspect-video',
       )}
     >
       {hasVideo ? (
         <VideoEl participant={tile.participant} source={tile.source} contain={isScreen} mirror={tile.isLocal && !isScreen} />
       ) : (
-        <Avatar userId={tile.identity} size={big ? 96 : 72} speaking={speaking} />
+        <span className={clsx('rounded-full', speaking && 'speaking')}>
+          <Avatar userId={tile.identity} size={big ? 96 : 72} />
+        </span>
       )}
-      <div className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1.5 rounded bg-black/60 px-2 py-0.5 text-sm text-white">
+      <div className="absolute bottom-2.5 left-2.5 flex max-w-[80%] items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1 text-[13px] font-semibold text-white">
         {isScreen && <Icon name="screen" size={14} />}
         <span className="truncate">
           {displayName(tile.identity, serverId)}
@@ -88,7 +90,7 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
   const cols = tiles.length <= 1 ? 1 : tiles.length <= 4 ? 2 : tiles.length <= 9 ? 3 : 4;
 
   return (
-    <div className={clsx('flex min-h-0 flex-1 flex-col bg-black', compact ? 'h-[45vh] flex-none' : '')}>
+    <div className={clsx('flex min-h-0 flex-1 flex-col', compact ? 'h-[45vh] flex-none border-b border-line/[0.06] bg-black/30' : '')}>
       <div className="min-h-0 flex-1 p-3">
         {focusTile ? (
           <div className="flex h-full flex-col gap-3">
@@ -122,9 +124,12 @@ export function VoiceControls() {
   const v = useVoice();
   const [share, setShare] = useState(false);
   const btn = (active: boolean, danger?: boolean) =>
-    clsx('flex h-12 w-12 items-center justify-center rounded-full transition-colors', danger ? 'bg-danger text-white hover:bg-danger/80' : active ? 'bg-white text-black' : 'bg-fg/15 text-white hover:bg-fg/25');
+    clsx(
+      'flex h-12 w-12 items-center justify-center rounded-full transition-[transform,background-color] duration-150 active:scale-90 disabled:opacity-40',
+      danger ? 'bg-danger text-white hover:bg-danger/85 shadow-[0_8px_24px_-8px_rgb(var(--danger))]' : active ? 'bg-white text-black' : 'bg-line/[0.1] text-fg-strong hover:bg-line/[0.18]',
+    );
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 pb-4 pt-1">
+    <div className="mx-auto mb-4 mt-1 flex shrink-0 items-center justify-center gap-2.5 rounded-full border border-line/[0.08] bg-bg-float/90 p-2 shadow-float">
       <Tooltip label={v.camera ? 'Desligar câmera' : 'Ligar câmera'}>
         <button className={btn(v.camera)} disabled={!v.canVideo} onClick={() => void toggleCamera()}>
           <Icon name={v.camera ? 'camera' : 'cameraOff'} />

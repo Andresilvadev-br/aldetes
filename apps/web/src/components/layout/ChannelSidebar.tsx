@@ -15,6 +15,9 @@ import { joinVoice, useVoice } from '@/lib/voice';
 import { ackChannel } from '@/lib/actions';
 import { setPrefs, usePrefs } from '@/lib/prefs';
 import { UserPopoutTrigger } from '../common/UserPopout';
+import { ServerIcon } from './ServerRail';
+import { motion } from 'motion/react';
+import { spring } from '@/lib/motion';
 
 export const channelIcon = (t: string): IconName =>
   t === 'voice' ? 'speaker' : t === 'announcement' ? 'megaphone' : t === 'forum' ? 'forum' : t === 'thread' ? 'thread' : 'hash';
@@ -92,19 +95,29 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     <div className="flex h-full flex-col">
       <button
         aria-haspopup="menu"
-        className="flex h-12 shrink-0 items-center justify-between border-b border-black/30 px-4 font-semibold text-fg-strong shadow-sm transition-colors hover:bg-fg/5"
+        className="group relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-line/[0.06] px-4 text-left text-fg-strong"
+        style={server.bannerUrl ? { background: `linear-gradient(to bottom, rgb(0 0 0 / .25), rgb(var(--bg-side))), center/cover url(${server.bannerUrl})` } : undefined}
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           setMenuOpen({ x: r.left + 8, y: r.bottom + 4 });
         }}
       >
-        <span className="truncate">{server.name}</span>
-        <Icon name={menuOpen ? 'x' : 'chevronDown'} size={18} />
+        {!server.bannerUrl && <span className="haze pointer-events-none absolute inset-0 opacity-80" />}
+        <span className="relative">
+          <ServerIcon name={server.name} iconUrl={server.iconUrl} size={34} active />
+        </span>
+        <span className="relative min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-extrabold tracking-tight">{server.name}</span>
+          <OnlineCount serverId={serverId} />
+        </span>
+        <motion.span animate={{ rotate: menuOpen ? 180 : 0 }} transition={spring.snappy} className="relative text-fg-muted group-hover:text-fg-strong">
+          <Icon name="chevronDown" size={18} />
+        </motion.span>
       </button>
       <div className="scroll-thin flex-1 overflow-y-auto px-2 pb-4 pt-3">
         {favChannels.length > 0 && (
           <div className="mb-3">
-            <div className="px-1 pb-1 text-xs font-semibold uppercase text-fg-muted">Favoritos</div>
+            <div className="eyebrow flex items-center gap-1 px-2 pb-1.5"><Icon name="star" size={11} strokeWidth={2.5} /> Favoritos</div>
             {favChannels.map((c) => (
               <ChannelRow key={c.id} channel={c} onSettings={() => setModal({ kind: 'channel', id: c.id })} onInvite={() => setModal({ kind: 'invite' })} />
             ))}
@@ -124,8 +137,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => drop(cat.id)}
               >
-                <button className="flex flex-1 items-center gap-0.5 text-xs font-semibold uppercase tracking-wide text-fg-muted hover:text-fg-strong" onClick={() => toggleCollapsed(cat.id)}>
-                  <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={12} strokeWidth={3} />
+                <button className="eyebrow flex flex-1 items-center gap-1 px-1 py-1 transition-colors hover:text-fg-strong" onClick={() => toggleCollapsed(cat.id)}>
+                  <motion.span animate={{ rotate: isCollapsed ? -90 : 0 }} transition={spring.snappy} className="flex">
+                    <Icon name="chevronDown" size={11} strokeWidth={3} />
+                  </motion.span>
                   <span className="truncate">{cat.name}</span>
                 </button>
                 {canManage && (
@@ -258,18 +273,24 @@ function ChannelRow({
             },
           ])
         }
+        data-glow
         className={clsx(
-          'group relative mt-0.5 flex h-8 cursor-pointer items-center gap-1.5 rounded px-2',
-          active ? 'bg-fg/15 text-fg-strong' : unread && !isVoice ? 'text-fg-strong hover:bg-fg/10' : 'text-fg-faint hover:bg-fg/10 hover:text-fg',
+          'group relative mt-0.5 flex h-9 cursor-pointer items-center gap-2 rounded-xl px-2.5 transition-colors duration-150 active:scale-[0.985]',
+          active ? 'text-fg-strong' : unread && !isVoice ? 'text-fg-strong hover:bg-line/[0.05]' : 'text-fg-faint hover:bg-line/[0.05] hover:text-fg',
         )}
       >
+        {active && (
+          <motion.span layoutId="channel-active" transition={spring.responsive} className="nav-active absolute inset-0 -z-10 rounded-xl border">
+            <span className="grad absolute -left-px top-2 bottom-2 w-[3px] rounded-full" />
+          </motion.span>
+        )}
         {unread && !active && !isVoice && <span className="absolute -left-2 h-2 w-1 rounded-r bg-fg-strong" />}
-        <span className="relative">
+        <span className={clsx('relative', active && 'text-brand')}>
           <Icon name={channelIcon(channel.type)} size={18} />
           {isPrivate && <Icon name="lock" size={9} strokeWidth={3} className="absolute -bottom-0.5 -right-1 rounded bg-bg-side" />}
         </span>
         <span className={clsx('flex-1 truncate', unread && !isVoice && 'font-semibold')}>{channel.name}</span>
-        {mentions > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-bold text-white">{mentions}</span>}
+        {mentions > 0 && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold leading-[18px] text-white shadow-[0_0_12px_rgb(var(--danger)/0.5)]">{mentions}</span>}
         <span className="hidden items-center gap-1 group-hover:flex">
           {hasPermission(perms, Permissions.CREATE_INVITE) && (
             <button
@@ -302,6 +323,17 @@ function ChannelRow({
   );
 }
 
+function OnlineCount({ serverId }: { serverId: string }) {
+  const n = useStore((s) => Object.keys(s.members[serverId] ?? {}).filter((u) => (s.presences[u]?.status ?? 'offline') !== 'offline').length);
+  const total = useStore((s) => Object.keys(s.members[serverId] ?? {}).length);
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] font-medium text-fg-muted">
+      <span className="h-1.5 w-1.5 rounded-full bg-ok shadow-[0_0_8px_rgb(var(--ok))]" />
+      {n} online · {total} membros
+    </span>
+  );
+}
+
 const NO_SPEAKERS: Record<string, boolean> = {};
 
 function VoiceMembers({ channelId, serverId }: { channelId: string; serverId: string }) {
@@ -312,8 +344,8 @@ function VoiceMembers({ channelId, serverId }: { channelId: string; serverId: st
     <div className="mb-1 ml-6">
       {states.map((v) => (
         <UserPopoutTrigger key={v.userId} userId={v.userId} serverId={serverId}>
-          <div className="group flex h-8 cursor-pointer items-center gap-2 rounded px-2 text-fg-muted hover:bg-fg/10 hover:text-fg">
-            <Avatar userId={v.userId} size={24} speaking={!!speaking[v.userId] && !v.selfMute && !v.serverMute} />
+          <div className="group flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-fg-muted transition-colors hover:bg-line/[0.05] hover:text-fg">
+            <span className={clsx('rounded-full', !!speaking[v.userId] && !v.selfMute && !v.serverMute && 'speaking')}><Avatar userId={v.userId} size={24} /></span>
             <span className="flex-1 truncate text-sm">{displayName(v.userId, serverId)}</span>
             {v.streaming && <span className="rounded bg-danger px-1 text-[10px] font-bold text-white">AO VIVO</span>}
             {v.video && <Icon name="camera" size={14} />}

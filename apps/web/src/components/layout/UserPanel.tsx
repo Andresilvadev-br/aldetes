@@ -26,27 +26,27 @@ export function UserPanel() {
   };
 
   return (
-    <div className="flex h-[52px] shrink-0 items-center gap-1 bg-bg-rail/60 px-2">
+    <div className="panel flex h-[58px] shrink-0 items-center gap-1 px-2">
       <button
-        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left hover:bg-fg/10"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-line/[0.06]"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           setStatusMenu({ x: r.left, y: r.top - 8 });
         }}
       >
-        <Avatar userId={me.id} size={32} showStatus />
+        <Avatar userId={me.id} size={36} showStatus />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight text-fg-strong">{me.displayName}</div>
-          <div className="truncate text-xs leading-tight text-fg-muted">{me.customStatus || (pttMode ? 'Transmitindo…' : me.username)}</div>
+          <div className="truncate text-xs leading-tight text-brand">{me.customStatus || (pttMode ? 'Transmitindo…' : me.username)}</div>
         </div>
       </button>
       <Tooltip label={selfMute ? 'Ativar microfone' : 'Silenciar'}>
-        <button className={clsx('icon-btn', (selfMute || selfDeaf) && 'text-danger')} onClick={() => void toggleMute()} aria-label="Microfone">
+        <button className={clsx('icon-btn', (selfMute || selfDeaf) && 'bg-danger/15 text-danger hover:text-danger')} onClick={() => void toggleMute()} aria-label="Microfone">
           <Icon name={selfMute || selfDeaf ? 'micOff' : 'mic'} size={19} />
         </button>
       </Tooltip>
       <Tooltip label={selfDeaf ? 'Desativar surdez' : 'Ensurdecer'}>
-        <button className={clsx('icon-btn', selfDeaf && 'text-danger')} onClick={() => void toggleDeaf()} aria-label="Fones">
+        <button className={clsx('icon-btn', selfDeaf && 'bg-danger/15 text-danger hover:text-danger')} onClick={() => void toggleDeaf()} aria-label="Fones">
           <Icon name={selfDeaf ? 'headphonesOff' : 'headphones'} size={19} />
         </button>
       </Tooltip>

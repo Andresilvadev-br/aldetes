@@ -164,13 +164,13 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
   const placeholder = channel.serverId ? `Conversar em #${channel.name}` : `Conversar com ${dmName(channel)}`;
 
   return (
-    <div className="relative shrink-0 px-4 pb-6">
+    <div className="relative shrink-0 px-4 pb-6 pt-1">
       {suggestions.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-1 max-h-72 overflow-y-auto rounded-lg bg-bg-float p-1.5 shadow-2xl ring-1 ring-black/30">
+        <div className="absolute bottom-full left-4 right-4 mb-2 max-h-72 animate-pop overflow-y-auto rounded-2xl border border-line/[0.08] bg-bg-float p-1.5 shadow-float">
           {suggestions.map((s, i) => (
             <button
               key={s.kind + s.id}
-              className={clsx('flex w-full items-center gap-2 rounded px-2 py-1.5 text-left', i === sel ? 'bg-fg/10 text-fg-strong' : 'text-fg')}
+              className={clsx('flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left', i === sel ? 'bg-brand/15 text-fg-strong' : 'text-fg')}
               onMouseEnter={() => setSel(i)}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -186,7 +186,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         </div>
       )}
       {replyTo && (
-        <div className="flex items-center justify-between rounded-t-lg bg-bg-side px-4 py-2 text-sm text-fg-muted">
+        <div className="flex items-center justify-between rounded-t-2xl border border-b-0 border-line/[0.08] bg-brand/[0.08] px-4 py-2 text-sm text-fg-muted">
           <span>
             Respondendo a <b className="text-fg-strong">{displayName(replyTo.author.id, channel.serverId)}</b>
           </span>
@@ -196,9 +196,9 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         </div>
       )}
       {files.length > 0 && (
-        <div className={clsx('flex gap-3 overflow-x-auto bg-bg-input p-3', replyTo ? '' : 'rounded-t-lg')}>
+        <div className={clsx('flex gap-3 overflow-x-auto border border-b-0 border-line/[0.08] bg-bg-input/80 p-3', replyTo ? '' : 'rounded-t-2xl')}>
           {files.map((f, i) => (
-            <div key={i} className="relative flex h-40 w-40 shrink-0 flex-col rounded bg-bg-side p-2">
+            <div key={i} className="relative flex h-40 w-40 shrink-0 flex-col rounded-xl border border-line/[0.06] bg-bg-side p-2">
               {f.type.startsWith('image/') ? <img src={URL.createObjectURL(f)} className="min-h-0 flex-1 rounded object-contain" alt="" /> : <Icon name="file" size={64} className="m-auto text-fg-muted" />}
               <div className="mt-1 truncate text-xs text-fg">{f.name}</div>
               <button className="absolute -right-2 -top-2 rounded bg-bg-float p-1 text-danger shadow" onClick={() => setFiles(files.filter((_, j) => j !== i))}>
@@ -214,7 +214,10 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         </div>
       )}
       <div
-        className={clsx('flex items-start gap-2 bg-bg-input px-4', replyTo || files.length ? 'rounded-b-lg' : 'rounded-lg')}
+        className={clsx(
+          'flex items-start gap-2 border border-line/[0.08] bg-bg-input/80 px-4 transition-[border-color,box-shadow] duration-200 focus-within:border-brand/45 focus-within:shadow-[0_0_0_4px_rgb(var(--brand)/0.1)]',
+          replyTo || files.length ? 'rounded-b-2xl' : 'rounded-2xl',
+        )}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -222,8 +225,8 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         }}
       >
         {canAttach && (
-          <button className="mt-2.5 text-fg-muted hover:text-fg-strong" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
-            <Icon name="plus" size={22} className="rounded-full bg-fg-muted/30 p-0.5" />
+          <button className="mt-2 flex h-7 w-7 items-center justify-center rounded-lg bg-line/[0.07] text-fg-muted transition-[transform,color,background-color] hover:bg-brand/20 hover:text-brand active:scale-90" title="Enviar arquivo" onClick={() => fileInput.current?.click()}>
+            <Icon name="plus" size={17} strokeWidth={2.5} />
           </button>
         )}
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
@@ -290,7 +293,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
           <span className="flex items-center gap-1">
             <span className="flex gap-0.5">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-fg-muted" style={{ animationDelay: `${i * 120}ms` }} />
+                <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand" style={{ animationDelay: `${i * 120}ms` }} />
               ))}
             </span>
             <b className="text-fg">{typingUsers.slice(0, 3).map((u) => displayName(u, channel.serverId)).join(', ')}</b>

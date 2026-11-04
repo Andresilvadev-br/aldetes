@@ -1,42 +1,44 @@
-# Builds desktop installers on native runners. Signing secrets are optional:
-# without them the builds are unsigned (Windows SmartScreen / macOS Gatekeeper will warn).
-name: Desktop builds
+# Builds the desktop installers on native runners and publishes them to GitHub Releases.
+# Trigger: push a tag like v0.2.0 (or run manually). The download page links to
+# .../releases/latest/download/<file>, and the app auto-updates from the same releases.
+name: Desktop release
 on:
-  workflow_dispatch:
   push:
     tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            target: --win
+          - os: ubuntu-latest
+            target: --linux
     runs-on: ${{ matrix.os }}
+    env:
+      # Installers come pre-configured with the official server (users can still change it).
+      ALDETES_DEFAULT_SERVER: https://aldete-chat.duckdns.org
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - name: Build
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
         working-directory: apps/desktop
-        env:
-          ALDETES_UPDATE_URL: ${{ vars.ALDETES_UPDATE_URL }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
-        run: pnpm dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aldetes-${{ matrix.os }}
-          path: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.zip
-            apps/desktop/release/*.AppImage
-            apps/desktop/release/*.deb
-            apps/desktop/release/*.yml
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
+      - name: Build web + main process
+        working-directory: apps/desktop
+        run: pnpm build
+      - name: Package and publish
+        working-directory: apps/desktop
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish always

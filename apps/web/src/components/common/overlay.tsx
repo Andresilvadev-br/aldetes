@@ -2,7 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { create } from 'zustand';
+import { AnimatePresence, motion } from 'motion/react';
 import { Icon } from './Icon';
+import { spring } from '@/lib/motion';
 
 // ---------------- Modal ----------------
 export function Modal({ onClose, children, className, title, subtitle, footer, wide }: { onClose: () => void; children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; footer?: ReactNode; wide?: boolean }) {
@@ -12,21 +14,34 @@ export function Modal({ onClose, children, className, title, subtitle, footer, w
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
   return createPortal(
-    <div className="fixed inset-0 z-50 flex animate-fade items-center justify-center bg-black/70 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal className={clsx('flex max-h-[90vh] w-full animate-pop flex-col overflow-hidden rounded-lg bg-bg-main shadow-2xl', wide ? 'max-w-2xl' : 'max-w-md', className)}>
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        role="dialog"
+        aria-modal
+        initial={{ opacity: 0, scale: 0.94, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={spring.gentle}
+        className={clsx('flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-side shadow-float', wide ? 'max-w-2xl' : 'max-w-md', className)}
+      >
         {title && (
-          <div className="relative px-4 pb-2 pt-5 text-center">
-            <h2 className="text-xl font-bold text-fg-strong">{title}</h2>
-            {subtitle && <p className="mt-2 text-sm text-fg-muted">{subtitle}</p>}
-            <button className="icon-btn absolute right-3 top-3" onClick={onClose} aria-label="Fechar">
+          <div className="relative px-6 pb-2 pt-6">
+            <h2 className="text-xl font-extrabold tracking-tight text-fg-strong">{title}</h2>
+            {subtitle && <p className="mt-1.5 text-sm text-fg-muted">{subtitle}</p>}
+            <button className="icon-btn absolute right-4 top-4" onClick={onClose} aria-label="Fechar">
               <Icon name="x" />
             </button>
           </div>
         )}
-        <div className="scroll-thin overflow-y-auto px-4 py-3">{children}</div>
-        {footer && <div className="flex justify-end gap-2 bg-bg-side px-4 py-3">{footer}</div>}
-      </div>
-    </div>,
+        <div className="scroll-thin overflow-y-auto px-6 py-3">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-line/[0.06] bg-line/[0.02] px-6 py-4">{footer}</div>}
+      </motion.div>
+    </motion.div>,
     document.body,
   );
 }
@@ -59,9 +74,17 @@ export function Popover({ x, y, onClose, children, align = 'start' }: { x: numbe
     };
   }, [onClose]);
   return createPortal(
-    <div ref={ref} className="fixed z-[60]" style={pos} onContextMenu={(e) => e.preventDefault()}>
+    <motion.div
+      ref={ref}
+      className="fixed z-[60]"
+      style={{ ...pos, transformOrigin: `${x - pos.left}px ${y - pos.top}px` }}
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={spring.snappy}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {children}
-    </div>,
+    </motion.div>,
     document.body,
   );
 }
@@ -94,7 +117,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           <div className="menu">
             {menu.items.map((it, i) =>
               it.separator ? (
-                <div key={i} className="my-1 h-px bg-line/10" />
+                <div key={i} className="mx-1 my-1 h-px bg-line/[0.07]" />
               ) : (
                 <button
                   key={i}
@@ -142,18 +165,30 @@ export function Toasts() {
   const list = useToasts((s) => s.list);
   return createPortal(
     <div className="pointer-events-none fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-2">
-      {list.map((t) => (
-        <div
-          key={t.id}
-          role="status"
-          className={clsx(
-            'pointer-events-auto animate-slideUp rounded-md px-4 py-2 text-sm font-medium text-white shadow-xl',
-            t.kind === 'error' ? 'bg-danger' : t.kind === 'success' ? 'bg-ok' : 'bg-bg-float text-fg-strong ring-1 ring-black/30',
-          )}
-        >
-          {t.text}
-        </div>
-      ))}
+      <AnimatePresence initial={false}>
+        {list.map((t) => (
+          <motion.div
+            key={t.id}
+            layout
+            role="status"
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={spring.responsive}
+            className={clsx(
+              'pointer-events-auto flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium shadow-float',
+              t.kind === 'error'
+                ? 'border-danger/40 bg-[rgb(40_12_20)] text-[rgb(255_190_200)]'
+                : t.kind === 'success'
+                  ? 'border-ok/40 bg-[rgb(10_32_20)] text-[rgb(170_240_200)]'
+                  : 'border-line/10 bg-bg-float text-fg-strong',
+            )}
+          >
+            <span className={clsx('h-2 w-2 shrink-0 rounded-full', t.kind === 'error' ? 'bg-danger' : t.kind === 'success' ? 'bg-ok' : 'grad')} />
+            {t.text}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>,
     document.body,
   );

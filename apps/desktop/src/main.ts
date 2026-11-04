@@ -26,6 +26,8 @@ import { autoUpdater } from 'electron-updater';
 import { startPtt, stopPtt } from './ptt';
 
 const DEV_URL = process.env.ALDETES_DEV_URL; // e.g. http://localhost:5173 during development
+// Baked in at build time (tsup `define`): the official server, so downloaded installers work out of the box.
+const DEFAULT_SERVER: string = process.env.ALDETES_DEFAULT_SERVER ?? '';
 const APP_ORIGIN = 'app://aldetes';
 const WEB_DIR = app.isPackaged ? join(process.resourcesPath, 'web') : join(__dirname, '../../web/dist');
 const ICON = join(__dirname, '../build/icon.png');
@@ -79,6 +81,9 @@ function createWindow() {
     icon: existsSync(ICON) ? ICON : undefined,
     autoHideMenuBar: true,
     show: false,
+    // Frameless look: the web UI's top bar is the title bar; native window buttons are overlaid on Windows/Linux.
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform !== 'darwin' ? { titleBarOverlay: { color: '#07070a', symbolColor: '#e4e4ec', height: 48 } } : { trafficLightPosition: { x: 18, y: 16 } }),
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -173,7 +178,7 @@ function createTray() {
 
 function registerIpc() {
   ipcMain.on('app:version', (e) => (e.returnValue = app.getVersion()));
-  ipcMain.handle('config:getServerUrl', () => readCfg().serverUrl ?? null);
+  ipcMain.handle('config:getServerUrl', () => readCfg().serverUrl ?? (DEFAULT_SERVER || null));
   ipcMain.handle('config:setServerUrl', (_e, url: string) => {
     const u = new URL(url); // throws if invalid
     if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('URL inválida');

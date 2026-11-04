@@ -6,7 +6,7 @@ import { AttachmentView } from './MessageRow';
 
 export function MiniMessage({ m, serverId, onJump }: { m: Message; serverId: string | null; onJump?: () => void }) {
   return (
-    <div className="group relative rounded-md bg-bg-main p-3 ring-1 ring-black/20">
+    <div className="group relative rounded-xl border border-line/[0.07] bg-line/[0.03] p-3">
       <div className="flex gap-3">
         <Avatar userId={m.author.id} url={m.author.avatarUrl} size={32} />
         <div className="min-w-0 flex-1">

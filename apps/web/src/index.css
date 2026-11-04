@@ -2,38 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Palette: original Aldetes tokens (RGB triplets for Tailwind alpha support) */
+/*
+ * Aldetes design tokens (RGB triplets so Tailwind can apply alpha).
+ * Accent (--brand / --brand-2) is set at runtime from the user's preference.
+ */
 :root,
 [data-theme='dark'] {
-  --bg-rail: 24 25 31;
-  --bg-side: 36 37 45;
-  --bg-main: 46 47 56;
-  --bg-float: 28 29 35;
-  --bg-input: 58 59 70;
-  --fg: 220 222 230;
-  --fg-muted: 160 163 176;
-  --fg-faint: 110 113 126;
-  --fg-strong: 247 248 252;
-  --brand: 108 92 231;
-  --brand-hover: 92 76 214;
-  --ok: 46 204 113;
-  --warn: 241 196 15;
-  --danger: 231 76 60;
+  --bg-rail: 7 7 10; /* app backdrop */
+  --bg-side: 15 15 20; /* panels */
+  --bg-main: 12 12 16; /* main panel */
+  --bg-float: 21 21 28; /* menus, popovers */
+  --bg-input: 26 26 34;
+  --fg: 222 223 232;
+  --fg-muted: 150 152 168;
+  --fg-faint: 98 100 116;
+  --fg-strong: 250 250 253;
+  --brand: 255 45 120;
+  --brand-2: 193 60 255;
+  --brand-hover: 217 38 102;
+  --ok: 34 197 94;
+  --warn: 245 179 1;
+  --danger: 244 63 94;
   --line: 255 255 255;
-  --mention: 250 166 26;
+  --mention: 245 179 1;
   color-scheme: dark;
 }
 
+/* "Modo preto total" for OLED screens */
+[data-oled='true'] {
+  --bg-rail: 0 0 0;
+  --bg-side: 9 9 11;
+  --bg-main: 4 4 6;
+  --bg-float: 15 15 19;
+  --bg-input: 19 19 24;
+}
+
 [data-theme='light'] {
-  --bg-rail: 227 229 236;
-  --bg-side: 240 241 246;
+  --bg-rail: 232 233 240;
+  --bg-side: 246 246 250;
   --bg-main: 255 255 255;
   --bg-float: 255 255 255;
-  --bg-input: 233 234 240;
-  --fg: 46 48 58;
-  --fg-muted: 92 96 110;
-  --fg-faint: 130 134 148;
-  --fg-strong: 12 13 18;
+  --bg-input: 238 238 244;
+  --fg: 44 46 58;
+  --fg-muted: 92 96 112;
+  --fg-faint: 132 136 152;
+  --fg-strong: 10 10 16;
   --line: 0 0 0;
   color-scheme: light;
 }
@@ -44,19 +57,22 @@ body,
   height: 100%;
 }
 body {
-  @apply bg-bg-main text-fg font-sans antialiased;
+  @apply bg-bg-rail font-sans text-fg antialiased;
   font-size: var(--font-size, 15px);
   overflow: hidden;
+  font-feature-settings: 'cv11', 'ss01';
 }
 :root[data-reduce-motion='true'] * {
-  animation: none !important;
-  transition: none !important;
+  animation-duration: 1ms !important;
+  transition-duration: 1ms !important;
+}
+::selection {
+  background: rgb(var(--brand) / 0.35);
 }
 
-/* thin scrollbars */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--fg-faint) / 0.4) transparent;
+  scrollbar-color: rgb(var(--fg-faint) / 0.35) transparent;
 }
 .scroll-none {
   scrollbar-width: none;
@@ -65,38 +81,152 @@ body {
   display: none;
 }
 
+/* Electron frameless window: the top bar drags the window */
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
 @layer components {
+  /* --- surfaces --- */
+  .panel {
+    @apply rounded-2xl border border-line/[0.06] bg-bg-side;
+  }
+  .card {
+    @apply rounded-2xl border border-line/[0.06] bg-line/[0.02];
+  }
+  /* Accent haze at the top of the main panel (cheap: one static gradient) */
+  .haze {
+    background-image: radial-gradient(120% 60% at 50% -10%, rgb(var(--brand) / 0.12), transparent 60%);
+  }
+  .grad {
+    background-image: linear-gradient(135deg, rgb(var(--brand)), rgb(var(--brand-2)));
+  }
+  .grad-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, rgb(var(--brand)), rgb(var(--brand-2)));
+  }
+  .tile {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-xl;
+  }
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.12em] text-fg-faint;
+  }
+  .kbd {
+    @apply rounded-md border border-line/10 bg-line/[0.04] px-1.5 py-0.5 font-mono text-[11px] text-fg-muted;
+  }
+
+  /* --- buttons: instant press feedback, spring-like return --- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-[transform,background-color,box-shadow,opacity] duration-150 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-45;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-hover;
+    @apply btn grad text-white;
+    box-shadow:
+      0 10px 28px -12px rgb(var(--brand) / 0.85),
+      inset 0 1px 0 rgb(255 255 255 / 0.18);
+  }
+  .btn-primary:hover {
+    box-shadow:
+      0 12px 34px -10px rgb(var(--brand) / 0.95),
+      inset 0 1px 0 rgb(255 255 255 / 0.25);
+    filter: brightness(1.06);
   }
   .btn-secondary {
-    @apply btn bg-fg-faint/30 text-fg-strong hover:bg-fg-faint/45;
+    @apply btn border border-line/10 bg-line/[0.05] text-fg-strong hover:bg-line/[0.09];
   }
   .btn-danger {
     @apply btn bg-danger text-white hover:bg-danger/85;
+    box-shadow: 0 10px 28px -14px rgb(var(--danger) / 0.9);
   }
   .btn-ghost {
-    @apply btn text-fg hover:underline;
+    @apply btn text-fg hover:bg-line/[0.06];
   }
   .input {
-    @apply w-full rounded bg-bg-rail/80 px-3 py-2 text-fg-strong outline-none ring-brand/60 placeholder:text-fg-faint focus:ring-2;
+    @apply w-full rounded-xl border border-line/[0.08] bg-bg-input px-3.5 py-2.5 text-fg-strong outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-fg-faint focus:border-brand/60;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 4px rgb(var(--brand) / 0.14);
   }
   .label {
-    @apply mb-2 block text-xs font-bold uppercase tracking-wide text-fg-muted;
+    @apply mb-2 block text-[11px] font-bold uppercase tracking-[0.1em] text-fg-muted;
   }
   .icon-btn {
-    @apply flex h-8 w-8 items-center justify-center rounded text-fg-muted transition-colors hover:bg-fg/10 hover:text-fg-strong;
+    @apply flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted transition-[transform,background-color,color] duration-150 hover:bg-line/[0.08] hover:text-fg-strong active:scale-90;
   }
   .menu {
-    @apply min-w-[188px] animate-pop rounded-md bg-bg-float p-1.5 text-sm shadow-2xl ring-1 ring-black/30;
+    @apply min-w-[200px] rounded-xl border border-line/[0.08] bg-bg-float/95 p-1.5 text-sm shadow-[0_24px_60px_-12px_rgb(0_0_0/0.7)];
   }
   .menu-item {
-    @apply flex w-full cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-fg hover:bg-brand hover:text-white;
+    @apply flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-fg transition-colors duration-100 hover:bg-brand/15 hover:text-fg-strong;
   }
   .menu-item-danger {
-    @apply menu-item text-danger hover:bg-danger hover:text-white;
+    @apply menu-item text-danger hover:bg-danger/15 hover:text-danger;
   }
+  /* active navigation row (channels, settings sections) */
+  .nav-active {
+    @apply border-brand/30 text-fg-strong;
+    background: linear-gradient(90deg, rgb(var(--brand) / 0.18), rgb(var(--brand) / 0.06));
+  }
+
+  /* Cursor-following light (opt-in per element via data-glow; JS sets --mx/--my) */
+  [data-glow] {
+    position: relative;
+    isolation: isolate;
+  }
+  [data-glow]::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), rgb(var(--brand) / 0.1), transparent 70%);
+    z-index: -1;
+  }
+  [data-glow]:hover::before {
+    opacity: 1;
+  }
+  :root[data-cursor-light='false'] [data-glow]::before {
+    display: none;
+  }
+}
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.msg-in {
+  animation: msg-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes speak-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgb(var(--ok)), 0 0 0 0 rgb(var(--ok) / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgb(var(--ok)), 0 0 0 6px rgb(var(--ok) / 0);
+  }
+}
+.speaking {
+  animation: speak-ring 1.2s ease-out infinite;
+  border-radius: 9999px;
+}
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.rec-dot {
+  animation: rec-pulse 1.6s ease-in-out infinite;
 }

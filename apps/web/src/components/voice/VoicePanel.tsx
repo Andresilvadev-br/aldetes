@@ -5,6 +5,8 @@ import { useStore } from '@/store';
 import { leaveVoice, toggleCamera, stopScreenShare, useVoice, ConnectionQuality } from '@/lib/voice';
 import { Icon } from '../common/Icon';
 import { Tooltip } from '../common/overlay';
+import { motion } from 'motion/react';
+import { spring } from '@/lib/motion';
 import { ScreenShareModal } from './ScreenShareModal';
 import { dmName } from '../layout/HomeSidebar';
 
@@ -31,7 +33,7 @@ export function VoicePanel() {
   const label = v.state === 'connected' ? 'Voz conectada' : v.state === 'connecting' ? 'Conectando…' : v.state === 'reconnecting' ? 'Reconectando…' : 'Falha na conexão';
   const color = v.state === 'connected' ? 'text-ok' : v.state === 'failed' ? 'text-danger' : 'text-warn';
   return (
-    <div className="border-b border-line/5 bg-bg-rail/60 px-2 py-2">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring.gentle} className="panel overflow-hidden px-2.5 py-2.5">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className={clsx('flex items-center gap-1.5 text-sm font-semibold', color)}>
@@ -56,7 +58,7 @@ export function VoicePanel() {
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
             disabled={!v.canVideo}
-            className={clsx('flex h-8 items-center justify-center gap-1 rounded text-sm', v.camera ? 'bg-ok/20 text-ok' : 'bg-fg/10 text-fg hover:bg-fg/15')}
+            className={clsx('btn h-8 px-2 text-[13px]', v.camera ? 'bg-ok/15 text-ok' : 'bg-line/[0.06] text-fg hover:bg-line/[0.1]')}
             onClick={() => void toggleCamera()}
             title={v.canVideo ? 'Câmera' : 'Sem permissão de vídeo'}
           >
@@ -64,7 +66,7 @@ export function VoicePanel() {
           </button>
           <button
             disabled={!v.canVideo}
-            className={clsx('flex h-8 items-center justify-center gap-1 rounded text-sm', v.screen ? 'bg-ok/20 text-ok' : 'bg-fg/10 text-fg hover:bg-fg/15')}
+            className={clsx('btn h-8 px-2 text-[13px]', v.screen ? 'bg-danger/15 text-danger' : 'bg-line/[0.06] text-fg hover:bg-line/[0.1]')}
             onClick={() => (v.screen ? void stopScreenShare() : setShare(true))}
             title={v.canVideo ? 'Compartilhar tela' : 'Sem permissão de vídeo'}
           >
@@ -73,6 +75,6 @@ export function VoicePanel() {
         </div>
       )}
       {share && <ScreenShareModal onClose={() => setShare(false)} />}
-    </div>
+    </motion.div>
   );
 }

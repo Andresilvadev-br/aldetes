@@ -1,10 +1,27 @@
 import { create } from 'zustand';
 
+export type AccentName = 'rosa' | 'roxo' | 'azul' | 'verde' | 'laranja' | 'vermelho';
+
+/** Accent pairs (start → end of the gradient), as RGB triplets. */
+export const ACCENTS: Record<AccentName, { label: string; a: [number, number, number]; b: [number, number, number] }> = {
+  rosa: { label: 'Rosa', a: [255, 45, 120], b: [193, 60, 255] },
+  roxo: { label: 'Roxo', a: [139, 92, 246], b: [192, 132, 252] },
+  azul: { label: 'Azul', a: [14, 165, 233], b: [99, 102, 241] },
+  verde: { label: 'Verde', a: [34, 197, 94], b: [16, 185, 129] },
+  laranja: { label: 'Laranja', a: [249, 115, 22], b: [245, 158, 11] },
+  vermelho: { label: 'Vermelho', a: [239, 68, 68], b: [244, 63, 94] },
+};
+
 export interface Prefs {
   theme: 'dark' | 'light' | 'system';
   fontSize: number;
   compact: boolean;
   reduceMotion: boolean;
+  accent: AccentName;
+  oled: boolean;
+  motion: 'ultra' | 'balanced' | 'performance';
+  uiSounds: boolean;
+  cursorLight: boolean;
   desktopNotifications: boolean;
   notificationSounds: boolean;
   inputDeviceId: string;
@@ -28,6 +45,11 @@ const defaults: Prefs = {
   fontSize: 15,
   compact: false,
   reduceMotion: false,
+  accent: 'rosa',
+  oled: false,
+  motion: 'ultra',
+  uiSounds: true,
+  cursorLight: true,
   desktopNotifications: true,
   notificationSounds: true,
   inputDeviceId: 'default',
@@ -72,6 +94,14 @@ export function applyAppearance() {
   const root = document.documentElement;
   const theme = p.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : p.theme;
   root.dataset.theme = theme;
-  root.dataset.reduceMotion = String(p.reduceMotion);
+  root.dataset.oled = String(p.oled && theme === 'dark');
+  root.dataset.reduceMotion = String(p.reduceMotion || p.motion === 'performance');
+  root.dataset.motion = p.reduceMotion ? 'performance' : p.motion;
+  const acc = ACCENTS[p.accent] ?? ACCENTS.rosa;
+  const darker = acc.a.map((v) => Math.round(v * 0.85)).join(' ');
+  root.style.setProperty('--brand', acc.a.join(' '));
+  root.style.setProperty('--brand-2', acc.b.join(' '));
+  root.style.setProperty('--brand-hover', darker);
   root.style.setProperty('--font-size', `${p.fontSize}px`);
+  root.dataset.cursorLight = String(p.cursorLight);
 }

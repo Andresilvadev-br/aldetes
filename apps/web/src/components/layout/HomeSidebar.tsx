@@ -23,21 +23,29 @@ export function HomeSidebar() {
   const [switcher, setSwitcher] = useState(false);
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center border-b border-black/30 px-2.5 shadow-sm">
-        <button className="h-7 w-full truncate rounded bg-bg-rail px-2 text-left text-[13px] text-fg-muted" onClick={() => setSwitcher(true)}>
-          Encontre ou comece uma conversa
-        </button>
+      <div className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-line/[0.06] px-4">
+        <span className="haze pointer-events-none absolute inset-0 opacity-80" />
+        <span className="tile grad relative text-white shadow-glow">
+          <Icon name="at" size={18} />
+        </span>
+        <span className="relative min-w-0">
+          <span className="block text-[15px] font-extrabold tracking-tight text-fg-strong">Conversas</span>
+          <button className="text-[11px] font-medium text-fg-muted hover:text-fg-strong" onClick={() => setSwitcher(true)}>
+            Buscar conversa · Ctrl K
+          </button>
+        </span>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto px-2 py-2">
         <button
-          className={clsx('flex h-10 w-full items-center gap-3 rounded px-3 font-medium', loc.pathname === '/channels/@me' ? 'bg-fg/15 text-fg-strong' : 'text-fg-muted hover:bg-fg/10 hover:text-fg')}
+          data-glow
+          className={clsx('relative flex h-10 w-full items-center gap-3 rounded-xl border border-transparent px-3 font-semibold transition-colors', loc.pathname === '/channels/@me' ? 'nav-active' : 'text-fg-muted hover:bg-line/[0.05] hover:text-fg')}
           onClick={() => nav('/channels/@me')}
         >
           <Icon name="users" />
           <span className="flex-1 text-left">Amigos</span>
           {pending > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-bold text-white">{pending}</span>}
         </button>
-        <div className="mt-4 flex items-center justify-between px-2 pb-1 text-xs font-semibold uppercase text-fg-muted">
+        <div className="eyebrow mt-5 flex items-center justify-between px-2 pb-1.5">
           <span>Mensagens diretas</span>
           <button className="hover:text-fg-strong" title="Criar DM em grupo" onClick={() => setGroup(true)}>
             <Icon name="plus" size={16} />
@@ -73,10 +81,11 @@ function DmRow({ channelId }: { channelId: string }) {
       tabIndex={0}
       onClick={() => nav(`/channels/@me/${channelId}`)}
       onContextMenu={(e) => menu(e, [{ label: c.type === 'group_dm' ? 'Sair do grupo' : 'Fechar DM', onClick: close, danger: c.type === 'group_dm' }, { label: 'Copiar ID', onClick: () => navigator.clipboard.writeText(channelId) }])}
-      className={clsx('group mt-0.5 flex h-11 cursor-pointer items-center gap-3 rounded px-2', active === channelId ? 'bg-fg/15 text-fg-strong' : 'text-fg-muted hover:bg-fg/10 hover:text-fg')}
+      data-glow
+      className={clsx('group relative mt-0.5 flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-transparent px-2 transition-colors', active === channelId ? 'nav-active' : 'text-fg-muted hover:bg-line/[0.05] hover:text-fg')}
     >
       {c.type === 'group_dm' ? (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white">
+        <div className="grad flex h-8 w-8 items-center justify-center rounded-full text-white">
           <Icon name="users" size={18} />
         </div>
       ) : (

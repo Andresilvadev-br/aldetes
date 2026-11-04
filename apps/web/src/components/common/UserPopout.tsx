@@ -22,13 +22,13 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
   const status = presence?.status ?? 'offline';
   return (
     <Popover x={x} y={y} onClose={onClose}>
-      <div className="w-[300px] animate-pop overflow-hidden rounded-lg bg-bg-float shadow-2xl ring-1 ring-black/30">
-        <div className="h-[60px]" style={{ background: user.bannerUrl ? `center/cover url(${user.bannerUrl})` : (user.accentColor ?? colorFor(user.id)) }} />
+      <div className="w-[320px] overflow-hidden rounded-2xl border border-line/[0.08] bg-bg-float shadow-float">
+        <div className="h-[84px]" style={{ background: user.bannerUrl ? `center/cover url(${user.bannerUrl})` : (user.accentColor ?? colorFor(user.id)) }} />
         <div className="relative px-4 pb-4">
           <div className="-mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
             <Avatar userId={userId} size={80} showStatus />
           </div>
-          <div className="text-xl font-bold text-fg-strong">{member?.nickname ?? user.displayName}</div>
+          <div className="text-xl font-extrabold tracking-tight text-fg-strong">{member?.nickname ?? user.displayName}</div>
           <div className="text-sm text-fg-muted">
             {user.username} · {STATUS_LABEL[status]}
           </div>

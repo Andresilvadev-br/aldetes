@@ -29,7 +29,7 @@ export function SearchPanel({ channel, initial, onClose }: { channel: Channel; i
   }, [q, scope, has, offset, channel]);
 
   return (
-    <aside className="flex w-[420px] shrink-0 flex-col border-l border-black/20 bg-bg-side">
+    <aside className="flex w-[420px] shrink-0 animate-slideUp flex-col border-l border-line/[0.06] bg-line/[0.015]">
       <div className="flex items-center gap-2 p-3">
         <input className="input py-1.5 text-sm" value={q} onChange={(e) => (setQ(e.target.value), setOffset(0))} />
         <button className="icon-btn" onClick={onClose}>

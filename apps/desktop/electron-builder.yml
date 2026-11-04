@@ -16,14 +16,17 @@ extraResources:
 npmRebuild: false
 asarUnpack:
   - "**/node_modules/uiohook-napi/**"
-# Self-hosted updates: serve the files from `release/` (latest.yml, installers) at this URL.
+# Installers + auto-update metadata are published to this repository's GitHub Releases.
 publish:
-  provider: generic
-  url: ${env.ALDETES_UPDATE_URL}
+  provider: github
+  owner: Andresilvadev-br
+  repo: aldetes
+  releaseType: release
 win:
   target: [nsis]
   icon: build/icon.png
 nsis:
+  artifactName: Aldetes-Setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
@@ -38,6 +41,10 @@ mac:
     NSMicrophoneUsageDescription: O Aldetes usa o microfone para chamadas de voz.
     NSCameraUsageDescription: O Aldetes usa a câmera para chamadas de vídeo.
     NSScreenCaptureUsageDescription: O Aldetes captura a tela quando você escolhe transmitir.
+appImage:
+  artifactName: Aldetes-Linux.${ext}
+deb:
+  artifactName: Aldetes-Linux.${ext}
 linux:
   executableName: aldetes
   syncDesktopName: true

@@ -1,6 +1,7 @@
 import type { Attachment, Message } from '@aldetes/shared';
 import { api, upload } from './api';
 import { get, set, upsertMessage, type ClientMessage } from '../store';
+import { setUpload, endUpload } from './island';
 
 const PAGE = 50;
 
@@ -96,7 +97,16 @@ export async function sendMessage(channelId: string, content: string, opts: { re
     if (opts.files?.length) {
       const fd = new FormData();
       for (const f of opts.files) fd.append('files', f, f.name);
-      attachments = await upload<Attachment[]>('/attachments', fd, opts.onProgress);
+      const label = opts.files.length === 1 ? opts.files[0]!.name : `${opts.files.length} arquivos`;
+      setUpload(n, label, 0);
+      try {
+        attachments = await upload<Attachment[]>('/attachments', fd, (p) => {
+          setUpload(n, label, p);
+          opts.onProgress?.(p);
+        });
+      } finally {
+        endUpload(n);
+      }
     }
     (optimistic as any)._attachmentIds = attachments.map((a) => a.id);
     const msg = await api<Message>('POST', `/channels/${channelId}/messages`, {

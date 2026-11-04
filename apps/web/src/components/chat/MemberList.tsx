@@ -62,15 +62,16 @@ export function MemberList({ channel }: { channel: Channel }) {
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => parent.current, estimateSize: (i) => (rows[i]!.kind === 'header' ? 40 : 44), overscan: 12 });
 
   return (
-    <aside ref={parent} className="scroll-thin w-60 shrink-0 overflow-y-auto bg-bg-side px-2" aria-label="Membros">
+    <aside ref={parent} className="scroll-thin w-64 shrink-0 overflow-y-auto border-l border-line/[0.06] bg-line/[0.015] px-2" aria-label="Membros">
       <div style={{ height: v.getTotalSize(), position: 'relative' }}>
         {v.getVirtualItems().map((vi) => {
           const r = rows[vi.index]!;
           return (
             <div key={vi.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${vi.start}px)`, height: vi.size }}>
               {r.kind === 'header' ? (
-                <div className="px-2 pb-1 pt-6 text-xs font-semibold uppercase text-fg-muted">
-                  {r.label} — {r.count}
+                <div className="eyebrow flex items-center gap-2 px-2 pb-1 pt-6">
+                  {r.label}
+                  <span className="rounded-full bg-line/[0.06] px-1.5 text-[10px] tracking-normal text-fg-muted">{r.count}</span>
                 </div>
               ) : (
                 <MemberRow userId={r.userId} serverId={serverId} offline={r.offline} ownerId={server?.ownerId} />
@@ -93,7 +94,7 @@ function MemberRow({ userId, serverId, offline, ownerId }: { userId: string; ser
   });
   return (
     <UserPopoutTrigger userId={userId} serverId={serverId}>
-      <div className={`flex h-[42px] cursor-pointer items-center gap-3 rounded px-2 hover:bg-fg/10 ${offline ? 'opacity-40 hover:opacity-100' : ''}`}>
+      <div data-glow className={`flex h-[42px] cursor-pointer items-center gap-3 rounded-xl px-2 transition-[background-color,opacity] duration-150 hover:bg-line/[0.05] ${offline ? 'opacity-40 hover:opacity-100' : ''}`}>
         <Avatar userId={userId} size={32} showStatus={!offline} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">

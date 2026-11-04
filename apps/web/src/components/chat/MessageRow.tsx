@@ -34,6 +34,8 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
   const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
   const [userPop, setUserPop] = useState<{ id: string; x: number; y: number } | null>(null);
   const [forward, setForward] = useState(false);
+  // only messages that just arrived animate in (not history loads)
+  const [fresh] = useState(() => Date.now() - new Date(m.createdAt).getTime() < 4000);
   const menu = useContextMenu();
   const nav = useNavigate();
   const perms = channelPermissions(channel.id);
@@ -105,7 +107,8 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
       className={clsx(
         'group relative pr-12 [content-visibility:auto] [contain-intrinsic-size:auto_48px]',
         grouped ? 'py-0.5' : 'mt-4 py-0.5',
-        mentionsMe ? 'border-l-2 border-mention bg-mention/10 hover:bg-mention/[.13]' : 'hover:bg-fg/[.03]',
+        mentionsMe ? 'border-l-2 border-brand bg-brand/[0.07] hover:bg-brand/[0.1]' : 'hover:bg-line/[0.025]',
+        fresh && 'msg-in',
         m.pending && !m.failed && 'opacity-60',
       )}
       onContextMenu={(e) => menu(e, actions())}
@@ -191,26 +194,26 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
         </div>
       </div>
       {!m.pending && !editing && (
-        <div className="absolute -top-4 right-4 z-10 hidden overflow-hidden rounded-md bg-bg-main shadow ring-1 ring-black/20 group-hover:flex">
+        <div className="absolute -top-4 right-4 z-10 hidden animate-pop overflow-hidden rounded-xl border border-line/[0.08] bg-bg-float p-0.5 shadow-float group-hover:flex">
           <Tooltip label="Adicionar reação">
-            <button className="icon-btn rounded-none" onClick={(e) => setPicker({ x: e.clientX - 320, y: e.clientY + 10 })}>
+            <button className="icon-btn" onClick={(e) => setPicker({ x: e.clientX - 320, y: e.clientY + 10 })}>
               <Icon name="smile" size={18} />
             </button>
           </Tooltip>
           <Tooltip label="Responder">
-            <button className="icon-btn rounded-none" onClick={() => onReply(m)}>
+            <button className="icon-btn" onClick={() => onReply(m)}>
               <Icon name="reply" size={18} />
             </button>
           </Tooltip>
           {isMine && (
             <Tooltip label="Editar">
-              <button className="icon-btn rounded-none" onClick={() => setEditing(true)}>
+              <button className="icon-btn" onClick={() => setEditing(true)}>
                 <Icon name="edit" size={18} />
               </button>
             </Tooltip>
           )}
           <Tooltip label="Mais">
-            <button className="icon-btn rounded-none" onClick={(e) => menu(e, actions())}>
+            <button className="icon-btn" onClick={(e) => menu(e, actions())}>
               <Icon name="moreH" size={18} />
             </button>
           </Tooltip>
@@ -267,7 +270,7 @@ function ReactionChip({ channelId, messageId, emoji, count, me, serverId }: { ch
   return (
     <button
       onClick={() => toggleReaction(channelId, messageId, emoji).catch(toastError)}
-      className={clsx('flex h-6 items-center gap-1 rounded-md border px-1.5 text-sm transition-colors', me ? 'border-brand bg-brand/20 text-fg-strong' : 'border-transparent bg-fg/10 text-fg-muted hover:border-fg-faint')}
+      className={clsx('flex h-7 items-center gap-1.5 rounded-lg border px-2 text-sm transition-[transform,background-color,border-color] duration-150 active:scale-90', me ? 'border-brand/60 bg-brand/15 text-fg-strong' : 'border-line/[0.06] bg-line/[0.05] text-fg-muted hover:border-line/20')}
     >
       {custom ? <img src={custom.url} alt={custom.name} className="h-4 w-4 object-contain" /> : <span>{emoji}</span>}
       <span className="text-xs font-semibold">{count}</span>
@@ -291,7 +294,7 @@ export function AttachmentView({ a }: { a: Attachment }) {
           alt={a.filename}
           loading="lazy"
           onClick={() => setLightbox(true)}
-          className="max-h-[350px] cursor-zoom-in rounded-lg object-contain"
+          className="max-h-[350px] cursor-zoom-in rounded-xl border border-line/[0.06] object-contain transition-transform duration-300 hover:scale-[1.01]"
           style={{ width: w, height: h && h > 350 ? 350 : h, maxWidth: '100%' }}
         />
         {lightbox && (
@@ -308,13 +311,13 @@ export function AttachmentView({ a }: { a: Attachment }) {
   if (a.contentType.startsWith('video/')) return <video src={a.url} controls preload="metadata" className="max-h-[350px] max-w-[min(100%,480px)] rounded-lg bg-black" />;
   if (a.contentType.startsWith('audio/'))
     return (
-      <div className="w-full max-w-[420px] rounded-lg border border-black/20 bg-bg-side p-3">
+      <div className="w-full max-w-[420px] rounded-xl border border-line/[0.07] bg-line/[0.03] p-3">
         <div className="mb-2 truncate text-sm text-brand">{a.filename}</div>
         <audio src={a.url} controls className="w-full" preload="metadata" />
       </div>
     );
   return (
-    <div className="flex w-full max-w-[420px] items-center gap-3 rounded-lg border border-black/20 bg-bg-side p-3">
+    <div className="flex w-full max-w-[420px] items-center gap-3 rounded-xl border border-line/[0.07] bg-line/[0.03] p-3">
       <Icon name="file" size={32} className="text-fg-muted" />
       <div className="min-w-0 flex-1">
         <a href={a.url} target="_blank" rel="noopener noreferrer" className="block truncate text-[#4aa8ff] hover:underline" download={a.filename}>

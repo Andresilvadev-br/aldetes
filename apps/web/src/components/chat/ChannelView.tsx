@@ -48,11 +48,11 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/30 px-4 shadow-sm">
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line/[0.06] px-5">
         {isDm ? (
-          channel.type === 'dm' && other ? <Avatar userId={other.id} size={24} showStatus /> : <Icon name="users" className="text-fg-muted" />
+          channel.type === 'dm' && other ? <Avatar userId={other.id} size={28} showStatus /> : <span className="tile grad h-8 w-8 text-white"><Icon name="users" size={16} /></span>
         ) : (
-          <Icon name={channelIcon(channel.type)} className="text-fg-muted" />
+          <span className="tile h-8 w-8 bg-brand/15 text-brand"><Icon name={channelIcon(channel.type)} size={17} /></span>
         )}
         {parent && (
           <>
@@ -62,7 +62,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
             <Icon name="chevronRight" size={14} className="text-fg-faint" />
           </>
         )}
-        <h1 className="font-semibold text-fg-strong">{isDm ? dmName(channel) : channel.name}</h1>
+        <h1 className="text-[15px] font-extrabold tracking-tight text-fg-strong">{isDm ? dmName(channel) : channel.name}</h1>
         {channel.topic && (
           <>
             <div className="mx-2 h-6 w-px bg-line/10" />
@@ -116,7 +116,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
           {hasPermission(perms, Permissions.SEND_MESSAGES) ? (
             <Composer channelId={channelId} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
           ) : (
-            <div className="mx-4 mb-6 rounded-lg bg-bg-input/60 px-4 py-3 text-sm text-fg-faint">Você não tem permissão para enviar mensagens neste canal.</div>
+            <div className="mx-4 mb-4 rounded-2xl border border-line/[0.06] bg-line/[0.03] px-4 py-3.5 text-sm text-fg-faint">Você não tem permissão para enviar mensagens neste canal.</div>
           )}
         </div>
         {search !== null ? (
@@ -136,13 +136,13 @@ function SearchBox({ onSearch }: { onSearch: (q: string) => void }) {
   return (
     <div className="relative ml-2">
       <input
-        className="h-6 w-36 rounded bg-bg-rail px-2 pr-6 text-sm text-fg outline-none transition-all placeholder:text-fg-faint focus:w-56"
+        className="h-8 w-40 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 pr-7 text-sm text-fg outline-none transition-all duration-300 placeholder:text-fg-faint focus:w-60 focus:border-brand/50"
         placeholder="Buscar"
         value={v}
         onChange={(e) => setV(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && v.trim() && onSearch(v.trim())}
       />
-      <Icon name="search" size={14} className="pointer-events-none absolute right-1.5 top-1.5 text-fg-muted" />
+      <Icon name="search" size={14} className="pointer-events-none absolute right-2.5 top-[9px] text-fg-muted" />
     </div>
   );
 }

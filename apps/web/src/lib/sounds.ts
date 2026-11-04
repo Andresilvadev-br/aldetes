@@ -1,3 +1,4 @@
+import { getPrefs } from './prefs';
 // Original UI sounds synthesized with WebAudio (no bundled audio assets).
 let ctx: AudioContext | null = null;
 function ac() {
@@ -30,6 +31,7 @@ function tone(freqs: number[], dur = 0.09, gap = 0.07, type: OscillatorType = 's
 export type SoundName = 'message' | 'join' | 'leave' | 'mute' | 'unmute' | 'deafen' | 'ring';
 
 export function playSound(name: SoundName) {
+  if (name !== 'ring' && !getPrefs().uiSounds) return;
   switch (name) {
     case 'message':
       return tone([880, 1320], 0.12, 0.08);

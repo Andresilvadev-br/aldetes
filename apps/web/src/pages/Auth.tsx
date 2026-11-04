@@ -1,19 +1,33 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, setSessionToken } from '@/lib/api';
-import { Logo } from '@/components/common/Icon';
+import { Icon, Logo } from '@/components/common/Icon';
+import { motion } from 'motion/react';
+import { spring } from '@/lib/motion';
 import { bootSession } from '@/App';
 import { isDesktop } from '@/lib/desktop';
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-full items-center justify-center overflow-auto bg-gradient-to-br from-[#2b2263] via-bg-rail to-[#123b46] p-4">
-      <div className="w-full max-w-[480px] animate-pop rounded-lg bg-bg-main p-8 shadow-2xl">
-        <div className="mb-4 flex justify-center text-brand">
-          <Logo size={44} />
+    <div className="haze relative flex h-full items-center justify-center overflow-auto bg-bg-rail p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={spring.gentle}
+        className="w-full max-w-[460px] rounded-3xl border border-line/[0.08] bg-bg-side/90 p-8 shadow-float"
+      >
+        <div className="mb-5 flex justify-center">
+          <span className="grad flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-glow">
+            <Logo size={30} />
+          </span>
         </div>
         {children}
-      </div>
+      </motion.div>
+      {!isDesktop && (
+        <Link to="/welcome" className="absolute left-6 top-6 flex items-center gap-2 text-sm font-semibold text-fg-muted hover:text-fg-strong">
+          <Icon name="arrowLeft" size={16} /> Baixar o app
+        </Link>
+      )}
     </div>
   );
 }
@@ -69,7 +83,7 @@ export function LoginPage() {
   };
   return (
     <Shell>
-      <h1 className="text-center text-2xl font-bold text-fg-strong">Boas-vindas de volta!</h1>
+      <h1 className="text-center text-2xl font-extrabold tracking-tight text-fg-strong">Boas-vindas de volta!</h1>
       <p className="mb-6 text-center text-fg-muted">Que bom te ver de novo no Aldetes.</p>
       <form onSubmit={submit}>
         <Field label="E-mail ou nome de usuário" value={login} onChange={(e) => setLogin(e.target.value)} required autoFocus autoComplete="username" />
@@ -118,7 +132,7 @@ export function RegisterPage() {
   };
   return (
     <Shell>
-      <h1 className="mb-6 text-center text-2xl font-bold text-fg-strong">Criar uma conta</h1>
+      <h1 className="mb-6 text-center text-2xl font-extrabold tracking-tight text-fg-strong">Criar uma conta</h1>
       <form onSubmit={submit}>
         <Field label="E-mail" type="email" value={form.email} onChange={upd('email')} required error={fieldErrors.email} autoComplete="email" />
         <Field label="Nome de exibição" value={form.displayName} onChange={upd('displayName')} maxLength={32} error={fieldErrors.displayName} />
@@ -153,7 +167,7 @@ export function ForgotPage() {
   const { error, busy, run } = useAuthSubmit();
   return (
     <Shell>
-      <h1 className="mb-2 text-center text-2xl font-bold text-fg-strong">Redefinir senha</h1>
+      <h1 className="mb-2 text-center text-2xl font-extrabold tracking-tight text-fg-strong">Redefinir senha</h1>
       {sent ? (
         <p className="text-center text-fg-muted">Se existir uma conta com esse e-mail, enviamos um link de redefinição válido por 1 hora.</p>
       ) : (
@@ -188,7 +202,7 @@ export function ResetPage() {
   const { error, busy, run } = useAuthSubmit();
   return (
     <Shell>
-      <h1 className="mb-6 text-center text-2xl font-bold text-fg-strong">Nova senha</h1>
+      <h1 className="mb-6 text-center text-2xl font-extrabold tracking-tight text-fg-strong">Nova senha</h1>
       {done ? (
         <p className="text-center text-fg-muted">Senha alterada. Todas as sessões foram encerradas por segurança.</p>
       ) : (

@@ -39,6 +39,8 @@ export interface VoiceStore {
   version: number;
   focused: string | null; // "<identity>:<source>"
   pingMs: number | null;
+  connectedAt: number | null;
+  screenSince: number | null;
 }
 
 export const useVoice = create<VoiceStore>()(() => ({
@@ -58,6 +60,8 @@ export const useVoice = create<VoiceStore>()(() => ({
   version: 0,
   focused: null,
   pingMs: null,
+  connectedAt: null,
+  screenSince: null,
 }));
 const vset = useVoice.setState;
 const vget = useVoice.getState;
@@ -216,7 +220,7 @@ function cleanupRoom() {
   audioHost.innerHTML = '';
   room?.removeAllListeners();
   room = null;
-  vset({ speaking: {}, quality: {}, camera: false, screen: false, focused: null, pingMs: null });
+  vset({ speaking: {}, quality: {}, camera: false, screen: false, focused: null, pingMs: null, screenSince: null });
   bump();
 }
 
@@ -253,7 +257,7 @@ export async function joinVoice(channelId: string, isRejoin = false) {
     attachRoomEvents(r);
     await r.connect(t.url, t.token, { autoSubscribe: true });
     rejoinAttempts = 0;
-    vset({ state: 'connected', serverId: t.serverId, canSpeak: t.permissions.speak, canVideo: t.permissions.video });
+    vset({ state: 'connected', serverId: t.serverId, canSpeak: t.permissions.speak, canVideo: t.permissions.video, connectedAt: isRejoin ? (vget().connectedAt ?? Date.now()) : Date.now() });
     for (const p of r.remoteParticipants.values()) applyRemoteAudio(p);
     await r.startAudio().catch(() => {});
     await syncMic();
@@ -294,7 +298,7 @@ export async function leaveVoice() {
   const had = !!room;
   await room?.disconnect();
   cleanupRoom();
-  vset({ channelId: null, serverId: null, state: 'idle', error: null });
+  vset({ channelId: null, serverId: null, state: 'idle', error: null, connectedAt: null, screenSince: null });
   if (had) playSound('leave');
 }
 
@@ -396,7 +400,7 @@ export async function startScreenShare(opts: { quality: keyof typeof STREAM_PRES
       simulcast: true,
       degradationPreference: opts.contentHint === 'detail' ? 'maintain-resolution' : 'maintain-framerate',
     });
-    vset({ screen: true });
+    vset({ screen: true, screenSince: Date.now() });
     setPrefs({ streamQuality: opts.quality });
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     const settings = (pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined)?.getSettings();
