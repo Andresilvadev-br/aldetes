@@ -47,7 +47,7 @@ try {
   await main.getByRole('button', { name: 'Adicionar um servidor' }).click();
   await main.getByRole('button', { name: 'Criar', exact: true }).click();
   await main.waitForURL(/channels\/\d+\/\d+/);
-  await main.locator('[role=button]', { hasText: /^Geral$/ }).first().click();
+  await main.locator('[role=button]', { hasText: /^Geral/ }).first().click({ position: { x: 60, y: 20 } });
   await main.getByText('Voz conectada').waitFor({ timeout: 20000 });
   check('Em chamada no app desktop', true);
 

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { useStore, set } from '@/store';
 import { Avatar, StatusDot, STATUS_LABEL } from '../common/Avatar';
-import { Icon } from '../common/Icon';
+import { Icon, type IconName } from '../common/Icon';
+import { AnimatePresence, motion } from 'motion/react';
+import { spring } from '@/lib/motion';
 import { Popover, Tooltip, toastError } from '../common/overlay';
 import { toggleDeaf, toggleMute, useVoice } from '@/lib/voice';
 import { emit } from '@/lib/gateway';
@@ -26,34 +28,38 @@ export function UserPanel() {
   };
 
   return (
-    <div className="panel flex h-[58px] shrink-0 items-center gap-1 px-2">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-line/[0.06]"
+    <div className="panel relative flex h-[60px] shrink-0 items-center gap-1 overflow-hidden px-2">
+      <span className="pointer-events-none absolute -left-10 top-1/2 h-24 w-32 -translate-y-1/2 rounded-full bg-brand/15 blur-2xl" />
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        transition={spring.snappy}
+        className="group relative flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-line/[0.06]"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           setStatusMenu({ x: r.left, y: r.top - 8 });
         }}
       >
-        <Avatar userId={me.id} size={36} showStatus />
+        <motion.span whileHover={{ scale: 1.07, rotate: -4 }} transition={spring.snappy}>
+          <Avatar userId={me.id} size={38} showStatus />
+        </motion.span>
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold leading-tight text-fg-strong">{me.displayName}</div>
-          <div className="truncate text-xs leading-tight text-brand">{me.customStatus || (pttMode ? 'Transmitindo…' : me.username)}</div>
+          <div className="truncate text-sm font-extrabold leading-tight text-fg-strong">{me.displayName}</div>
+          <div className="relative h-4 overflow-hidden text-xs leading-4">
+            <span className="grad-text block truncate font-semibold transition-transform duration-300 group-hover:-translate-y-4">{me.customStatus || (pttMode ? 'Transmitindo…' : me.username)}</span>
+            <span className="absolute inset-x-0 top-4 block truncate text-fg-muted transition-transform duration-300 group-hover:-translate-y-4">Mudar status</span>
+          </div>
         </div>
-      </button>
+      </motion.button>
       <Tooltip label={selfMute ? 'Ativar microfone' : 'Silenciar'}>
-        <button className={clsx('icon-btn', (selfMute || selfDeaf) && 'bg-danger/15 text-danger hover:text-danger')} onClick={() => void toggleMute()} aria-label="Microfone">
-          <Icon name={selfMute || selfDeaf ? 'micOff' : 'mic'} size={19} />
-        </button>
+        <PanelBtn on={selfMute || selfDeaf} icon={selfMute || selfDeaf ? 'micOff' : 'mic'} onClick={() => void toggleMute()} label="Microfone" />
       </Tooltip>
       <Tooltip label={selfDeaf ? 'Desativar surdez' : 'Ensurdecer'}>
-        <button className={clsx('icon-btn', selfDeaf && 'bg-danger/15 text-danger hover:text-danger')} onClick={() => void toggleDeaf()} aria-label="Fones">
-          <Icon name={selfDeaf ? 'headphonesOff' : 'headphones'} size={19} />
-        </button>
+        <PanelBtn on={selfDeaf} icon={selfDeaf ? 'headphonesOff' : 'headphones'} onClick={() => void toggleDeaf()} label="Fones" />
       </Tooltip>
       <Tooltip label="Configurações de usuário">
-        <button className="icon-btn" onClick={() => openSettings('account')} aria-label="Configurações">
+        <motion.button whileHover={{ rotate: 90 }} whileTap={{ scale: 0.85 }} transition={spring.gentle} className="icon-btn relative h-9 w-9 rounded-xl" onClick={() => openSettings('account')} aria-label="Configurações">
           <Icon name="settings" size={19} />
-        </button>
+        </motion.button>
       </Tooltip>
       {statusMenu && (
         <Popover x={statusMenu.x} y={statusMenu.y - 230} onClose={() => setStatusMenu(null)}>
@@ -89,6 +95,24 @@ export function UserPanel() {
       )}
       {customOpen && <CustomStatusPrompt onClose={() => setCustomOpen(false)} initial={me.customStatus ?? ''} />}
     </div>
+  );
+}
+
+function PanelBtn({ on, icon, onClick, label }: { on: boolean; icon: IconName; onClick: () => void; label: string }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.82 }}
+      transition={spring.snappy}
+      onClick={onClick}
+      aria-label={label}
+      className={clsx('relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200', on ? 'bg-danger/20 text-danger shadow-[0_0_16px_-4px_rgb(var(--danger)/0.8)]' : 'text-fg-muted hover:bg-line/[0.08] hover:text-fg-strong')}
+    >
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span key={icon} initial={{ scale: 0.3, rotate: -40, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} exit={{ scale: 0.3, rotate: 40, opacity: 0 }} transition={spring.snappy} className="flex">
+          <Icon name={icon} size={19} />
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
   );
 }
 

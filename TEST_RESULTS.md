@@ -112,3 +112,24 @@ Nesse teste, o vídeo da tela vem do dispositivo falso do Chromium (`--use-fake-
 **Corrigido nesta rodada:** quem entrava num servidor via convite via todos os membros como "Offline" até recarregar.
 
 **Não testado aqui:** a detecção de jogos no Windows (`tasklist`) e a qualidade real de 1080p60 em rede de verdade.
+
+## 9. Rodada de 04/11/2026 (madrugada): transmissão otimizada e nova barra de canais
+
+| Teste | Resultado |
+|---|---|
+| `pnpm test` (shared 5 · web 7 · API 28) | **40/40** |
+| `e2e/two-clients.mjs` (agora com medição de FPS da transmissão) | **17/17** |
+| `e2e/desktop-smoke.mjs` (inclui barra "ao vivo" com estatísticas reais, prioridade de processo e flags anti-throttling) | **11/11** |
+| `e2e/desktop-island.mjs` | **8/8** |
+
+**Transmissão: mesma fonte animada de 1080p a 60 FPS, mesmo PC (4 vCPU, codificação por software):**
+
+| Configuração | Quem assiste recebe |
+|---|---|
+| Antiga (VP9 com 3 camadas espaciais + camada extra 720p/15 FPS, `maintain-resolution`) | **720p a 15 FPS** |
+| Nova (camada única, H.264, `maintain-framerate`) | **1080p a 60 FPS**, 0 quadros perdidos |
+
+- A captura agora é pedida com FPS máximo explícito: 1080p@60 é entregue (antes saía 720p@30).
+- O dispositivo de tela **falso** do Chromium usado nos testes gera ~20 FPS fixos, por isso a medição de 60 FPS usa um canvas animado publicado com as mesmas configurações do app.
+- No app desktop sob Xvfb, a transmissão começa em resolução menor enquanto a estimativa de banda "aquece" e chega a **1080p · 60 FPS em cerca de 15 s**.
+- **Não testado aqui:** codificação por hardware (NVENC/AMF/QuickSync) no Windows. A barra "ao vivo" mostra se está usando GPU ou CPU.

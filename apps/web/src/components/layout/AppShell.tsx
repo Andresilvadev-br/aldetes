@@ -157,7 +157,7 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
 function Sidebarred({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
   return (
     <>
-      <div className="flex w-64 shrink-0 flex-col gap-2">
+      <div className="flex w-[272px] shrink-0 flex-col gap-2">
         <div className="panel min-h-0 flex-1 overflow-hidden">{sidebar}</div>
         <VoicePanel />
         <UserPanel />

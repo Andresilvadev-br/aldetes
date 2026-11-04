@@ -87,7 +87,7 @@ try {
 
   // voice
   for (const c of [A, B]) {
-    await c.page.locator('[role=button]', { hasText: /^Geral$/ }).first().click();
+    await c.page.locator('[role=button]', { hasText: /^Geral/ }).first().click({ position: { x: 60, y: 20 } });
   }
   const waitConnected = (c) => c.page.waitForFunction(() => window.__aldetes?.useVoice.getState().state === 'connected', null, { timeout: 20000 });
   await Promise.all([waitConnected(A), waitConnected(B)]);

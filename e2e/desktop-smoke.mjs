@@ -56,7 +56,7 @@ try {
   await page.getByRole('button', { name: 'Adicionar um servidor' }).click();
   await page.getByRole('button', { name: 'Criar', exact: true }).click();
   await page.waitForURL(/channels\/\d+\/\d+/);
-  await page.locator('[role=button]', { hasText: /^Geral$/ }).first().click();
+  await page.locator('[role=button]', { hasText: /^Geral/ }).first().click({ position: { x: 60, y: 20 } });
   await page.getByText('Voz conectada').waitFor({ timeout: 20000 });
   check('Entra no canal de voz pelo desktop', true);
   await page.getByRole('button', { name: /^Tela$/ }).click();
