@@ -45,6 +45,24 @@ export interface VoiceStore {
   screenSince: number | null;
   /** what is really being sent, e.g. "1080p · 60 FPS" */
   screenInfo: string | null;
+  /** live encoder stats of our own stream (sampled every 2 s) */
+  screenStats: StreamStats | null;
+}
+
+export interface StreamStats {
+  width: number;
+  height: number;
+  fps: number;
+  /** frames per second coming out of the capturer (before encoding) */
+  sourceFps: number;
+  targetFps: number;
+  mbps: number;
+  /** what the browser says is holding quality back */
+  limit: 'none' | 'cpu' | 'bandwidth' | 'other';
+  /** true when the GPU's hardware encoder is doing the work */
+  hardware: boolean | null;
+  encoder: string | null;
+  codec: string | null;
 }
 
 export const useVoice = create<VoiceStore>()(() => ({
@@ -67,6 +85,7 @@ export const useVoice = create<VoiceStore>()(() => ({
   connectedAt: null,
   screenSince: null,
   screenInfo: null,
+  screenStats: null,
 }));
 const vset = useVoice.setState;
 const vget = useVoice.getState;
@@ -170,7 +189,8 @@ function attachRoomEvents(r: Room) {
     .on(RoomEvent.LocalTrackPublished, bump)
     .on(RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
       if (pub.source === Track.Source.ScreenShare) {
-        vset({ screen: false });
+        stopStreamStats();
+        vset({ screen: false, screenInfo: null });
         publishSelfState();
       }
       if (pub.source === Track.Source.Camera) {
@@ -225,6 +245,7 @@ function cleanupRoom() {
   audioHost.innerHTML = '';
   room?.removeAllListeners();
   room = null;
+  stopStreamStats();
   vset({ speaking: {}, quality: {}, camera: false, screen: false, focused: null, pingMs: null, screenSince: null });
   bump();
 }
@@ -387,66 +408,150 @@ export async function switchCamera() {
 
 /**
  * Screen share presets. Bitrates are generous on purpose: screen content (text, HUDs, fast games)
- * pixelates quickly when starved. Viewers on weaker connections automatically get the lower layer.
+ * pixelates quickly when starved. A single full-quality layer is sent (no simulcast): it halves
+ * the encoding work on the streamer's PC and nobody gets stuck on a low-FPS layer.
  */
 export const STREAM_PRESETS = {
-  '720p30': { width: 1280, height: 720, frameRate: 30, maxBitrate: 3_500_000 },
-  '720p60': { width: 1280, height: 720, frameRate: 60, maxBitrate: 5_500_000 },
-  '1080p30': { width: 1920, height: 1080, frameRate: 30, maxBitrate: 6_500_000 },
-  '1080p60': { width: 1920, height: 1080, frameRate: 60, maxBitrate: 10_000_000 },
+  '720p30': { width: 1280, height: 720, frameRate: 30, maxBitrate: 4_000_000 },
+  '720p60': { width: 1280, height: 720, frameRate: 60, maxBitrate: 6_500_000 },
+  '1080p30': { width: 1920, height: 1080, frameRate: 30, maxBitrate: 8_000_000 },
+  '1080p60': { width: 1920, height: 1080, frameRate: 60, maxBitrate: 12_000_000 },
+  '1440p30': { width: 2560, height: 1440, frameRate: 30, maxBitrate: 12_000_000 },
+  '1440p60': { width: 2560, height: 1440, frameRate: 60, maxBitrate: 18_000_000 },
 } as const;
+export type StreamQuality = keyof typeof STREAM_PRESETS;
+
+/**
+ * Encoder strategy per content type:
+ * - Motion (games/video) or any 60 FPS stream: H.264, which Chromium runs on the GPU's hardware
+ *   encoder when available (NVENC/AMF/QuickSync via Media Foundation) — the CPU stays free for the game.
+ *   Degradation keeps the frame rate: if something has to give, resolution drops a little, never FPS.
+ * - Text/code at 30 FPS: VP9 (sharper per bit) with temporal layers only (L1T3). The library default
+ *   (L3T3_KEY: three spatial layers) triples the software encoding cost and was a cause of FPS drops.
+ */
+function encoderPlan(preset: (typeof STREAM_PRESETS)[StreamQuality], motion: boolean) {
+  const h264 = motion || preset.frameRate >= 60;
+  return {
+    videoCodec: h264 ? ('h264' as const) : ('vp9' as const),
+    scalabilityMode: h264 ? undefined : 'L1T3',
+    degradationPreference: !motion && preset.frameRate < 60 ? ('maintain-resolution' as const) : ('maintain-framerate' as const),
+  };
+}
 
 /** Browser: getDisplayMedia shows the native picker. Desktop: `sourceId` was pre-selected through the bridge. */
-export async function startScreenShare(opts: { quality: keyof typeof STREAM_PRESETS; audio: boolean; desktopSourceId?: string; contentHint?: 'motion' | 'detail' }) {
+export async function startScreenShare(opts: { quality: StreamQuality; audio: boolean; desktopSourceId?: string; contentHint?: 'motion' | 'detail' }) {
   if (!room) return;
   // Switching source/quality while live: stop the current stream first, then start the new one.
   if (vget().screen) await room.localParticipant.setScreenShareEnabled(false);
-  const preset = STREAM_PRESETS[opts.quality];
+  const preset = STREAM_PRESETS[opts.quality] ?? STREAM_PRESETS['1080p60'];
+  const motion = opts.contentHint === 'motion';
   if (desktop && opts.desktopSourceId) await desktop.selectScreenSource(opts.desktopSourceId, opts.audio);
   const capture: ScreenShareCaptureOptions = {
     audio: opts.audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
     resolution: { width: preset.width, height: preset.height, frameRate: preset.frameRate },
-    contentHint: opts.contentHint ?? 'detail',
+    contentHint: motion ? 'motion' : 'detail',
     selfBrowserSurface: 'exclude',
     surfaceSwitching: 'include',
     systemAudio: opts.audio ? 'include' : 'exclude',
     suppressLocalAudioPlayback: true,
   };
   try {
-    const motion = opts.contentHint === 'motion';
+    const plan = encoderPlan(preset, motion);
     await room.localParticipant.setScreenShareEnabled(true, capture, {
       screenShareEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.frameRate, priority: 'high' },
-      // One lower layer (720p/15) for viewers with weak connections; everyone else gets full quality.
-      screenShareSimulcastLayers: [new VideoPreset(1280, 720, 1_500_000, 15, 'medium')],
-      // Text/detail: VP9 is sharper per bit. Games/motion at high FPS: H.264 usually runs on the GPU's hardware encoder.
-      videoCodec: motion ? 'h264' : 'vp9',
+      screenShareSimulcastLayers: [],
+      simulcast: false,
+      videoCodec: plan.videoCodec,
+      scalabilityMode: plan.scalabilityMode as never,
       backupCodec: { codec: 'vp8' },
-      simulcast: true,
-      // Never drop resolution for text; for motion, balance FPS and sharpness instead of blurring.
-      degradationPreference: motion ? 'balanced' : 'maintain-resolution',
+      degradationPreference: plan.degradationPreference,
     });
     vset({ screen: true, screenSince: Date.now() });
     setPrefs({ streamQuality: opts.quality });
+    desktop?.setStreaming?.(true); // desktop: raise the app's process priority while live
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-    const settings = (pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined)?.getSettings();
+    const mst = pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined;
+    // Ask the capturer explicitly for the full frame rate (an "ideal" alone may be served at the 30 FPS default).
+    await mst
+      ?.applyConstraints({
+        width: { ideal: preset.width, max: preset.width },
+        height: { ideal: preset.height, max: preset.height },
+        frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+      })
+      .catch(() => {});
+    const settings = mst?.getSettings();
     if (settings?.height) vset({ screenInfo: `${settings.height}p · ${Math.round(settings.frameRate ?? preset.frameRate)} FPS` });
     if (settings && (settings.height ?? 0) < preset.height - 10) {
-      toast(`Transmitindo em ${settings.width}x${settings.height}@${Math.round(settings.frameRate ?? 0)} (limitado pela fonte capturada).`);
+      toast(`Transmitindo em ${settings.width}x${settings.height} — é a resolução da tela/janela escolhida.`);
     }
+    startStreamStats(preset.frameRate);
     const hasAudio = !!room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
     if (opts.audio && !hasAudio) toast('O sistema/navegador não forneceu áudio para esta fonte; transmitindo apenas vídeo.');
   } catch (err) {
     const name = (err as Error)?.name;
     if (name !== 'NotAllowedError' && name !== 'AbortError') toast(`Falha ao compartilhar a tela: ${(err as Error).message}`, 'error');
     vset({ screen: false });
+    desktop?.setStreaming?.(false);
   }
   publishSelfState();
 }
 
 export async function stopScreenShare() {
   await room?.localParticipant.setScreenShareEnabled(false);
+  stopStreamStats();
   vset({ screen: false, screenInfo: null, screenSince: null });
   publishSelfState();
+}
+
+// ---------- live encoder stats for the streamer ----------
+let streamStatsTimer: ReturnType<typeof setInterval> | null = null;
+function stopStreamStats() {
+  if (streamStatsTimer) clearInterval(streamStatsTimer);
+  streamStatsTimer = null;
+  if (vget().screenStats) vset({ screenStats: null });
+  desktop?.setStreaming?.(false);
+}
+function startStreamStats(targetFps: number) {
+  if (streamStatsTimer) clearInterval(streamStatsTimer);
+  let last: { bytes: number; t: number } | null = null;
+  streamStatsTimer = setInterval(async () => {
+    const pub = room?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+    const sender = (pub?.track as { sender?: RTCRtpSender } | undefined)?.sender;
+    if (!sender) return;
+    try {
+      const report = await sender.getStats();
+      let out: any = null;
+      let source: any = null;
+      const codecs = new Map<string, string>();
+      report.forEach((r: any) => {
+        if (r.type === 'media-source' && r.kind === 'video') source = r;
+        if (r.type === 'codec') codecs.set(r.id, String(r.mimeType ?? '').replace('video/', ''));
+        // with several encodings (backup codec) keep the one actually sending the most
+        if (r.type === 'outbound-rtp' && r.kind === 'video' && (!out || (r.bytesSent ?? 0) > (out.bytesSent ?? 0))) out = r;
+      });
+      if (!out) return;
+      const t = out.timestamp as number;
+      const mbps = last && t > last.t ? ((out.bytesSent - last.bytes) * 8) / ((t - last.t) * 1000) : 0;
+      last = { bytes: out.bytesSent, t };
+      const reason = out.qualityLimitationReason as string | undefined;
+      vset({
+        screenStats: {
+          width: out.frameWidth ?? 0,
+          height: out.frameHeight ?? 0,
+          fps: Math.round(out.framesPerSecond ?? 0),
+          sourceFps: Math.round(source?.framesPerSecond ?? 0),
+          targetFps,
+          mbps: Math.round(mbps * 10) / 10,
+          limit: reason === 'cpu' ? 'cpu' : reason === 'bandwidth' ? 'bandwidth' : reason && reason !== 'none' ? 'other' : 'none',
+          hardware: typeof out.powerEfficientEncoder === 'boolean' ? out.powerEfficientEncoder : null,
+          encoder: out.encoderImplementation ?? null,
+          codec: codecs.get(out.codecId) ?? null,
+        },
+      });
+    } catch {
+      /* stats are best-effort */
+    }
+  }, 2000);
 }
 
 export function setUserVolume(userId: string, v: number) {

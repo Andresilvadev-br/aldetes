@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
     return () => ipcRenderer.removeListener('aldetes:island-command', h);
   },
   setIslandSize: (w: number, h: number) => ipcRenderer.send('island:size', w, h),
+  setStreaming: (on: boolean) => ipcRenderer.send('stream:active', on === true),
   setDesktopSettings: (patch: Record<string, boolean>) => ipcRenderer.invoke('desktop:setSettings', patch),
   onGlobalShortcut: (cb: (name: string) => void) => {
     const h = (_e: unknown, name: string) => cb(name);

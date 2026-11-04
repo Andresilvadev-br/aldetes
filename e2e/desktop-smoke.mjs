@@ -68,6 +68,22 @@ try {
   const live = await page.getByText('AO VIVO').first().waitFor({ timeout: 15000 }).then(() => true, () => false);
   check('Compartilha a tela escolhida no seletor nativo', live);
   await page.screenshot({ path: `${shots}/desktop-share.png` });
+  await page.waitForTimeout(6000);
+  const bar = page.getByText('Você está ao vivo').locator('..');
+  if (!(await bar.isVisible().catch(() => false))) await page.locator('video').first().dblclick().catch(() => {});
+  const barText = await bar
+    .filter({ hasText: /\d+ FPS/ })
+    .first()
+    .innerText({ timeout: 8000 })
+    .catch(() => '');
+  await page.screenshot({ path: `${shots}/desktop-live-stats.png` });
+  check('Barra "ao vivo" com FPS/Mbps/codificador reais', /\d+p · \d+ FPS/.test(barText), barText.replace(/\s+/g, ' '));
+  const pids = await app.evaluate(({ app }) => app.getAppMetrics().filter((m) => ['GPU', 'Tab', 'Utility', 'Browser'].includes(m.type)).map((m) => m.pid));
+  const { execFileSync } = createRequire(import.meta.url)('node:child_process');
+  const nice = execFileSync('ps', ['-o', 'ni=', '-p', pids.join(',')]).toString().trim().split(/\s+/).map(Number);
+  check('Prioridade dos processos elevada durante a transmissão', nice.length > 0 && nice.every((n) => n < 0), `nice: ${nice.join(' ')}`);
+  const flags = await app.evaluate(({ app }) => ['disable-renderer-backgrounding', 'disable-backgrounding-occluded-windows', 'disable-features'].map((f) => `${f}=${app.commandLine.hasSwitch(f) ? app.commandLine.getSwitchValue(f) || 'on' : 'off'}`));
+  check('Chromium não reduz a velocidade do app em segundo plano', flags.every((f) => !f.endsWith('=off')), flags.join(', '));
 } catch (e) {
   check('Roteiro desktop', false, e.message);
 } finally {

@@ -23,6 +23,7 @@ import {
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { constants as osConstants, setPriority } from 'node:os';
 import { autoUpdater } from 'electron-updater';
 import { startPtt, stopPtt } from './ptt';
 import { MediaBridge, type MediaCommand, type NowPlaying } from './media';
@@ -38,6 +39,33 @@ const ICON = join(__dirname, '../build/icon.png');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
+
+// ---------- streaming performance ----------
+// When you stream a game, Aldetes sits behind it. By default Chromium treats hidden/occluded windows as
+// "background" and throttles them — which shows up as the stream's FPS dropping. Keep it at full speed.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Windows: occlusion tracking marks the app as hidden under a fullscreen game (and throttles it).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// Laptops with two GPUs: use the dedicated one (its hardware video encoder is much faster).
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
+/** While live, raise the priority of the processes that capture and encode the stream (GPU, renderer, utilities). */
+let streaming = false;
+function applyStreamPriority(on: boolean) {
+  if (on === streaming) return;
+  streaming = on;
+  const prio = on ? osConstants.priority.PRIORITY_ABOVE_NORMAL : osConstants.priority.PRIORITY_NORMAL;
+  for (const m of app.getAppMetrics()) {
+    if (m.type !== 'GPU' && m.type !== 'Tab' && m.type !== 'Utility' && m.type !== 'Browser') continue;
+    try {
+      setPriority(m.pid, prio);
+    } catch {
+      /* Linux/macOS need extra privileges to raise priority; nothing to do */
+    }
+  }
+}
 
 // ---------- persisted config ----------
 const userDir = app.getPath('userData');
@@ -368,6 +396,10 @@ function registerIpc() {
       return positionIsland();
     }
     win?.webContents.send('aldetes:island-command', cmd);
+  });
+  ipcMain.on('stream:active', (e, on: unknown) => {
+    if (e.sender !== win?.webContents) return;
+    applyStreamPriority(on === true);
   });
   ipcMain.on('island:size', (e, w: number, h: number) => {
     if (e.sender !== islandWin?.webContents || !Number.isFinite(w) || !Number.isFinite(h)) return;

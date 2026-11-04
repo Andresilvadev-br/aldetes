@@ -79,7 +79,7 @@ function TileView({ tile, serverId, big, onClick }: { tile: Tile; serverId: stri
       </div>
       {isScreen && <span className="absolute left-2 top-2 rounded bg-danger px-1.5 text-[11px] font-bold text-white">AO VIVO</span>}
       <QualityBars q={quality} className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100" />
-      {isScreen && big && hasVideo && (tile.isLocal ? <OwnStreamBar /> : <ViewerStreamBar tile={tile} tileRef={ref} />)}
+      {isScreen && hasVideo && (tile.isLocal ? <OwnStreamBar /> : big && <ViewerStreamBar tile={tile} tileRef={ref} />)}
     </div>
   );
 }
@@ -157,6 +157,7 @@ function ViewerStreamBar({ tile, tileRef }: { tile: Tile; tileRef: React.RefObje
 function OwnStreamBar() {
   const since = useVoice((v) => v.screenSince);
   const info = useVoice((v) => v.screenInfo);
+  const st = useVoice((v) => v.screenStats);
   const [now, setNow] = useState(Date.now());
   const [change, setChange] = useState(false);
   useEffect(() => {
@@ -164,21 +165,40 @@ function OwnStreamBar() {
     return () => clearInterval(t);
   }, []);
   const sec = since ? Math.floor((now - since) / 1000) : 0;
+  const low = !!st && st.fps > 0 && st.fps < st.targetFps * 0.85;
+  const advice =
+    st && low && st.limit === 'cpu'
+      ? st.hardware === false
+        ? 'O processador está no limite. Use "Jogos e vídeos" (codifica na placa de vídeo) ou baixe para 720p.'
+        : 'O PC está no limite. Feche programas pesados ou baixe a resolução.'
+      : st && low && st.limit === 'bandwidth'
+        ? 'Sua internet de upload não está dando conta. Baixe a qualidade ou feche downloads.'
+        : null;
   return (
-    <div onClick={(e) => e.stopPropagation()} className="absolute inset-x-3 top-3 flex items-center gap-2 rounded-2xl border border-danger/30 bg-black/75 px-3 py-2 text-white">
-      <span className="rec-dot h-2 w-2 rounded-full bg-danger" />
-      <span className="text-[13px] font-bold">Você está ao vivo</span>
-      <span className="text-xs tabular-nums text-white/60">
-        {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
-        {info ? ` · ${info}` : ''}
-      </span>
-      <span className="flex-1" />
-      <button className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20" onClick={() => setChange(true)}>
-        Trocar tela
-      </button>
-      <button className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold hover:bg-danger/85" onClick={() => void stopScreenShare()}>
-        Parar
-      </button>
+    <div onClick={(e) => e.stopPropagation()} className="absolute inset-x-3 top-3 flex flex-col gap-1.5">
+      <div className="flex items-center gap-2 rounded-2xl border border-danger/30 bg-black/75 px-3 py-2 text-white">
+        <span className="rec-dot h-2 w-2 rounded-full bg-danger" />
+        <span className="text-[13px] font-bold">Você está ao vivo</span>
+        <span className="text-xs tabular-nums text-white/60">
+          {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
+          {st && st.height ? ` · ${st.height}p · ` : info ? ` · ${info}` : ''}
+          {st && st.height ? <b className={low ? 'text-warn' : 'text-ok'}>{st.fps} FPS</b> : null}
+          {st && st.mbps > 0 ? ` · ${st.mbps.toLocaleString('pt-BR')} Mbps` : ''}
+        </span>
+        {st && st.hardware !== null && (
+          <span className="hidden rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/70 sm:inline" title={st.encoder ?? undefined}>
+            {st.codec ?? ''} · {st.hardware ? 'GPU' : 'CPU'}
+          </span>
+        )}
+        <span className="flex-1" />
+        <button className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20" onClick={() => setChange(true)}>
+          Trocar tela
+        </button>
+        <button className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold hover:bg-danger/85" onClick={() => void stopScreenShare()}>
+          Parar
+        </button>
+      </div>
+      {advice && <div className="self-start rounded-xl border border-warn/30 bg-black/80 px-3 py-1.5 text-xs text-warn">{advice}</div>}
       {change && <ScreenShareModal onClose={() => setChange(false)} />}
     </div>
   );

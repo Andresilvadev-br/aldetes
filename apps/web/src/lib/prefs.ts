@@ -44,7 +44,7 @@ export interface Prefs {
   userVolumes: Record<string, number>; // userId -> 0..2
   localMutes: Record<string, boolean>;
   favorites: string[]; // channel ids
-  streamQuality: '720p30' | '720p60' | '1080p30' | '1080p60';
+  streamQuality: '720p30' | '720p60' | '1080p30' | '1080p60' | '1440p30' | '1440p60';
 }
 
 const defaults: Prefs = {
@@ -78,7 +78,7 @@ const defaults: Prefs = {
   userVolumes: {},
   localMutes: {},
   favorites: [],
-  streamQuality: '1080p30',
+  streamQuality: '1080p60',
 };
 
 const KEY = 'aldetes.prefs';

@@ -78,6 +78,8 @@ export interface DesktopBridge {
   sendIslandCommand(cmd: IslandCommand): void;
   onIslandCommand(cb: (cmd: IslandCommand) => void): () => void;
   setIslandSize(w: number, h: number): void;
+  /** While live: the main process raises the app's capture/encoder process priority (optional: older app versions lack it). */
+  setStreaming?(on: boolean): void;
   setDesktopSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;
 }
 

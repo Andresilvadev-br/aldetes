@@ -490,7 +490,7 @@ function CallExpanded({ onShare }: { onShare: () => void }) {
           <span className="text-[13px] font-bold">Você está ao vivo</span>
           <span className="truncate text-xs tabular-nums text-white/60">
             {v.screenSince ? fmt(now - v.screenSince) : ''}
-            {v.screenInfo ? ` · ${v.screenInfo}` : ''}
+            {v.screenStats?.height ? ` · ${v.screenStats.height}p · ${v.screenStats.fps} FPS` : v.screenInfo ? ` · ${v.screenInfo}` : ''}
           </span>
           <span className="flex-1" />
           <button className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/20" onClick={onShare}>

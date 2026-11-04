@@ -179,6 +179,88 @@ try {
     return s ? `${s.width}x${s.height}@${s.frameRate}` : 'sem trilha';
   });
   check('A compartilha a tela e B visualiza a transmissão', screenOk, `captura local ${shareInfo}`);
+
+  // Stream performance: single full-quality layer, encoder stats sampled for the streamer, viewer gets full FPS
+  await A.page.waitForTimeout(7000);
+  const perf = await A.page.evaluate(async () => {
+    const st = window.__aldetes.useVoice?.getState?.().screenStats ?? null;
+    const pub = window.__aldetes.getRoom().localParticipant.getTrackPublication('screen_share');
+    const params = pub?.track?.sender?.getParameters();
+    return { st, encodings: params?.encodings?.length ?? 0, degradation: params?.degradationPreference ?? null };
+  });
+  const recv = await B.page.evaluate(async () => {
+    const p = [...window.__aldetes.getRoom().remoteParticipants.values()][0];
+    const tr = p?.getTrackPublication('screen_share')?.track;
+    const rep = await tr?.receiver?.getStats();
+    let fps = 0, w = 0, h = 0, codec = '';
+    const codecs = new Map();
+    rep?.forEach((r) => { if (r.type === 'codec') codecs.set(r.id, r.mimeType); });
+    rep?.forEach((r) => { if (r.type === 'inbound-rtp' && r.kind === 'video') { fps = r.framesPerSecond ?? 0; w = r.frameWidth; h = r.frameHeight; codec = codecs.get(r.codecId) ?? ''; } });
+    return { fps: Math.round(fps), w, h, codec };
+  });
+  const capFps = perf.st?.sourceFps || Number(shareInfo.split('@')[1] ?? 0);
+  check(
+    'Transmissão em camada única com estatísticas do codificador',
+    perf.encodings === 1 && !!perf.st && perf.st.fps > 0 && perf.st.mbps > 0,
+    JSON.stringify({ encodings: perf.encodings, degradation: perf.degradation, sender: perf.st && { res: `${perf.st.width}x${perf.st.height}`, fps: perf.st.fps, fonte: perf.st.sourceFps, mbps: perf.st.mbps, codec: perf.st.codec, limit: perf.st.limit, hw: perf.st.hardware, enc: perf.st.encoder } }),
+  );
+  check('B recebe a tela no FPS que sai da captura', recv.fps >= capFps * 0.8, JSON.stringify({ ...recv, capturado: capFps }));
+
+  // A real 60 FPS 1080p source (animated canvas; the fake display device is capped at ~20 FPS),
+  // published with the same encoder settings the app uses for "Jogos e vídeos · 1080p 60".
+  await A.page.evaluate(async () => {
+    const room = window.__aldetes.getRoom();
+    await room.localParticipant.setScreenShareEnabled(false);
+    const c = Object.assign(document.createElement('canvas'), { width: 1920, height: 1080 });
+    const g = c.getContext('2d');
+    let f = 0;
+    const draw = () => {
+      f++;
+      g.fillStyle = `hsl(${f % 360} 60% 20%)`;
+      g.fillRect(0, 0, 1920, 1080);
+      g.fillStyle = '#fff';
+      for (let k = 0; k < 12; k++) g.fillRect((f * 9 + k * 160) % 1920, 90 * k, 140, 80);
+      g.font = 'bold 120px sans-serif';
+      g.fillText(String(f), 80, 1000);
+    };
+    setInterval(draw, 1000 / 60);
+    const track = c.captureStream(60).getVideoTracks()[0];
+    track.contentHint = 'motion';
+    await room.localParticipant.publishTrack(track, {
+      source: 'screen_share',
+      screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60, priority: 'high' },
+      videoEncoding: { maxBitrate: 12_000_000, maxFramerate: 60, priority: 'high' },
+      simulcast: false,
+      videoCodec: 'h264',
+      backupCodec: { codec: 'vp8' },
+      degradationPreference: 'maintain-framerate',
+    });
+  });
+  await A.page.waitForTimeout(10000);
+  const recv60 = await B.page.evaluate(async () => {
+    const p = [...window.__aldetes.getRoom().remoteParticipants.values()][0];
+    const tr = p?.getTrackPublication('screen_share')?.track;
+    const sample = async () => {
+      const rep = await tr?.receiver?.getStats();
+      let o = null;
+      rep?.forEach((r) => { if (r.type === 'inbound-rtp' && r.kind === 'video') o = r; });
+      return o;
+    };
+    const a = await sample();
+    await new Promise((r) => setTimeout(r, 3000));
+    const b = await sample();
+    if (!a || !b) return null;
+    const dt = (b.timestamp - a.timestamp) / 1000;
+    return { fps: Math.round((b.framesDecoded - a.framesDecoded) / dt), mbps: Math.round(((b.bytesReceived - a.bytesReceived) * 8) / dt / 1e5) / 10, w: b.frameWidth, h: b.frameHeight, dropped: b.framesDropped ?? 0 };
+  });
+  const send60 = await A.page.evaluate(async () => {
+    const pub = window.__aldetes.getRoom().localParticipant.getTrackPublication('screen_share');
+    const rep = await pub?.track?.sender?.getStats();
+    let o = null, src = null;
+    rep?.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'video') o = r; if (r.type === 'media-source' && r.kind === 'video') src = r; });
+    return o && { fps: Math.round(o.framesPerSecond ?? 0), fonte: Math.round(src?.framesPerSecond ?? 0), limit: o.qualityLimitationReason, enc: o.encoderImplementation, res: `${o.frameWidth}x${o.frameHeight}` };
+  });
+  check('Fonte real de 60 FPS (1080p, H.264): B recebe perto de 60 FPS', !!recv60 && recv60.fps >= 50, JSON.stringify({ enviado: send60, recebido: recv60 }));
   await B.page.screenshot({ path: `${SHOTS}/06-screenshare.png` });
 
   // disconnection handling: drop B's signalling socket & check auto-reconnect of chat gateway

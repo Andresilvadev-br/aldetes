@@ -9,7 +9,7 @@ import { spring } from '@/lib/motion';
 import { Icon, type IconName } from '../common/Icon';
 import { Switch, Segmented } from '../settings/SettingsLayout';
 
-type Res = '720p' | '1080p';
+type Res = '720p' | '1080p' | '1440p';
 type Fps = '30' | '60';
 type Hint = 'motion' | 'detail';
 
@@ -23,7 +23,7 @@ function audioNote(): { ok: boolean; text: string } {
 /** Screen share setup — Ultra Motion: one panel, live previews, physical selection, honest numbers. */
 export function ScreenShareModal({ onClose }: { onClose: () => void }) {
   const saved = usePrefs.getState().streamQuality;
-  const [res, setRes] = useState<Res>(saved.startsWith('1080') ? '1080p' : '720p');
+  const [res, setRes] = useState<Res>(saved.startsWith('1440') ? '1440p' : saved.startsWith('1080') ? '1080p' : '720p');
   const [fps, setFps] = useState<Fps>(saved.endsWith('60') ? '60' : '30');
   const [hint, setHint] = useState<Hint>('motion');
   const aNote = audioNote();
@@ -68,7 +68,7 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
     if (h === 'motion') setFps('60');
     else {
       setFps('30');
-      setRes('1080p');
+      if (res === '720p') setRes('1080p');
     }
   };
 
@@ -174,14 +174,19 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
           {/* 3. quality */}
           <Section n={3} title="Qualidade">
             <div className="flex flex-wrap items-center gap-3">
-              <Segmented id="share-res" value={res} onChange={setRes} options={[['720p', '720p'], ['1080p', '1080p Full HD']]} />
+              <Segmented id="share-res" value={res} onChange={setRes} options={[['720p', '720p'], ['1080p', '1080p Full HD'], ['1440p', '1440p 2K']]} />
               <Segmented id="share-fps" value={fps} onChange={setFps} options={[['30', '30 FPS'], ['60', '60 FPS']]} />
               <span className="ml-auto flex items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 py-2 text-xs text-fg-muted">
                 <Icon name="upload" size={14} className="text-brand" />
                 usa até <b className="tabular-nums text-fg-strong">{mbps} Mbps</b> de upload
               </span>
             </div>
-            <p className="mt-2 text-xs text-fg-faint">Quem tem internet mais fraca recebe uma versão mais leve automaticamente; o resto vê na qualidade máxima.</p>
+            <p className="mt-2 text-xs text-fg-faint">
+              {hint === 'motion' || fps === '60'
+                ? 'Codificado pela placa de vídeo (quando disponível), para não roubar FPS do seu jogo. Se a rede apertar, o FPS é mantido.'
+                : 'Codificação focada em nitidez: a resolução nunca cai, mesmo se a rede apertar.'}
+              {res === '1440p' && ' 1440p só faz diferença se o seu monitor for 2K ou maior.'}
+            </p>
           </Section>
 
           {/* 4. audio */}
