@@ -22,6 +22,9 @@ export interface Prefs {
   motion: 'ultra' | 'balanced' | 'performance';
   uiSounds: boolean;
   cursorLight: boolean;
+  introAnimation: boolean;
+  islandWidth: number;
+  islandHover: boolean;
   desktopNotifications: boolean;
   notificationSounds: boolean;
   inputDeviceId: string;
@@ -50,6 +53,9 @@ const defaults: Prefs = {
   motion: 'ultra',
   uiSounds: true,
   cursorLight: true,
+  introAnimation: true,
+  islandWidth: 420,
+  islandHover: true,
   desktopNotifications: true,
   notificationSounds: true,
   inputDeviceId: 'default',

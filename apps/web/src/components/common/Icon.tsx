@@ -73,10 +73,13 @@ export function Icon({ name, size = 20, strokeWidth = 2, ...rest }: { name: Icon
   );
 }
 
+/** Aldetes mark: two leaning capsules form an "A"; the crossbar is a voice dot. Uses currentColor. */
 export function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-label="Aldetes">
-      <path d="M32 10 52 52h-9.5l-3.8-8.6H25.3L21.5 52H12L32 10Zm0 16.5-3.9 9h7.8l-3.9-9Z" fill="currentColor" />
+      <rect x="17" y="10" width="10.5" height="44" rx="5.25" fill="currentColor" transform="rotate(21 22.25 32)" />
+      <rect x="36.5" y="10" width="10.5" height="44" rx="5.25" fill="currentColor" fillOpacity=".88" transform="rotate(-21 41.75 32)" />
+      <circle cx="32" cy="38" r="4.8" fill="none" stroke="currentColor" strokeWidth="3.2" />
     </svg>
   );
 }

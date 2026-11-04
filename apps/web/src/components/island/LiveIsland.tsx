@@ -12,6 +12,10 @@ import { spring, greeting } from '@/lib/motion';
 import { Avatar } from '../common/Avatar';
 import { Icon, Logo } from '../common/Icon';
 import { ScreenShareModal } from '../voice/ScreenShareModal';
+import { useMedia, mediaCommand } from '@/lib/media';
+import { usePrefs, setPrefs } from '@/lib/prefs';
+import type { NowPlaying } from '@/lib/desktop';
+import { Art, MusicCompact, MusicPanel, ResizeGrip } from './parts';
 import { dmName } from '../layout/HomeSidebar';
 
 /* ------------------------------------------------------------------ helpers */
@@ -57,6 +61,13 @@ export function LiveIsland() {
   const connection = useStore((s) => s.connection);
   const [share, setShare] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const np = useMedia((s) => s.np);
+  const hoverOpen = usePrefs((p) => p.islandHover);
+  const savedWidth = usePrefs((p) => p.islandWidth);
+  const [width, setWidth] = useState(savedWidth);
+  useEffect(() => setWidth(savedWidth), [savedWidth]);
+  const pinned = useRef(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const inCall = !!v.channelId && v.state !== 'idle';
   const upload = Object.values(uploads)[0];
@@ -107,7 +118,26 @@ export function LiveIsland() {
     };
   }, [expanded]);
 
-  type Mode = 'ring' | 'event' | 'expanded' | 'split' | 'call' | 'upload' | 'reconnect' | 'idle';
+  // Hover opens (after a short intent delay); leaving closes unless the user clicked to pin it open.
+  const onEnter = () => {
+    setHovering(true);
+    clearTimeout(hoverTimer.current);
+    if (hoverOpen && !useIsland.getState().events.length) hoverTimer.current = setTimeout(() => setIslandExpanded(true), 220);
+  };
+  const onLeave = () => {
+    setHovering(false);
+    clearTimeout(hoverTimer.current);
+    if (!pinned.current) hoverTimer.current = setTimeout(() => setIslandExpanded(false), 320);
+  };
+  const openPinned = () => {
+    pinned.current = true;
+    setIslandExpanded(true);
+  };
+  useEffect(() => {
+    if (!expanded) pinned.current = false;
+  }, [expanded]);
+
+  type Mode = 'ring' | 'event' | 'expanded' | 'split' | 'call' | 'music' | 'upload' | 'reconnect' | 'idle';
   const mode: Mode = ring
     ? 'ring'
     : event
@@ -116,30 +146,32 @@ export function LiveIsland() {
         ? 'expanded'
         : connection !== 'connected'
           ? 'reconnect'
-          : inCall && v.screen
+          : inCall && (v.screen || np)
             ? 'split'
             : inCall
               ? 'call'
               : upload
                 ? 'upload'
-                : 'idle';
+                : np
+                  ? 'music'
+                  : 'idle';
 
   const big = mode === 'ring' || mode === 'expanded';
   const accentEdge = mode === 'call' || mode === 'split' || mode === 'expanded' || mode === 'ring';
 
   return (
-    <div className="no-drag relative flex justify-center" onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
+    <div className="no-drag relative flex justify-center" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <motion.div
         ref={ref}
         layout
         transition={spring.island}
-        style={{ borderRadius: big ? 26 : 22 }}
+        style={big ? { borderRadius: 26, width: mode === 'ring' ? 400 : width } : { borderRadius: 22 }}
         data-testid="live-island"
         data-mode={mode}
         className={clsx(
           'relative overflow-hidden border bg-black text-white shadow-[0_14px_40px_-12px_rgb(0_0_0/0.9)]',
           accentEdge ? 'border-brand/40 shadow-glow' : 'border-white/[0.08]',
-          big ? 'w-[400px]' : 'min-w-[180px] max-w-[460px]',
+          big ? '' : 'min-w-[180px] max-w-[480px]',
         )}
       >
         <AnimatePresence mode="popLayout" initial={false}>
@@ -165,9 +197,24 @@ export function LiveIsland() {
                 }}
               />
             )}
-            {mode === 'expanded' && (inCall ? <CallExpanded onShare={() => setShare(true)} /> : <IdleExpanded />)}
-            {mode === 'split' && <SplitCompact onClick={() => setIslandExpanded(true)} />}
-            {mode === 'call' && <CallCompact onClick={() => setIslandExpanded(true)} />}
+            {mode === 'expanded' && (
+              <div>
+                {inCall ? <CallExpanded onShare={() => setShare(true)} /> : !np && <IdleExpanded />}
+                {np && (
+                  <div className={clsx('px-4 pb-1', inCall ? 'border-t border-white/[0.08] pt-3' : 'pt-4')}>
+                    <MusicPanel np={np} onCmd={mediaCommand} compact={inCall} />
+                  </div>
+                )}
+                <ResizeGrip width={width} onWidth={setWidth} onCommit={(w) => setPrefs({ islandWidth: w })} />
+              </div>
+            )}
+            {mode === 'split' && <SplitCompact onClick={openPinned} np={v.screen ? null : np} />}
+            {mode === 'call' && <CallCompact onClick={openPinned} />}
+            {mode === 'music' && np && (
+              <Row onClick={openPinned}>
+                <MusicCompact np={np} />
+              </Row>
+            )}
             {mode === 'upload' && upload && <UploadCompact label={upload.label} progress={upload.progress} />}
             {mode === 'reconnect' && (
               <Row>
@@ -175,7 +222,7 @@ export function LiveIsland() {
                 <span className="text-[13px] font-semibold">Reconectando…</span>
               </Row>
             )}
-            {mode === 'idle' && <IdleCompact onClick={() => setIslandExpanded(true)} />}
+            {mode === 'idle' && <IdleCompact onClick={openPinned} />}
           </motion.div>
         </AnimatePresence>
       </motion.div>
@@ -256,7 +303,7 @@ function CallCompact({ onClick }: { onClick: () => void }) {
   );
 }
 
-function SplitCompact({ onClick }: { onClick: () => void }) {
+function SplitCompact({ onClick, np }: { onClick: () => void; np: NowPlaying | null }) {
   const v = useVoice();
   const now = useNow(true);
   return (
@@ -265,11 +312,18 @@ function SplitCompact({ onClick }: { onClick: () => void }) {
         <CallCompact onClick={onClick} />
       </div>
       <motion.div layout className="my-1.5 w-px bg-white/10" />
-      <Row onClick={onClick} className="!w-auto">
-        <span className="rec-dot h-2 w-2 rounded-full bg-danger" />
-        <span className="text-[12px] font-bold tracking-wide text-danger">AO VIVO</span>
-        <span className="text-[12px] tabular-nums text-white/60">{v.screenSince ? fmt(now - v.screenSince) : ''}</span>
-      </Row>
+      {np ? (
+        <Row onClick={onClick} className="!w-auto max-w-[160px]">
+          <Art np={np} size={20} />
+          <span className="truncate text-[12px] font-semibold text-white/80">{np.title}</span>
+        </Row>
+      ) : (
+        <Row onClick={onClick} className="!w-auto">
+          <span className="rec-dot h-2 w-2 rounded-full bg-danger" />
+          <span className="text-[12px] font-bold tracking-wide text-danger">AO VIVO</span>
+          <span className="text-[12px] tabular-nums text-white/60">{v.screenSince ? fmt(now - v.screenSince) : ''}</span>
+        </Row>
+      )}
     </div>
   );
 }

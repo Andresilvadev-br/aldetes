@@ -18,9 +18,11 @@ import { QuickSwitcher } from '../modals/QuickSwitcher';
 import { Icon } from '../common/Icon';
 import { toast } from '../common/overlay';
 import { LiveIsland } from '../island/LiveIsland';
+import { useFloatingIslandSync } from '@/lib/islandSync';
 import { AnimatePresence } from 'motion/react';
 
 export function AppShell() {
+  useFloatingIslandSync();
   const [switcher, setSwitcher] = useState(false);
 
   // Global keyboard shortcuts + push-to-talk

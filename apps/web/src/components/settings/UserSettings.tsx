@@ -11,7 +11,7 @@ import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
 import { applyDevicePrefs, restartMic, onVoiceModeChanged, leaveVoice } from '@/lib/voice';
 import { requestNotificationPermission } from '@/lib/notify';
-import { desktop } from '@/lib/desktop';
+import { desktop, type DesktopSettings } from '@/lib/desktop';
 import { disconnectGateway } from '@/lib/gateway';
 import type { SelfUser } from '@aldetes/shared';
 
@@ -36,6 +36,7 @@ export function UserSettings({ onClose }: { onClose: () => void }) {
     { id: 'voice', label: 'Voz e vídeo', group: 'Configurações do aplicativo' },
     { id: 'notifications', label: 'Notificações', group: 'Configurações do aplicativo' },
     { id: 'keybinds', label: 'Atalhos de teclado', group: 'Configurações do aplicativo' },
+    ...(desktop ? [{ id: 'desktop', label: desktop.platform === 'win32' ? 'Windows' : desktop.platform === 'darwin' ? 'macOS' : 'Linux', group: 'Configurações do aplicativo' }] : []),
     { id: 'about', label: 'Sobre o Aldetes', group: 'Configurações do aplicativo' },
     { id: 'logout', label: 'Sair', group: ' ', danger: true, onClick: logout },
   ];
@@ -50,6 +51,7 @@ export function UserSettings({ onClose }: { onClose: () => void }) {
       {tab === 'voice' && <VoiceTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'keybinds' && <KeybindsTab />}
+      {tab === 'desktop' && <DesktopTab />}
       {tab === 'about' && <AboutTab />}
     </SettingsLayout>
   );
@@ -312,6 +314,12 @@ function AppearanceTab() {
         </SettingRow>
         <SettingRow icon="star" tint="text-amber-400 bg-amber-400/15" title="Luz que segue o cursor" desc="Brilho suave nos itens sob o mouse.">
           <Switch checked={p.cursorLight} onChange={(v) => setPrefs({ cursorLight: v })} />
+        </SettingRow>
+        <SettingRow icon="star" tint="text-brand bg-brand/15" title="Live Island abre ao passar o mouse" desc="Desligado: só abre com um clique. Arraste a alça embaixo da ilha aberta para mudar o tamanho.">
+          <Switch checked={p.islandHover} onChange={(v) => setPrefs({ islandHover: v })} />
+        </SettingRow>
+        <SettingRow icon="star" tint="text-violet-400 bg-violet-400/15" title="Animação de abertura" desc="A logo se monta e o ponto de voz solta ondas sempre que o app abre. Clique para pular.">
+          <Switch checked={p.introAnimation} onChange={(v) => setPrefs({ introAnimation: v })} />
         </SettingRow>
         <SettingRow icon="volume" tint="text-emerald-400 bg-emerald-400/15" title="Sons da interface" desc="Entrar/sair da voz, mudo e mensagens. Chamadas recebidas sempre tocam.">
           <Switch checked={p.uiSounds} onChange={(v) => setPrefs({ uiSounds: v })} />
@@ -619,6 +627,34 @@ function KeybindsTab() {
           <kbd className="rounded bg-bg-rail px-2 py-1 font-mono text-sm text-fg-strong">{k}</kbd>
         </div>
       ))}
+    </>
+  );
+}
+
+function DesktopTab() {
+  const [ds, setDs] = useState<DesktopSettings | null>(null);
+  useEffect(() => void desktop?.getDesktopSettings().then(setDs), []);
+  if (!ds) return null;
+  const os = desktop!.platform === 'win32' ? 'Windows' : desktop!.platform === 'darwin' ? 'macOS' : 'sistema';
+  const patch = (p: Partial<DesktopSettings>) => desktop!.setDesktopSettings(p).then(setDs, toastError);
+  return (
+    <>
+      <SettingsTitle>Aplicativo no {os}</SettingsTitle>
+      <div className="card divide-y divide-line/[0.06] px-5">
+        <SettingRow icon="logout" tint="text-brand bg-brand/15" title={`Iniciar com o ${os}`} desc="O Aldetes abre sozinho quando você liga o computador e já fica conectado.">
+          <Switch checked={ds.autoStart} onChange={(v) => patch({ autoStart: v })} />
+        </SettingRow>
+        <SettingRow icon="inbox" tint="text-sky-400 bg-sky-400/15" title="Iniciar minimizado" desc="Ao iniciar com o sistema, fica só na bandeja, perto do relógio, sem abrir a janela.">
+          <Switch checked={ds.startHidden} onChange={(v) => patch({ startHidden: v })} />
+        </SettingRow>
+        <SettingRow icon="x" tint="text-fg bg-line/10" title="Fechar para a bandeja" desc="O X minimiza para a bandeja e você continua recebendo mensagens e chamadas. Para sair de vez, use “Sair” no ícone da bandeja.">
+          <Switch checked={ds.minimizeToTray} onChange={(v) => patch({ minimizeToTray: v })} />
+        </SettingRow>
+        <SettingRow icon="star" tint="text-amber-400 bg-amber-400/15" title="Live Island flutuante" desc="Quando o Aldetes não estiver em foco, a ilha aparece no topo da tela com a call e a música, e dá para controlar sem abrir o app.">
+          <Switch checked={ds.floatingIsland} onChange={(v) => patch({ floatingIsland: v })} />
+        </SettingRow>
+      </div>
+      <p className="mt-4 text-sm text-fg-muted">Sua sessão fica salva com a criptografia do sistema e se renova sozinha enquanto você usar o app, então não precisa entrar de novo.</p>
     </>
   );
 }

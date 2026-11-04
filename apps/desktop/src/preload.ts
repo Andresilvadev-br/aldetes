@@ -16,6 +16,30 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
   setBadge: (count: number) => ipcRenderer.send('badge', count),
   setPushToTalkKey: (code: string | null) => ipcRenderer.invoke('ptt:set', code),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  getDesktopSettings: () => ipcRenderer.invoke('desktop:getSettings'),
+  // now playing (system media sessions)
+  getMedia: () => ipcRenderer.invoke('media:get'),
+  mediaCommand: (cmd: string) => ipcRenderer.send('media:command', cmd),
+  onMedia: (cb: (np: unknown) => void) => {
+    const h = (_e: unknown, np: unknown) => cb(np);
+    ipcRenderer.on('aldetes:media', h);
+    return () => ipcRenderer.removeListener('aldetes:media', h);
+  },
+  // floating Live Island
+  pushIslandState: (state: unknown) => ipcRenderer.send('island:state', state),
+  onIslandState: (cb: (s: unknown) => void) => {
+    const h = (_e: unknown, s: unknown) => cb(s);
+    ipcRenderer.on('aldetes:island-state', h);
+    return () => ipcRenderer.removeListener('aldetes:island-state', h);
+  },
+  sendIslandCommand: (cmd: { type: string; arg?: string }) => ipcRenderer.send('island:command', cmd),
+  onIslandCommand: (cb: (cmd: { type: string; arg?: string }) => void) => {
+    const h = (_e: unknown, c: { type: string; arg?: string }) => cb(c);
+    ipcRenderer.on('aldetes:island-command', h);
+    return () => ipcRenderer.removeListener('aldetes:island-command', h);
+  },
+  setIslandSize: (w: number, h: number) => ipcRenderer.send('island:size', w, h),
+  setDesktopSettings: (patch: Record<string, boolean>) => ipcRenderer.invoke('desktop:setSettings', patch),
   onGlobalShortcut: (cb: (name: string) => void) => {
     const h = (_e: unknown, name: string) => cb(name);
     ipcRenderer.on('aldetes:shortcut', h);

@@ -51,4 +51,4 @@ linux:
   target: [AppImage, deb]
   category: Network
   icon: build/icon.png
-  maintainer: Aldetes
+  maintainer: Aldetes <aldetes@users.noreply.github.com>

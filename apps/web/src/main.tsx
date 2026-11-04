@@ -6,6 +6,7 @@ import { App } from './App';
 import { initApi } from './lib/api';
 import { applyAppearance } from './lib/prefs';
 import { installCursorLight } from './lib/motion';
+import { installMediaBridge } from './lib/media';
 
 applyAppearance();
 installCursorLight();
@@ -17,10 +18,18 @@ if (import.meta.env.DEV) {
 }
 await initApi();
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HashRouter>
-      <App />
-    </HashRouter>
-  </StrictMode>,
-);
+// The desktop's floating Live Island window loads the same bundle with this hash:
+// it renders only the capsule (no login, no socket, no intro).
+if (window.location.hash.startsWith('#/island-overlay')) {
+  const { IslandOverlay } = await import('./pages/IslandOverlay');
+  createRoot(document.getElementById('root')!).render(<IslandOverlay />);
+} else {
+  installMediaBridge();
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </StrictMode>,
+  );
+}

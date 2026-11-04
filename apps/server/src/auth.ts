@@ -9,6 +9,8 @@ const CACHE_TTL = 300;
 export interface AuthInfo {
   userId: string;
   sessionId: string;
+  /** set when the session's expiry was just pushed forward (cookie must be re-issued) */
+  renewedUntil?: string;
 }
 
 declare module 'fastify' {
@@ -32,11 +34,15 @@ export async function resolveSession(ctx: AppContext, token: string): Promise<Au
   if (cached) return JSON.parse(cached) as AuthInfo;
   const s = await ctx.db.session.findUnique({ where: { tokenHash: hash } });
   if (!s || s.expiresAt < new Date()) return null;
-  const info = { userId: s.userId, sessionId: s.id };
+  const info: AuthInfo = { userId: s.userId, sessionId: s.id };
   await ctx.redis.set(`sess:${hash}`, JSON.stringify(info), 'EX', CACHE_TTL);
-  // throttle lastUsedAt writes
-  if (Date.now() - s.lastUsedAt.getTime() > 5 * 60_000) {
-    await ctx.db.session.update({ where: { id: s.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  // Sliding expiry: an active session never expires; it is renewed once less than half its lifetime remains.
+  const ttlMs = ctx.cfg.SESSION_TTL_DAYS * 86400_000;
+  const renew = s.persistent && s.expiresAt.getTime() - Date.now() < ttlMs / 2;
+  if (renew || Date.now() - s.lastUsedAt.getTime() > 5 * 60_000) {
+    const expiresAt = renew ? new Date(Date.now() + ttlMs) : undefined;
+    await ctx.db.session.update({ where: { id: s.id }, data: { lastUsedAt: new Date(), ...(expiresAt ? { expiresAt } : {}) } }).catch(() => {});
+    if (expiresAt) return { ...info, renewedUntil: expiresAt.toISOString() };
   }
   return info;
 }
@@ -46,7 +52,7 @@ export async function invalidateSessionCache(ctx: AppContext, tokenHash: string)
 }
 
 export function makeAuthenticate(ctx: AppContext) {
-  return async function authenticate(req: FastifyRequest, _reply: FastifyReply) {
+  return async function authenticate(req: FastifyRequest, reply: FastifyReply) {
     const t = extractToken(req as never);
     if (!t) throw unauthorized();
     // CSRF: cookie-authenticated mutations require a custom header (cannot be sent cross-site without CORS approval).
@@ -55,6 +61,15 @@ export function makeAuthenticate(ctx: AppContext) {
     }
     const info = await resolveSession(ctx, t.token);
     if (!info) throw unauthorized('Sessão inválida ou expirada');
+    if (info.renewedUntil && t.viaCookie) {
+      reply.setCookie(SESSION_COOKIE, t.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: ctx.cfg.NODE_ENV === 'production',
+        path: '/',
+        expires: new Date(info.renewedUntil),
+      });
+    }
     req.auth = info;
   };
 }

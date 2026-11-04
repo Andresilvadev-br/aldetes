@@ -49,6 +49,8 @@ model Session {
   createdAt   DateTime @default(now())
   lastUsedAt  DateTime @default(now())
   expiresAt   DateTime
+  /// "Manter conectado": persistent cookie + sliding renewal. False = browser-session cookie.
+  persistent  Boolean  @default(true)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

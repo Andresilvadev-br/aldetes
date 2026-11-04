@@ -15,6 +15,8 @@ import { leaveVoice } from './lib/voice';
 import { MotionConfig } from 'motion/react';
 import { usePrefs } from './lib/prefs';
 import { spring } from './lib/motion';
+import { Intro } from './components/common/Intro';
+import { useState } from 'react';
 
 export async function bootSession() {
   try {
@@ -60,6 +62,8 @@ export function App() {
   }, [status, loc.pathname, nav]);
 
   const motionLevel = usePrefs((p) => (p.reduceMotion ? 'performance' : p.motion));
+  // Brand intro on every launch of the app (not on the public site pages)
+  const [intro, setIntro] = useState(() => !['/welcome', '/download'].some((p) => window.location.hash.startsWith(`#${p}`)));
   return (
     <MotionConfig reducedMotion={motionLevel === 'performance' ? 'always' : 'never'} transition={spring.responsive}>
     <ContextMenuProvider>
@@ -75,6 +79,7 @@ export function App() {
         <Route path="/*" element={status === 'ready' ? <AppShell /> : status === 'unauthenticated' ? null : <Splash />} />
       </Routes>
       {isDesktop && status !== 'ready' && <div className="drag fixed inset-x-0 top-0 z-[90] h-9" />}
+      {intro && <Intro onDone={() => setIntro(false)} />}
       <Toasts />
       <ConfirmHost />
     </ContextMenuProvider>
@@ -84,11 +89,11 @@ export function App() {
 
 function Splash() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 bg-bg-rail text-brand">
-      <div className="animate-pulse">
-        <Logo size={72} />
-      </div>
-      <p className="text-sm text-fg-muted">Conectando ao Aldetes…</p>
+    <div className="haze flex h-full flex-col items-center justify-center gap-5 bg-bg-rail">
+      <span className="grad flex h-20 w-20 animate-pulse items-center justify-center rounded-3xl text-white shadow-glow">
+        <Logo size={44} />
+      </span>
+      <p className="text-sm font-medium text-fg-muted">Conectando ao Aldetes…</p>
     </div>
   );
 }

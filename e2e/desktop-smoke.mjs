@@ -18,7 +18,13 @@ const app = await electron.launch({
   env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
 });
 try {
-  const page = await app.firstWindow();
+  // The app also opens the (hidden) floating Live Island window; pick the main one.
+  await app.firstWindow();
+  let page;
+  for (let i = 0; i < 50 && !page; i++) {
+    page = app.windows().find((w) => !w.url().includes('island-overlay'));
+    if (!page) await new Promise((r) => setTimeout(r, 200));
+  }
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   await page.waitForLoadState('domcontentloaded');
   check('Janela carrega via app://aldetes', page.url().startsWith('app://aldetes'), page.url());
@@ -42,8 +48,7 @@ try {
   await page.waitForURL(/channels\/@me/, { timeout: 15000 });
   check('Cadastro/login pelo app desktop (token em safeStorage)', true);
   const tokenStored = await page.evaluate(() => window.aldetesDesktop.getToken().then((t) => !!t));
-  if (tokenStored) check('Token persistido criptografado pelo SO', true);
-  else console.log('⚠️  Token NÃO persistido: safeStorage sem keyring neste ambiente (comportamento seguro esperado; o usuário refaz login ao reabrir)');
+  check('Sessão salva (continua logado ao reabrir)', tokenStored);
 
   const sources = await page.evaluate(() => window.aldetesDesktop.getScreenSources());
   check('desktopCapturer lista fontes de captura', sources.length > 0, sources.map((s) => `${s.kind}:${s.name}`).join(', '));

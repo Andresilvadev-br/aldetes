@@ -25,9 +25,10 @@ export const needsServerSetup = () => !serverConfigured;
 export const getBaseUrl = () => baseUrl;
 export const getBearer = () => bearer;
 
-export async function setSessionToken(token: string | null) {
+/** `remember=false` keeps the desktop token only in memory (logged out when the app closes). */
+export async function setSessionToken(token: string | null, remember = true) {
   bearer = desktop ? token : null;
-  if (desktop) await desktop.setToken(token);
+  if (desktop) await desktop.setToken(remember ? token : null);
 }
 
 export class ApiError extends Error {

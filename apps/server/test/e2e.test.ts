@@ -60,6 +60,28 @@ describe('contas', () => {
     expect((await other.req('GET', '/users/@me')).status).toBe(401);
   });
 
+  it('sessão ativa se renova sozinha (manter conectado)', async () => {
+    const c = new Client(env.base);
+    const r = await c.req('POST', '/auth/login', { login: 'bob', password: 'senha-forte-123', deviceName: 'Renova' }, 200);
+    c.token = r.data.token;
+    const { sha256 } = await import('../src/lib/crypto');
+    const db = env.built.ctx.db;
+    const soon = new Date(Date.now() + 2 * 86400_000);
+    await db.session.update({ where: { tokenHash: sha256(c.token) }, data: { expiresAt: soon } });
+    await env.built.ctx.redis.del(`sess:${sha256(c.token)}`);
+    await c.req('GET', '/users/@me', undefined, 200);
+    const s = await db.session.findUniqueOrThrow({ where: { tokenHash: sha256(c.token) } });
+    expect(s.expiresAt.getTime()).toBeGreaterThan(Date.now() + 20 * 86400_000);
+    // sessão sem "manter conectado" não é renovada
+    const r2 = await c.req('POST', '/auth/login', { login: 'bob', password: 'senha-forte-123', remember: false }, 200);
+    await db.session.update({ where: { tokenHash: sha256(r2.data.token) }, data: { expiresAt: soon } });
+    const c2 = new Client(env.base);
+    c2.token = r2.data.token;
+    await c2.req('GET', '/users/@me', undefined, 200);
+    const s2 = await db.session.findUniqueOrThrow({ where: { tokenHash: sha256(c2.token) } });
+    expect(s2.expiresAt.getTime()).toBe(soon.getTime());
+  });
+
   it('redefinição de senha via token', async () => {
     const c = new Client(env.base);
     await c.register('dave');

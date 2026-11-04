@@ -17,6 +17,12 @@ Legenda: ✅ concluído e testado · 🟡 implementado, com validação parcial 
 | 7. Avançado | 🟡 | Notificações desktop, atalhos, PTT (global no desktop), favoritos, mensagens salvas, busca, aparência, acessibilidade, emojis personalizados, cargos com cores, descoberta de servidores públicos | Implementado. **Pendentes:** stickers, emblemas, API de bots, personalização avançada |
 | 8. Validação e distribuição | 🟡 | AppImage Linux gerado e testado; compose de produção com TLS/TURN; CI de builds | **Falta:** builds Windows/macOS em CI, assinatura, implantação pública real, teste entre máquinas |
 
+## Novidades (04/11/2026)
+- Visual "Ultra Motion" (inspirado no OtimizaPC), 6 cores de destaque, modo OLED, medidor real de Hz.
+- Live Island 2.0: abre ao passar o mouse, redimensionável, música do sistema com controles, ilha flutuante no topo da tela (desktop).
+- Página pública com downloads (Windows 10/11, Linux AppImage/.deb) e publicação automática nas Releases.
+- Login persistente (sessão com renovação automática), iniciar com o sistema, nova logo e animação de abertura.
+
 ## Como continuar (próxima sessão)
 
 1. Ler `TASKS.md` (backlog priorizado) e `TEST_RESULTS.md`.

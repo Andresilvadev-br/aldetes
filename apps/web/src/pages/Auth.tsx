@@ -69,14 +69,15 @@ function useAuthSubmit() {
 export function LoginPage() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const { error, busy, run } = useAuthSubmit();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const submit = (e: FormEvent) => {
     e.preventDefault();
     void run(async () => {
-      const r = await api<{ token: string }>('POST', '/auth/login', { login, password });
-      await setSessionToken(r.token);
+      const r = await api<{ token: string }>('POST', '/auth/login', { login, password, remember });
+      await setSessionToken(r.token, remember);
       await bootSession();
       nav(params.get('next') || '/channels/@me', { replace: true });
     });
@@ -88,9 +89,15 @@ export function LoginPage() {
       <form onSubmit={submit}>
         <Field label="E-mail ou nome de usuário" value={login} onChange={(e) => setLogin(e.target.value)} required autoFocus autoComplete="username" />
         <Field label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
-        <Link to="/forgot" className="-mt-2 mb-4 block text-sm text-brand hover:underline">
-          Esqueceu sua senha?
-        </Link>
+        <div className="-mt-1 mb-5 flex items-center justify-between">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Manter conectado
+          </label>
+          <Link to="/forgot" className="text-sm text-brand hover:underline">
+            Esqueceu sua senha?
+          </Link>
+        </div>
         {error && <p className="mb-3 text-sm text-danger">{error}</p>}
         <button className="btn-primary w-full py-2.5" disabled={busy}>
           {busy ? 'Entrando…' : 'Entrar'}

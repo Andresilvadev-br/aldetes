@@ -16,7 +16,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
   const { db, cfg } = ctx;
   const strict = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
 
-  async function createSession(req: FastifyRequest, reply: FastifyReply, userId: string, deviceName?: string) {
+  async function createSession(req: FastifyRequest, reply: FastifyReply, userId: string, deviceName?: string, persistent = true) {
     const token = randomToken(32);
     const expiresAt = new Date(Date.now() + cfg.SESSION_TTL_DAYS * 86400_000);
     await db.session.create({
@@ -28,6 +28,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
         userAgent: (req.headers['user-agent'] ?? '').slice(0, 256),
         ip: req.ip,
         expiresAt,
+        persistent,
       },
     });
     reply.setCookie(SESSION_COOKIE, token, {
@@ -35,7 +36,8 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
       sameSite: 'lax',
       secure: cfg.NODE_ENV === 'production',
       path: '/',
-      expires: expiresAt,
+      // "Manter conectado" off → cookie ends with the browser session
+      ...(persistent ? { expires: expiresAt } : {}),
     });
     return token;
   }
@@ -73,7 +75,7 @@ export function authRoutes(app: FastifyInstance, ctx: AppContext) {
     if (needsRehash(user.passwordHash)) {
       await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(body.password) } });
     }
-    const token = await createSession(req, reply, user.id, body.deviceName);
+    const token = await createSession(req, reply, user.id, body.deviceName, body.remember !== false);
     return { token, user: selfUser(user) };
   });
 

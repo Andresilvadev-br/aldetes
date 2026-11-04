@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Aldetes \u2014 cliente desktop",
-  "author": "Aldetes",
+  "author": {
+    "name": "Aldetes",
+    "email": "aldetes@users.noreply.github.com"
+  },
   "main": "dist-electron/main.cjs",
   "scripts": {
     "build:main": "tsup",
@@ -29,5 +32,6 @@
     "tsup": "^9.0.0",
     "typescript": "^5.9.3"
   },
-  "desktopName": "aldetes.desktop"
+  "desktopName": "aldetes.desktop",
+  "homepage": "https://github.com/Andresilvadev-br/aldetes"
 }

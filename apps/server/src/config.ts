@@ -7,7 +7,7 @@ const schema = z.object({
   API_PUBLIC_URL: z.string().url(),
   WEB_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
   WEB_ORIGINS: z.string().default('http://localhost:5173'),
-  SESSION_TTL_DAYS: z.coerce.number().default(30),
+  SESSION_TTL_DAYS: z.coerce.number().default(60),
   DATABASE_URL: z.string(),
   REDIS_URL: z.string(),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),

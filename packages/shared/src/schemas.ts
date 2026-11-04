@@ -19,6 +19,8 @@ export const loginSchema = z.object({
   login: z.string().min(1).max(254), // email or username
   password: z.string().min(1).max(128),
   deviceName: z.string().max(64).optional(),
+  /** "Manter conectado" (default true) */
+  remember: z.boolean().optional(),
 });
 
 export const presenceStatus = z.enum(['online', 'idle', 'dnd', 'invisible']);

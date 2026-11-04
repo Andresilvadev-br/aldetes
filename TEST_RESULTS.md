@@ -80,3 +80,19 @@ Nesse teste, o vídeo da tela vem do dispositivo falso do Chromium (`--use-fake-
 - Áudio do sistema no compartilhamento de tela (Windows), PTT global em macOS/Windows e notificações nativas.
 - Implantação de produção com domínio e certificados reais. Os comandos do Dockerfile da API foram validados em contêiner; o `apt-get` não pôde ser testado porque este sandbox bloqueia `deb.debian.org`.
 - Carga com muitos usuários simultâneos e várias instâncias da API.
+
+## 7. Rodada de 04/11/2026 — redesign, Live Island 2.0, login persistente, nova logo
+
+| Teste | Resultado |
+|---|---|
+| `pnpm test` (shared 5 · web 7 · API 27, inclui **renovação automática da sessão** e "manter conectado" desligado) | **39/39** |
+| `e2e/two-clients.mjs` (dois navegadores; voz, vídeo, tela e reconexão com a UI nova) | **14/14** |
+| `e2e/desktop-smoke.mjs` (Electron: app://, bridge, servidor, login, sessão salva, captura, voz, tela) | **8/8** |
+| `e2e/desktop-relaunch.mjs` (reabrir o app entra direto, sem login) | **1/1** |
+| `e2e/desktop-island.mjs` (ilha flutuante: aparece com o app na bandeja, mostra a call, abre ao passar o mouse e a janela acompanha, mutar/sair pela ilha, música via MPRIS com pausar funcionando) | **8/8** |
+| Pacote `.deb` Linux (correção de `homepage`/mantenedor) | gerado (92 MB) |
+
+**Limites desta rodada:**
+- O teste de música no Linux usou um `playerctl` falso que imita um player MPRIS. O código da ponte é o real.
+- A leitura de música no **Windows** (sessões de mídia via PowerShell/WinRT) **não pôde ser executada aqui**, porque o ambiente é Linux. Precisa ser testada num PC com Windows 10/11 tocando Spotify ou YouTube.
+- "Iniciar com o Windows" (`setLoginItemSettings`) também só é verificável no Windows.
