@@ -7,6 +7,7 @@ import { initApi } from './lib/api';
 import { applyAppearance } from './lib/prefs';
 import { installCursorLight } from './lib/motion';
 import { installMediaBridge } from './lib/media';
+import { installActivity } from './lib/activity';
 
 applyAppearance();
 installCursorLight();
@@ -25,6 +26,7 @@ if (window.location.hash.startsWith('#/island-overlay')) {
   createRoot(document.getElementById('root')!).render(<IslandOverlay />);
 } else {
   installMediaBridge();
+  installActivity();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <HashRouter>

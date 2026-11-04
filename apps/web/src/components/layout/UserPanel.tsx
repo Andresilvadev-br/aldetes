@@ -7,7 +7,7 @@ import { Popover, Tooltip, toastError } from '../common/overlay';
 import { toggleDeaf, toggleMute, useVoice } from '@/lib/voice';
 import { emit } from '@/lib/gateway';
 import { api } from '@/lib/api';
-import { UserSettings } from '../settings/UserSettings';
+import { openSettings } from '@/lib/ui';
 import type { PresenceStatus } from '@aldetes/shared';
 
 export function UserPanel() {
@@ -16,7 +16,7 @@ export function UserPanel() {
   const selfDeaf = useVoice((v) => v.selfDeaf);
   const pttMode = useVoice((v) => v.pttActive);
   const [statusMenu, setStatusMenu] = useState<{ x: number; y: number } | null>(null);
-  const [settings, setSettings] = useState(false);
+
   const [customOpen, setCustomOpen] = useState(false);
 
   const setStatus = (status: PresenceStatus) => {
@@ -51,7 +51,7 @@ export function UserPanel() {
         </button>
       </Tooltip>
       <Tooltip label="Configurações de usuário">
-        <button className="icon-btn" onClick={() => setSettings(true)} aria-label="Configurações">
+        <button className="icon-btn" onClick={() => openSettings('account')} aria-label="Configurações">
           <Icon name="settings" size={19} />
         </button>
       </Tooltip>
@@ -70,6 +70,15 @@ export function UserPanel() {
               className="menu-item justify-start"
               onClick={() => {
                 setStatusMenu(null);
+                openSettings('profile');
+              }}
+            >
+              <Icon name="edit" size={16} /> Editar perfil
+            </button>
+            <button
+              className="menu-item justify-start"
+              onClick={() => {
+                setStatusMenu(null);
                 setCustomOpen(true);
               }}
             >
@@ -79,7 +88,6 @@ export function UserPanel() {
         </Popover>
       )}
       {customOpen && <CustomStatusPrompt onClose={() => setCustomOpen(false)} initial={me.customStatus ?? ''} />}
-      {settings && <UserSettings onClose={() => setSettings(false)} />}
     </div>
   );
 }

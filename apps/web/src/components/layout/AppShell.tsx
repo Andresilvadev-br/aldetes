@@ -19,10 +19,13 @@ import { Icon } from '../common/Icon';
 import { toast } from '../common/overlay';
 import { LiveIsland } from '../island/LiveIsland';
 import { useFloatingIslandSync } from '@/lib/islandSync';
+import { useUi, closeSettings } from '@/lib/ui';
+import { UserSettings } from '../settings/UserSettings';
 import { AnimatePresence } from 'motion/react';
 
 export function AppShell() {
   useFloatingIslandSync();
+  const settingsTab = useUi((u) => u.settingsTab);
   const [switcher, setSwitcher] = useState(false);
 
   // Global keyboard shortcuts + push-to-talk
@@ -122,6 +125,7 @@ export function AppShell() {
         </div>
       </div>
       <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
+      {settingsTab && <UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} />}
     </div>
   );
 }

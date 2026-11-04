@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
     ipcRenderer.on('aldetes:media', h);
     return () => ipcRenderer.removeListener('aldetes:media', h);
   },
+  // running game (process list)
+  getGame: () => ipcRenderer.invoke('game:get'),
+  onGame: (cb: (g: unknown) => void) => {
+    const h = (_e: unknown, g: unknown) => cb(g);
+    ipcRenderer.on('aldetes:game', h);
+    return () => ipcRenderer.removeListener('aldetes:game', h);
+  },
   // floating Live Island
   pushIslandState: (state: unknown) => ipcRenderer.send('island:state', state),
   onIslandState: (cb: (s: unknown) => void) => {

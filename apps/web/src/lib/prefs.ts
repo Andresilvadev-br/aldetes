@@ -25,6 +25,8 @@ export interface Prefs {
   introAnimation: boolean;
   islandWidth: number;
   islandHover: boolean;
+  shareGame: boolean;
+  shareMusic: boolean;
   /** null = default spot (top center). Otherwise capsule center-x and top as fractions of the window. */
   islandPos: { fx: number; fy: number } | null;
   desktopNotifications: boolean;
@@ -58,6 +60,8 @@ const defaults: Prefs = {
   introAnimation: true,
   islandWidth: 420,
   islandHover: true,
+  shareGame: true,
+  shareMusic: true,
   islandPos: null,
   desktopNotifications: true,
   notificationSounds: true,

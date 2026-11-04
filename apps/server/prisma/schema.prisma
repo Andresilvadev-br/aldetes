@@ -17,6 +17,8 @@ model User {
   avatarKey           String?
   bannerKey           String?
   accentColor         String?
+  bannerPreset        String?
+  profileEffect       String?
   bio                 String    @default("")
   customStatus        String?
   status              String    @default("online") // online|idle|dnd|invisible (preferred status)

@@ -4,6 +4,7 @@ import { forbidden } from '../lib/errors';
 import * as S from './serialize';
 import { buildServerPayload } from './ready';
 import { createSystemMessage } from './messages';
+import { getPresence } from '../gateway';
 
 export async function addMember(ctx: AppContext, serverId: string, userId: string) {
   const { db } = ctx;
@@ -16,6 +17,14 @@ export async function addMember(ctx: AppContext, serverId: string, userId: strin
   await ctx.gw.syncServerSubscriptions(serverId, userId);
   const payload = await buildServerPayload(ctx, serverId, userId);
   ctx.gw.toUser(userId, ServerEvents.SERVER_JOIN, payload);
+  // The newcomer didn't have these people in their READY: send who is online (and what they're doing).
+  const others = (payload?.members ?? []).map((m) => m.userId).filter((u) => u !== userId);
+  if (others.length) {
+    const online = await ctx.redis.mget(others.map((u) => `presence:${u}`));
+    for (const [i, u] of others.entries()) {
+      if (online[i] && online[i] !== 'invisible') ctx.gw.toUser(userId, ServerEvents.PRESENCE_UPDATE, await getPresence(ctx, u));
+    }
+  }
   const server = await db.server.findUniqueOrThrow({ where: { id: serverId } });
   if (server.welcomeChannelId) {
     await createSystemMessage(ctx, server.welcomeChannelId, userId, 'member_join').catch(() => {});

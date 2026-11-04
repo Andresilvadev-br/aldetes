@@ -1,5 +1,5 @@
 import type { Server as IOServer, Socket } from 'socket.io';
-import { ServerEvents, ClientEvents, presenceStatus, Permissions, hasPermission, type Presence, type VoiceState } from '@aldetes/shared';
+import { ServerEvents, ClientEvents, presenceStatus, activitySchema, Permissions, hasPermission, type Presence, type VoiceState, type Activity } from '@aldetes/shared';
 import { z } from 'zod';
 import type { AppContext } from '../context';
 import { extractToken, resolveSession } from '../auth';
@@ -155,6 +155,22 @@ export class Gateway {
       await this.broadcastPresence(userId);
     });
 
+    // Rich presence: "Jogando X" / "Ouvindo Y". Kept 10 min (clients refresh it), cleared when offline.
+    let lastActivityAt = 0;
+    socket.on('presence:activity', async (data: unknown) => {
+      const parsed = activitySchema.safeParse(data);
+      if (!parsed.success) return;
+      const now = Date.now();
+      if (now - lastActivityAt < 1500) return; // rate limit
+      lastActivityAt = now;
+      const key = `activity:${userId}`;
+      const prev = await this.ctx.redis.get(key);
+      const next = parsed.data ? JSON.stringify({ ...parsed.data, startedAt: Math.min(parsed.data.startedAt, now) }) : null;
+      if (next) await this.ctx.redis.set(key, next, 'EX', 600);
+      else await this.ctx.redis.del(key);
+      if ((prev ?? null) !== next) await this.broadcastPresence(userId);
+    });
+
     socket.on('voice:self', async (data: unknown) => {
       const parsed = z
         .object({ selfMute: z.boolean(), selfDeaf: z.boolean(), video: z.boolean().optional(), streaming: z.boolean().optional() })
@@ -171,7 +187,7 @@ export class Gateway {
       setTimeout(async () => {
         const remaining = await this.io.in(rooms.user(userId)).fetchSockets().catch(() => []);
         if (remaining.length === 0) {
-          await this.ctx.redis.del(`presence:${userId}`);
+          await this.ctx.redis.del(`presence:${userId}`, `activity:${userId}`);
           await this.broadcastPresence(userId).catch(() => {});
         }
       }, 4000);
@@ -180,10 +196,17 @@ export class Gateway {
 }
 
 export async function getPresence(ctx: AppContext, userId: string): Promise<Presence> {
-  const [status, user] = await Promise.all([
+  const [status, user, act] = await Promise.all([
     ctx.redis.get(`presence:${userId}`),
     ctx.db.user.findUnique({ where: { id: userId }, select: { customStatus: true } }),
+    ctx.redis.get(`activity:${userId}`),
   ]);
   const effective = !status || status === 'invisible' ? 'offline' : (status as Presence['status']);
-  return { userId, status: effective, customStatus: effective === 'offline' ? null : (user?.customStatus ?? null) };
+  const offline = effective === 'offline';
+  return {
+    userId,
+    status: effective,
+    customStatus: offline ? null : (user?.customStatus ?? null),
+    activity: offline || !act ? null : (JSON.parse(act) as Activity),
+  };
 }

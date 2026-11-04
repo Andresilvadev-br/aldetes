@@ -26,6 +26,22 @@ export const loginSchema = z.object({
 export const presenceStatus = z.enum(['online', 'idle', 'dnd', 'invisible']);
 export type PresenceStatus = z.infer<typeof presenceStatus>;
 
+/** Animated banner presets and profile effects (rendered client-side; all original art). */
+export const BANNER_PRESETS = ['neon-grid', 'sakura', 'aurora', 'galaxy', 'cyber-rain', 'anime-sky', 'neon-city', 'storm', 'pixel-arcade', 'embers', 'ocean', 'void'] as const;
+export const PROFILE_EFFECTS = ['sparkles', 'snow', 'hearts', 'flames', 'lightning', 'bubbles', 'confetti', 'aura'] as const;
+export type BannerPreset = (typeof BANNER_PRESETS)[number];
+export type ProfileEffect = (typeof PROFILE_EFFECTS)[number];
+
+export const activitySchema = z
+  .object({
+    type: z.enum(['playing', 'listening']),
+    name: z.string().min(1).max(64),
+    details: z.string().max(128).optional(),
+    startedAt: z.number().int().positive(),
+  })
+  .nullable();
+export type Activity = NonNullable<z.infer<typeof activitySchema>>;
+
 export const updateProfileSchema = z.object({
   displayName: z.string().min(1).max(32).optional(),
   bio: z.string().max(190).optional(),
@@ -34,6 +50,8 @@ export const updateProfileSchema = z.object({
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   allowDmsFrom: z.enum(['everyone', 'friends', 'server_members']).optional(),
   allowFriendRequests: z.boolean().optional(),
+  bannerPreset: z.enum(BANNER_PRESETS).nullable().optional(),
+  profileEffect: z.enum(PROFILE_EFFECTS).nullable().optional(),
 });
 
 export const channelType = z.enum(['text', 'voice', 'announcement', 'forum', 'category']);

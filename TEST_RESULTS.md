@@ -96,3 +96,19 @@ Nesse teste, o vídeo da tela vem do dispositivo falso do Chromium (`--use-fake-
 - O teste de música no Linux usou um `playerctl` falso que imita um player MPRIS. O código da ponte é o real.
 - A leitura de música no **Windows** (sessões de mídia via PowerShell/WinRT) **não pôde ser executada aqui**, porque o ambiente é Linux. Precisa ser testada num PC com Windows 10/11 tocando Spotify ou YouTube.
 - "Iniciar com o Windows" (`setLoginItemSettings`) também só é verificável no Windows.
+
+## 8. Rodada de 04/11/2026 (noite): transmissão, ilha móvel, perfis
+
+| Teste | Resultado |
+|---|---|
+| `pnpm test` (inclui atividade "Jogando", banner/efeito válidos e inválidos, presença enviada a quem entra no servidor) | **40/40** |
+| `e2e/two-clients.mjs` (nova tela de transmissão) | **14/14** |
+| `e2e/desktop-smoke.mjs` / `e2e/desktop-island.mjs` | **8/8** / **8/8** |
+| Ilha do app: arrastar, posição salva após recarregar, duplo clique volta ao topo | **3/3** |
+| Perfil: lista de membros mostra "Jogando VALORANT"; cartão com Mensagem/Ligar/Adicionar; Adicionar envia solicitação | **3/3** |
+| Detector de jogos (Linux, processo `cs2.exe` real em execução) | reconhecido como Counter-Strike 2 |
+| Teste de conexão de voz (Configurações → Voz e vídeo) contra o LiveKit local | servidor, WebRTC e microfone ✅; TURN pulado (não configurado em dev) |
+
+**Corrigido nesta rodada:** quem entrava num servidor via convite via todos os membros como "Offline" até recarregar.
+
+**Não testado aqui:** a detecção de jogos no Windows (`tasklist`) e a qualidade real de 1080p60 em rede de verdade.

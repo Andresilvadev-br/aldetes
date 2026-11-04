@@ -230,3 +230,24 @@ body {
 .rec-dot {
   animation: rec-pulse 1.6s ease-in-out infinite;
 }
+
+/* ===================== profile cosmetics (banners & effects) ===================== */
+@keyframes cz-grid { to { background-position: 0 40px; } }
+@keyframes cz-fall { from { transform: translate3d(0, -20%, 0) rotate(0); } to { transform: translate3d(var(--dx, 30px), 120%, 0) rotate(var(--rot, 360deg)); } }
+@keyframes cz-rise { from { transform: translate3d(0, 20%, 0); opacity: 0; } 15% { opacity: 1; } to { transform: translate3d(var(--dx, 10px), -130%, 0); opacity: 0; } }
+@keyframes cz-twinkle { 0%, 100% { opacity: 0.15; transform: scale(0.6); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes cz-drift { from { transform: translateX(-30%); } to { transform: translateX(130%); } }
+@keyframes cz-blob { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(12%, -10%) scale(1.15); } 66% { transform: translate(-10%, 8%) scale(0.9); } }
+@keyframes cz-rain { from { transform: translateY(-100%); } to { transform: translateY(120%); } }
+@keyframes cz-flash { 0%, 92%, 100% { opacity: 0; } 93% { opacity: 0.9; } 95% { opacity: 0.2; } 96% { opacity: 0.7; } }
+@keyframes cz-wave { to { transform: translateX(-50%); } }
+@keyframes cz-blink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes cz-pulse-ring { from { transform: scale(0.2); opacity: 0.9; } to { transform: scale(2.4); opacity: 0; } }
+@keyframes cz-spin { to { transform: rotate(360deg); } }
+@keyframes cz-scroll { to { transform: translateX(-50%); } }
+@keyframes cz-float { from { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 20% { opacity: 1; } to { transform: translate3d(var(--dx, 0), -260px, 0) scale(1.1); opacity: 0; } }
+@keyframes cz-flame { 0%, 100% { transform: scaleY(1) translateY(0); opacity: 0.85; } 50% { transform: scaleY(1.25) translateY(-6%); opacity: 1; } }
+@keyframes cz-zap { 0%, 88%, 100% { opacity: 0; } 89%, 93% { opacity: 1; } 91% { opacity: 0.2; } }
+.cz { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.cz > * { position: absolute; will-change: transform, opacity; }
+:root[data-reduce-motion='true'] .cz * { animation-play-state: paused !important; }

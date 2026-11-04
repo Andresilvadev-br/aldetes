@@ -1,4 +1,4 @@
-import type { ChannelType, PresenceStatus } from './schemas';
+import type { Activity, ChannelType, PresenceStatus } from './schemas';
 
 export interface PublicUser {
   id: string;
@@ -10,6 +10,8 @@ export interface PublicUser {
   bio: string;
   customStatus: string | null;
   createdAt: string;
+  bannerPreset: string | null;
+  profileEffect: string | null;
 }
 
 export interface SelfUser extends PublicUser {
@@ -115,6 +117,7 @@ export interface Presence {
   userId: string;
   status: PresenceStatus | 'offline';
   customStatus: string | null;
+  activity?: Activity | null;
 }
 
 export interface VoiceState {

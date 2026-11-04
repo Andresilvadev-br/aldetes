@@ -129,6 +129,8 @@ describe('servidores, convites e mensagens em tempo real', () => {
     expect(joined.data.id).toBe(serverId);
     await bob.waitFor('server:join', (d) => d.id === serverId);
     await alice.waitFor('member:add', (d) => d.userId === bob.user.id);
+    // quem entra recebe a presença de quem já está online
+    await bob.waitFor('presence:update', (d) => d.userId === alice.user.id && d.status !== 'offline');
     // esgotado para carol
     expect((await carol.req('POST', `/invites/${inviteCode}`)).status).toBe(404);
   });
@@ -289,6 +291,21 @@ describe('social', () => {
     await carol.req('PUT', `/relationships/${alice.user.id}`, { type: 'blocked' }, 200);
     expect((await alice.req('POST', `/channels/${dm.data.id}/messages`, { content: 'oi?' })).status).toBe(403);
     await carol.req('DELETE', `/relationships/${alice.user.id}`, undefined, 200);
+  });
+
+  it('atividade "Jogando" chega aos outros e some com null', async () => {
+    carol.socket!.emit('presence:set', { status: 'online' });
+    await alice.waitFor('presence:update', (d) => d.userId === carol.user.id && d.status === 'online');
+    carol.socket!.emit('presence:activity', { type: 'playing', name: 'Valorant', startedAt: Date.now() });
+    const p = await alice.waitFor('presence:update', (d) => d.userId === carol.user.id && d.activity?.name === 'Valorant');
+    expect(p.activity.type).toBe('playing');
+    await new Promise((r) => setTimeout(r, 1600));
+    carol.socket!.emit('presence:activity', null);
+    await alice.waitFor('presence:update', (d) => d.userId === carol.user.id && d.activity === null);
+    // perfil com banner animado e efeito
+    const me = await carol.req('PATCH', '/users/@me', { bannerPreset: 'sakura', profileEffect: 'sparkles' }, 200);
+    expect(me.data.bannerPreset).toBe('sakura');
+    expect((await carol.req('PATCH', '/users/@me', { bannerPreset: 'nao-existe' })).status).toBe(400);
   });
 
   it('presença: status reflete para membros', async () => {

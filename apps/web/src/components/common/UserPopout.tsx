@@ -1,10 +1,15 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { Permissions, hasPermission } from '@aldetes/shared';
 import { useStore, get, displayName, serverPermissions } from '@/store';
-import { Avatar, STATUS_LABEL, colorFor } from './Avatar';
+import { Avatar, STATUS_LABEL } from './Avatar';
 import { Popover, useContextMenu, confirmDialog, toastError, toast, Modal, type MenuItem } from './overlay';
-import { api } from '@/lib/api';
+import { api, upload } from '@/lib/api';
+import { openSettings } from '@/lib/ui';
+import { elapsed } from '@/lib/activity';
+import { ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
+import { Icon } from './Icon';
 import { openDm } from '@/lib/actions';
 import { setLocalMute, setUserVolume, joinVoice } from '@/lib/voice';
 import { usePrefs } from '@/lib/prefs';
@@ -14,67 +19,176 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
   const presence = useStore((s) => s.presences[userId]);
   const member = useStore((s) => (serverId ? s.members[serverId]?.[userId] : undefined));
   const roles = useStore((s) => (serverId ? s.roles[serverId] : undefined));
+  const rel = useStore((s) => s.relationships[userId]);
   const me = useStore((s) => s.me)!;
   const nav = useNavigate();
+  const menu = useContextMenu();
+  const items = useMemberMenu(userId, serverId ?? null);
   const [msg, setMsg] = useState('');
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((x) => x + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
   if (!user) return null;
+  const isMe = userId === me.id;
   const memberRoles = member ? member.roleIds.map((r) => roles?.[r]).filter(Boolean).sort((a, b) => b!.position - a!.position) : [];
-  const status = presence?.status ?? 'offline';
+  const status = isMe && me.status === 'invisible' ? 'invisible' : (presence?.status ?? 'offline');
+  const act = presence?.activity;
+
+  const dm = async () => {
+    try {
+      onClose();
+      nav(`/channels/@me/${await openDm(userId)}`);
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const call = async () => {
+    try {
+      onClose();
+      const id = await openDm(userId);
+      nav(`/channels/@me/${id}`);
+      await joinVoice(id);
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const friendBtn = () => {
+    if (rel?.type === 'friend') return { label: 'Amigos', icon: 'check' as const, onClick: undefined };
+    if (rel?.type === 'outgoing') return { label: 'Pendente', icon: 'moreH' as const, onClick: undefined };
+    if (rel?.type === 'incoming') return { label: 'Aceitar', icon: 'plus' as const, onClick: () => api('PUT', `/relationships/${userId}`, { type: 'friend' }).catch(toastError) };
+    if (rel?.type === 'blocked') return null;
+    return { label: 'Adicionar', icon: 'plus' as const, onClick: () => api('POST', '/relationships', { username: user.username }).then(() => toast('Solicitação enviada', 'success'), toastError) };
+  };
+  const fb = friendBtn();
+  const uploadAvatar = async (f: File) => {
+    const fd = new FormData();
+    fd.append('file', f);
+    await upload('/users/@me/avatar', fd).catch(toastError);
+  };
+
   return (
     <Popover x={x} y={y} onClose={onClose}>
-      <div className="w-[320px] overflow-hidden rounded-2xl border border-line/[0.08] bg-bg-float shadow-float">
-        <div className="h-[84px]" style={{ background: user.bannerUrl ? `center/cover url(${user.bannerUrl})` : (user.accentColor ?? colorFor(user.id)) }} />
-        <div className="relative px-4 pb-4">
-          <div className="-mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
-            <Avatar userId={userId} size={80} showStatus />
-          </div>
-          <div className="text-xl font-extrabold tracking-tight text-fg-strong">{member?.nickname ?? user.displayName}</div>
-          <div className="text-sm text-fg-muted">
-            {user.username} · {STATUS_LABEL[status]}
-          </div>
-          {presence?.customStatus && <div className="mt-1 text-sm text-fg">{presence.customStatus}</div>}
-          <div className="my-3 h-px bg-line/10" />
-          {user.bio && (
-            <>
-              <div className="label mb-1">Sobre mim</div>
-              <p className="mb-3 whitespace-pre-wrap text-sm text-fg">{user.bio}</p>
-            </>
+      <div className="relative w-[340px] overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float">
+        <ProfileEffect id={user.profileEffect} behind />
+        <div className="relative">
+          {isMe ? (
+            <button className="group/banner relative block w-full" title="Mudar banner" onClick={() => (onClose(), openSettings('profile'))}>
+              <ProfileBanner user={user} height={110} />
+              <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/45 text-xs font-bold text-white opacity-0 transition-opacity group-hover/banner:opacity-100">
+                <Icon name="edit" size={14} /> Mudar banner
+              </span>
+            </button>
+          ) : (
+            <ProfileBanner user={user} height={110} />
           )}
-          <div className="label mb-1">Membro do Aldetes desde</div>
-          <p className="mb-3 text-sm text-fg">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-          {memberRoles.length > 0 && (
-            <>
-              <div className="label mb-1">Cargos</div>
-              <div className="mb-3 flex flex-wrap gap-1">
-                {memberRoles.map((r) => (
-                  <span key={r!.id} className="flex items-center gap-1 rounded bg-bg-input/60 px-2 py-0.5 text-xs text-fg">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: r!.color ?? '#99aab5' }} />
-                    {r!.name}
-                  </span>
-                ))}
+          <div className="relative px-4 pb-4">
+            <div className="-mt-11 mb-2 flex items-end justify-between">
+              {isMe ? (
+                <button className="group/av relative w-fit rounded-full border-[6px] border-bg-float" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
+                  <Avatar userId={userId} size={84} showStatus />
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover/av:opacity-100">Mudar</span>
+                  <input ref={avatarInput} type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
+                </button>
+              ) : (
+                <div className="w-fit rounded-full border-[6px] border-bg-float">
+                  <Avatar userId={userId} size={84} showStatus />
+                </div>
+              )}
+              {!isMe && (
+                <button className="icon-btn mb-1 bg-line/[0.06]" title="Mais opções" onClick={(e) => menu(e, items())}>
+                  <Icon name="moreH" size={18} />
+                </button>
+              )}
+            </div>
+            <div className="text-xl font-extrabold tracking-tight text-fg-strong">{member?.nickname ?? user.displayName}</div>
+            <div className="text-sm text-fg-muted">
+              {user.username} · {STATUS_LABEL[status]}
+            </div>
+            {presence?.customStatus && <div className="mt-1 text-sm text-fg">{presence.customStatus}</div>}
+
+            {/* actions */}
+            {isMe ? (
+              <button className="btn-primary mt-3 w-full" onClick={() => (onClose(), openSettings('profile'))}>
+                <Icon name="edit" size={16} /> Editar perfil
+              </button>
+            ) : (
+              <div className="mt-3 flex gap-2">
+                <button className="btn-primary flex-1" onClick={dm}>
+                  <Icon name="reply" size={16} /> Mensagem
+                </button>
+                <button className="btn-secondary px-3" title="Ligar" onClick={call}>
+                  <Icon name="phone" size={16} />
+                </button>
+                {fb && (
+                  <button className={clsx('btn-secondary px-3', !fb.onClick && 'pointer-events-none opacity-70')} title={fb.label} onClick={fb.onClick}>
+                    <Icon name={fb.icon} size={16} /> <span className="text-xs">{fb.label}</span>
+                  </button>
+                )}
               </div>
-            </>
-          )}
-          {userId !== me.id && (
-            <input
-              className="input text-sm"
-              placeholder={`Conversar com @${user.username}`}
-              value={msg}
-              onChange={(e) => setMsg(e.target.value)}
-              onKeyDown={async (e) => {
-                if (e.key !== 'Enter' || !msg.trim()) return;
-                try {
-                  const id = await openDm(userId);
-                  await api('POST', `/channels/${id}/messages`, { content: msg.trim() });
-                  onClose();
-                  nav(`/channels/@me/${id}`);
-                } catch (err) {
-                  toastError(err);
-                }
-              }}
-            />
-          )}
+            )}
+
+            {/* activity */}
+            {act && (
+              <div className="mt-3 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-3">
+                <div className="eyebrow mb-2">{act.type === 'playing' ? 'Jogando' : `Ouvindo no ${act.name}`}</div>
+                <div className="flex items-center gap-3">
+                  <span className={clsx('tile h-12 w-12', act.type === 'playing' ? 'grad text-white shadow-glow' : 'bg-ok/15 text-ok')}>
+                    <Icon name={act.type === 'playing' ? 'signal' : 'volume'} size={22} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-fg-strong">{act.type === 'playing' ? act.name : act.details}</div>
+                    <div className="text-xs text-fg-muted">{elapsed(act.startedAt)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {user.bio && (
+              <>
+                <div className="eyebrow mb-1 mt-3">Sobre mim</div>
+                <p className="whitespace-pre-wrap text-sm text-fg">{user.bio}</p>
+              </>
+            )}
+            <div className="eyebrow mb-1 mt-3">Membro desde</div>
+            <p className="text-sm text-fg">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+            {memberRoles.length > 0 && (
+              <>
+                <div className="eyebrow mb-1 mt-3">Cargos</div>
+                <div className="flex flex-wrap gap-1">
+                  {memberRoles.map((r) => (
+                    <span key={r!.id} className="flex items-center gap-1 rounded-lg bg-line/[0.06] px-2 py-0.5 text-xs text-fg">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: r!.color ?? '#99aab5' }} />
+                      {r!.name}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+            {!isMe && (
+              <input
+                className="input mt-4 py-2 text-sm"
+                placeholder={`Mensagem para @${user.username}`}
+                value={msg}
+                onChange={(e) => setMsg(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key !== 'Enter' || !msg.trim()) return;
+                  try {
+                    const id = await openDm(userId);
+                    await api('POST', `/channels/${id}/messages`, { content: msg.trim() });
+                    onClose();
+                    nav(`/channels/@me/${id}`);
+                  } catch (err) {
+                    toastError(err);
+                  }
+                }}
+              />
+            )}
+          </div>
         </div>
+        <ProfileEffect id={user.profileEffect} />
       </div>
     </Popover>
   );

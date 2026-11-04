@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { Icon } from '../common/Icon';
 import { ConnectionTest } from './ConnectionTest';
+import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
@@ -16,8 +17,8 @@ import { desktop, type DesktopSettings } from '@/lib/desktop';
 import { disconnectGateway } from '@/lib/gateway';
 import type { SelfUser } from '@aldetes/shared';
 
-export function UserSettings({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState('account');
+export function UserSettings({ onClose, initialTab = 'account' }: { onClose: () => void; initialTab?: string }) {
+  const [tab, setTab] = useState(initialTab);
   const logout = async () => {
     if (!(await confirmDialog({ title: 'Sair', body: 'Tem certeza de que deseja sair?', confirm: 'Sair', danger: true }))) return;
     await leaveVoice();
@@ -115,51 +116,80 @@ function ProfileTab() {
     fd.append('file', f);
     try {
       await upload(`/users/@me/${kind}`, fd);
-      toast('Imagem atualizada', 'success');
+      if (kind === 'banner' && me.bannerPreset) await api('PATCH', '/users/@me', { bannerPreset: null });
+      toast(kind === 'avatar' ? 'Avatar atualizado' : 'Banner atualizado', 'success');
     } catch (e) {
       toastError(e);
     }
   };
+  const patch = (data: Record<string, unknown>) => api('PATCH', '/users/@me', data).catch(toastError);
   const dirty = form.displayName !== me.displayName || form.bio !== me.bio || form.accentColor !== (me.accentColor ?? '#6c5ce7');
+  const preview = { ...me, ...form };
   return (
     <>
       <SettingsTitle>Perfil</SettingsTitle>
       <div className="flex gap-8">
-        <div className="flex-1 space-y-5">
-          <div>
-            <label className="label">Nome de exibição</label>
-            <input className="input" maxLength={32} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Avatar</label>
-            <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => avatarInput.current?.click()}>
-                Alterar avatar
-              </button>
-              {me.avatarUrl && (
-                <button className="btn-ghost" onClick={() => api('DELETE', '/users/@me/avatar').catch(toastError)}>
-                  Remover
-                </button>
-              )}
+        <div className="min-w-0 flex-1 space-y-7">
+          <div className="flex items-center gap-4">
+            <button className="group/av relative rounded-full" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
+              <Avatar userId={me.id} size={72} />
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover/av:opacity-100">Mudar</span>
+            </button>
+            <div className="flex-1">
+              <label className="label">Nome de exibição</label>
+              <input className="input" maxLength={32} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
             </div>
             <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('avatar', e.target.files[0])} />
           </div>
+          {me.avatarUrl && (
+            <button className="-mt-5 text-xs text-fg-muted hover:text-danger" onClick={() => api('DELETE', '/users/@me/avatar').catch(toastError)}>
+              Remover avatar
+            </button>
+          )}
+
           <div>
-            <label className="label">Banner do perfil</label>
-            <div className="flex gap-2">
-              <button className="btn-primary" onClick={() => bannerInput.current?.click()}>
-                Alterar banner
+            <div className="mb-2 flex items-end justify-between">
+              <div>
+                <div className="label !mb-0.5">Banner</div>
+                <div className="text-xs text-fg-muted">Animados exclusivos do Aldetes, ou envie uma imagem/GIF seu.</div>
+              </div>
+              <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => bannerInput.current?.click()}>
+                <Icon name="upload" size={14} /> Enviar imagem/GIF
               </button>
-              {me.bannerUrl && (
-                <button className="btn-ghost" onClick={() => api('DELETE', '/users/@me/banner').catch(toastError)}>
-                  Remover
-                </button>
-              )}
+              <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('banner', e.target.files[0])} />
             </div>
-            <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('banner', e.target.files[0])} />
+            <div className="grid grid-cols-3 gap-2.5">
+              <PickTile active={!me.bannerPreset} label={me.bannerUrl ? 'Minha imagem' : 'Cor do perfil'} onClick={() => patch({ bannerPreset: null })}>
+                <ProfileBanner user={{ ...me, bannerPreset: null, accentColor: form.accentColor }} height={64} />
+              </PickTile>
+              {Object.entries(BANNERS).map(([id, b]) => (
+                <PickTile key={id} active={me.bannerPreset === id} label={b.label} tag={b.tag} onClick={() => patch({ bannerPreset: id })}>
+                  <ProfileBanner user={{ ...me, bannerPreset: id }} height={64} />
+                </PickTile>
+              ))}
+            </div>
           </div>
+
           <div>
-            <label className="label">Cor de destaque</label>
+            <div className="label !mb-0.5">Efeito do perfil</div>
+            <div className="mb-2 text-xs text-fg-muted">Aparece por cima do seu cartão quando alguém abre o seu perfil.</div>
+            <div className="grid grid-cols-3 gap-2.5">
+              <PickTile active={!me.profileEffect} label="Nenhum" onClick={() => patch({ profileEffect: null })}>
+                <div className="h-16 bg-line/[0.04]" />
+              </PickTile>
+              {Object.entries(EFFECTS).map(([id, fx]) => (
+                <PickTile key={id} active={me.profileEffect === id} label={fx.label} onClick={() => patch({ profileEffect: id })}>
+                  <div className="relative h-16 overflow-hidden bg-bg-float">
+                    <ProfileEffect id={id} behind />
+                    <ProfileEffect id={id} />
+                  </div>
+                </PickTile>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Cor do perfil</label>
             <input type="color" className="h-10 w-20 cursor-pointer rounded bg-transparent" value={form.accentColor} onChange={(e) => setForm({ ...form, accentColor: e.target.value })} />
           </div>
           <div>
@@ -168,23 +198,30 @@ function ProfileTab() {
             <div className="text-right text-xs text-fg-faint">{190 - form.bio.length}</div>
           </div>
         </div>
-        <div className="w-72">
-          <div className="label">Pré-visualização</div>
-          <div className="overflow-hidden rounded-lg bg-bg-float shadow-lg">
-            <div className="h-16" style={{ background: me.bannerUrl ? `center/cover url(${me.bannerUrl})` : form.accentColor }} />
-            <div className="px-4 pb-4">
-              <div className="-mt-9 mb-2 w-fit rounded-full border-[5px] border-bg-float">
-                <Avatar userId={me.id} size={72} showStatus />
+
+        <div className="w-[300px] shrink-0">
+          <div className="sticky top-0">
+            <div className="label">Pré-visualização</div>
+            <div className="relative overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float">
+              <ProfileEffect id={me.profileEffect} behind />
+              <div className="relative">
+                <ProfileBanner user={preview} height={100} />
+                <div className="px-4 pb-5">
+                  <div className="-mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
+                    <Avatar userId={me.id} size={76} showStatus />
+                  </div>
+                  <div className="text-xl font-extrabold tracking-tight text-fg-strong">{form.displayName || me.username}</div>
+                  <div className="text-sm text-fg-muted">{me.username}</div>
+                  {form.bio && <p className="mt-2 whitespace-pre-wrap text-sm text-fg">{form.bio}</p>}
+                </div>
               </div>
-              <div className="text-lg font-bold text-fg-strong">{form.displayName || me.username}</div>
-              <div className="text-sm text-fg-muted">{me.username}</div>
-              {form.bio && <p className="mt-2 whitespace-pre-wrap text-sm text-fg">{form.bio}</p>}
+              <ProfileEffect id={me.profileEffect} />
             </div>
           </div>
         </div>
       </div>
       {dirty && (
-        <div className="sticky bottom-4 mt-6 flex items-center justify-between rounded-lg bg-bg-rail p-3 shadow-xl">
+        <div className="sticky bottom-4 mt-6 flex items-center justify-between rounded-2xl border border-line/[0.08] bg-bg-rail p-3 shadow-float">
           <span className="text-sm text-fg">Cuidado — você tem alterações não salvas!</span>
           <div className="flex gap-2">
             <button className="btn-ghost" onClick={() => setForm({ displayName: me.displayName, bio: me.bio, accentColor: me.accentColor ?? '#6c5ce7' })}>
@@ -196,6 +233,33 @@ function ProfileTab() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+function PickTile({ active, label, tag, onClick, children }: { active: boolean; label: string; tag?: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={spring.snappy} onClick={onClick} className="group relative text-left">
+      <span className={clsx('block overflow-hidden rounded-xl border-2 transition-colors', active ? 'border-brand shadow-glow' : 'border-transparent group-hover:border-line/20')}>{children}</span>
+      <span className="mt-1 flex items-center gap-1 text-xs font-semibold text-fg">
+        <span className="truncate">{label}</span>
+        {tag && <span className="rounded bg-line/[0.07] px-1 text-[10px] font-medium text-fg-muted">{tag}</span>}
+      </span>
+      {active && (
+        <span className="grad absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white">
+          <Icon name="check" size={11} strokeWidth={3} />
+        </span>
+      )}
+    </motion.button>
+  );
+}
+
+function ActivityPrivacy() {
+  const p = usePrefs();
+  return (
+    <>
+      <Toggle label="Mostrar o jogo que estou jogando" desc={desktop ? 'O app reconhece jogos abertos (VALORANT, LoL, CS2, Fortnite, Minecraft e outros) e mostra “Jogando…” no seu perfil.' : 'Disponível no app para computador.'} checked={p.shareGame} disabled={!desktop} onChange={(v) => setPrefs({ shareGame: v })} />
+      <Toggle label="Mostrar a música que estou ouvindo" desc={desktop ? 'Mostra “Ouvindo…” com a música tocando no PC (Spotify, YouTube no navegador e outros).' : 'Disponível no app para computador.'} checked={p.shareMusic} disabled={!desktop} onChange={(v) => setPrefs({ shareMusic: v })} />
     </>
   );
 }
@@ -223,6 +287,7 @@ function PrivacyTab() {
         ))}
       </div>
       <Toggle label="Permitir solicitações de amizade" desc="Quando desativado, ninguém poderá te enviar novas solicitações." checked={me.allowFriendRequests} onChange={(v) => patch({ allowFriendRequests: v })} />
+      <ActivityPrivacy />
       <h3 className="mb-2 mt-8 font-semibold text-fg-strong">Usuários bloqueados ({blocked.length})</h3>
       {blocked.map((b) => (
         <div key={b.userId} className="flex items-center gap-3 border-b border-line/5 py-2">

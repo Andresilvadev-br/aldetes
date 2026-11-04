@@ -26,6 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { autoUpdater } from 'electron-updater';
 import { startPtt, stopPtt } from './ptt';
 import { MediaBridge, type MediaCommand, type NowPlaying } from './media';
+import { GameDetector, type GameActivity } from './games';
 
 const DEV_URL = process.env.ALDETES_DEV_URL; // e.g. http://localhost:5173 during development
 // Baked in at build time (tsup `define`): the official server, so downloaded installers work out of the box.
@@ -76,6 +77,8 @@ const media = new MediaBridge((np: NowPlaying | null) => {
   win?.webContents.send('aldetes:media', np);
   islandWin?.webContents.send('aldetes:media', np);
 });
+
+const games = new GameDetector((g: GameActivity | null) => win?.webContents.send('aldetes:game', g));
 
 function appUrl(hash = '') {
   return (DEV_URL ?? `${APP_ORIGIN}/index.html`) + hash;
@@ -371,6 +374,7 @@ function registerIpc() {
     resizeIsland(w, h);
   });
   ipcMain.handle('media:get', () => media.current());
+  ipcMain.handle('game:get', () => games.get());
   ipcMain.on('media:command', (_e, cmd: MediaCommand) => {
     if (['toggle', 'next', 'prev'].includes(cmd)) media.command(cmd);
   });
@@ -448,6 +452,7 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     createIslandWindow();
     media.start();
+    games.start();
     screen.on('display-metrics-changed', positionIsland);
     const ds = desktopSettings();
     applyAutoStart(ds.autoStart, ds.startHidden);
@@ -465,6 +470,7 @@ if (!app.requestSingleInstanceLock()) {
     globalShortcut.unregisterAll();
     stopPtt();
     media.stop();
+    games.stop();
   });
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

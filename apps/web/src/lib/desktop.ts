@@ -69,6 +69,8 @@ export interface DesktopBridge {
   onOpenChannel(cb: (channelId: string) => void): () => void;
   getDesktopSettings(): Promise<DesktopSettings>;
   getMedia(): Promise<NowPlaying | null>;
+  getGame(): Promise<{ name: string; startedAt: number } | null>;
+  onGame(cb: (g: { name: string; startedAt: number } | null) => void): () => void;
   mediaCommand(cmd: 'toggle' | 'next' | 'prev'): void;
   onMedia(cb: (np: NowPlaying | null) => void): () => void;
   pushIslandState(state: IslandSnapshot): void;

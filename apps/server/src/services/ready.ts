@@ -58,6 +58,7 @@ export async function buildReady(ctx: AppContext, userId: string, sessionId: str
   related.add(userId);
   const ids = [...related];
   const statuses = ids.length ? await ctx.redis.mget(ids.map((i) => `presence:${i}`)) : [];
+  const acts = ids.length ? await ctx.redis.mget(ids.map((i) => `activity:${i}`)) : [];
   const customs = await ctx.db.user.findMany({ where: { id: { in: ids } }, select: { id: true, customStatus: true } });
   const customMap = new Map(customs.map((c) => [c.id, c.customStatus]));
   const presences: Presence[] = [];
@@ -65,7 +66,14 @@ export async function buildReady(ctx: AppContext, userId: string, sessionId: str
     const st = statuses[i];
     if (!st) return;
     if (st === 'invisible' && id !== userId) return;
-    presences.push({ userId: id, status: st === 'invisible' ? 'offline' : (st as Presence['status']), customStatus: customMap.get(id) ?? null });
+    const hidden = st === 'invisible' && id !== userId;
+    if (hidden) return;
+    presences.push({
+      userId: id,
+      status: st === 'invisible' ? 'offline' : (st as Presence['status']),
+      customStatus: customMap.get(id) ?? null,
+      activity: acts[i] ? JSON.parse(acts[i]!) : null,
+    });
   });
 
   const serverIds = new Set(servers.map((s) => s.id));

@@ -19,6 +19,8 @@ export function publicUser(u: User): PublicUser {
     bio: u.bio,
     customStatus: u.customStatus,
     createdAt: u.createdAt.toISOString(),
+    bannerPreset: u.bannerPreset,
+    profileEffect: u.profileEffect,
   };
 }
 

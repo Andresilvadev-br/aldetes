@@ -11,6 +11,7 @@ import { Tooltip, toastError, useContextMenu } from '@/components/common/overlay
 import { useMemberMenu } from '@/components/common/UserPopout';
 import { MiniMessage } from '@/components/chat/MiniMessage';
 import { joinVoice } from '@/lib/voice';
+import { activityLine } from '@/lib/activity';
 import { motion } from 'motion/react';
 import { spring, greeting } from '@/lib/motion';
 
@@ -146,7 +147,13 @@ function FriendRow({ userId, type }: { userId: string; type: string }) {
           {user.displayName} <span className="hidden text-sm font-normal text-fg-muted group-hover:inline">{user.username}</span>
         </div>
         <div className="truncate text-xs text-fg-muted">
-          {type === 'incoming' ? 'Solicitação de amizade recebida' : type === 'outgoing' ? 'Solicitação de amizade enviada' : type === 'blocked' ? 'Bloqueado' : presence?.customStatus || STATUS_LABEL[presence?.status ?? 'offline']}
+          {type === 'incoming'
+            ? 'Solicitação de amizade recebida'
+            : type === 'outgoing'
+              ? 'Solicitação de amizade enviada'
+              : type === 'blocked'
+                ? 'Bloqueado'
+                : activityLine(presence?.activity) || presence?.customStatus || STATUS_LABEL[presence?.status ?? 'offline']}
         </div>
       </div>
       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>

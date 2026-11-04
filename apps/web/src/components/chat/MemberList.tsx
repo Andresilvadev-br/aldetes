@@ -5,6 +5,7 @@ import { useStore, displayName, memberColor } from '@/store';
 import { Avatar } from '../common/Avatar';
 import { UserPopoutTrigger } from '../common/UserPopout';
 import { Icon } from '../common/Icon';
+import { activityLine } from '@/lib/activity';
 
 type Row = { kind: 'header'; label: string; count: number } | { kind: 'user'; userId: string; offline: boolean };
 
@@ -104,7 +105,14 @@ function MemberRow({ userId, serverId, offline, ownerId }: { userId: string; ser
             {ownerId === userId && <Icon name="crown" size={14} className="shrink-0 text-warn" />}
             {timedOut && <Icon name="shield" size={14} className="shrink-0 text-danger" />}
           </div>
-          {presence?.customStatus && !offline && <div className="truncate text-xs text-fg-muted">{presence.customStatus}</div>}
+          {!offline && presence?.activity ? (
+            <div className="flex items-center gap-1 truncate text-xs text-fg-muted">
+              <Icon name={presence.activity.type === 'playing' ? 'signal' : 'volume'} size={11} className={presence.activity.type === 'playing' ? 'shrink-0 text-brand' : 'shrink-0 text-ok'} />
+              <span className="truncate">{activityLine(presence.activity)}</span>
+            </div>
+          ) : (
+            presence?.customStatus && !offline && <div className="truncate text-xs text-fg-muted">{presence.customStatus}</div>
+          )}
         </div>
       </div>
     </UserPopoutTrigger>
