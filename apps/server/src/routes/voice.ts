@@ -60,6 +60,13 @@ export function voiceRoutes(app: FastifyInstance, ctx: AppContext) {
     };
   });
 
+  // Connection test: a throwaway room just for this user (webhooks ignore it: it isn't a channel).
+  app.post('/voice/diagnostics', { ...auth, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req) => {
+    const at = new AccessToken(cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET, { identity: `diag-${req.auth.userId}-${Date.now().toString(36)}`, ttl: '10m' });
+    at.addGrant({ room: `diag-${req.auth.userId}`, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
+    return { url: cfg.LIVEKIT_URL, token: await at.toJwt() };
+  });
+
   app.get('/voice/:channelId/participants', auth, async (req) => {
     const { channelId } = req.params as { channelId: string };
     await requireChannel(db, channelId, req.auth.userId);

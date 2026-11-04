@@ -6,6 +6,7 @@ import { usePrefs, setPrefs, ACCENTS, type AccentName } from '@/lib/prefs';
 import { motion } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { Icon } from '../common/Icon';
+import { ConnectionTest } from './ConnectionTest';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
@@ -516,6 +517,7 @@ function VoiceTab() {
   return (
     <>
       <SettingsTitle>Voz e vídeo</SettingsTitle>
+      <ConnectionTest />
       <div className="grid grid-cols-2 gap-4">
         <div>
           <div className="label">Dispositivo de entrada</div>
