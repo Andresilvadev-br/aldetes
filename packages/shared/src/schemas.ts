@@ -33,13 +33,37 @@ export const BANNER_PRESETS = [
   'neon-current', 'orbital', 'chroma-wave', 'zen-dust',
   // 1.0 static gradients
   'g-dusk', 'g-mint', 'g-ember', 'g-ice', 'g-mono', 'g-berry',
+  // 2.1 Identity Studio (configurable: colors, intensity, speed, reduced)
+  'nebula-flow', 'cyber-rain-x', 'aurora-dream', 'liquid-chrome', 'galaxy-drift',
 ] as const;
-export const PROFILE_EFFECTS = ['sparkles', 'snow', 'hearts', 'flames', 'lightning', 'bubbles', 'confetti', 'aura'] as const;
+export const PROFILE_EFFECTS = ['sparkles', 'snow', 'hearts', 'flames', 'lightning', 'bubbles', 'confetti', 'aura', 'cosmic-arrival', 'holographic-shift', 'electric-pulse', 'ethereal-mist', 'celestial-wings'] as const;
 /** Avatar decorations: drawn AROUND the avatar (the uploaded image itself is never altered). */
-export const AVATAR_DECORATIONS = ['neon-current', 'orbital', 'chroma-wave', 'zen-dust', 'halo', 'ember-ring', 'frost'] as const;
+export const AVATAR_DECORATIONS = ['neon-current', 'orbital', 'chroma-wave', 'zen-dust', 'halo', 'ember-ring', 'frost', 'quantum-orbit', 'plasma-crown', 'crystal-prism', 'neon-circuit', 'solar-eclipse'] as const;
 /** One-shot entrance when someone opens your profile card. */
 export const PROFILE_ENTRANCES = ['particles', 'lights', 'glitch', 'reveal'] as const;
 export type AvatarDecoration = (typeof AVATAR_DECORATIONS)[number];
+/** 2.1: whole-card profile themes (colors, background, buttons, transitions) */
+export const PROFILE_THEMES = ['obsidian', 'synthwave', 'arctic-glass', 'inferno', 'eclipse'] as const;
+export const NAME_EFFECTS = ['none', 'glow', 'gradient', 'shimmer'] as const;
+export const BADGES = ['star', 'crown', 'bolt', 'heart', 'gamepad', 'music', 'shield', 'diamond'] as const;
+export const CARD_BORDERS = ['none', 'flow', 'pulse'] as const;
+/** Banner options (only some banners react to every option; the rest ignore what they don't use). */
+export const bannerOptionsSchema = z.object({
+  c1: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
+  c2: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
+  intensity: z.number().int().min(0).max(100).default(80),
+  /** percent of the normal speed */
+  speed: z.number().int().min(25).max(200).default(100),
+  /** "animação reduzida": gentler, slower, fewer moving parts */
+  reduced: z.boolean().default(false),
+});
+export type BannerOptions = z.infer<typeof bannerOptionsSchema>;
+export const profileDecorSchema = z.object({
+  nameEffect: z.enum(NAME_EFFECTS).default('none'),
+  badge: z.enum(BADGES).nullable().default(null),
+  cardBorder: z.enum(CARD_BORDERS).default('none'),
+});
+export type ProfileDecor = z.infer<typeof profileDecorSchema>;
 export type ProfileEntrance = (typeof PROFILE_ENTRANCES)[number];
 
 /** Profile links: https only, short, max 3 (shown on the expanded profile card). */
@@ -79,11 +103,16 @@ export const updateProfileSchema = z.object({
   profileEntrance: z.enum(PROFILE_ENTRANCES).nullable().optional(),
   pronouns: z.string().trim().max(40).nullable().optional(),
   profileLinks: z.array(profileLinkSchema).max(3).optional(),
+  bannerOptions: bannerOptionsSchema.nullable().optional(),
+  profileTheme: z.enum(PROFILE_THEMES).nullable().optional(),
+  profileDecor: profileDecorSchema.nullable().optional(),
 });
 
 
 /* ---------------- Server Studio ---------------- */
-export const SERVER_SCENES = ['aurora', 'galaxy', 'neon-grid', 'ocean', 'embers', 'neon-current', 'orbital', 'chroma-wave', 'zen-dust'] as const;
+export const SERVER_SCENES = ['aurora', 'galaxy', 'neon-grid', 'ocean', 'embers', 'neon-current', 'orbital', 'chroma-wave', 'zen-dust', 'neon-skyline', 'cosmic-horizon', 'digital-matrix', 'dreamscape', 'energy-core'] as const;
+export const SERVER_ICON_ANIMS = ['none', 'orbit-glow', 'crystal-shine', 'pulse-beacon', 'neon-trace', 'hologram'] as const;
+export const SERVER_AMBIENTS = ['none', 'ambient-particles', 'aurora-background', 'reactive-glow', 'digital-atmosphere', 'starlight'] as const;
 export const studioThemeSchema = z.object({
   /** Essencial */
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
@@ -103,7 +132,17 @@ export const studioThemeSchema = z.object({
     .object({ enabled: z.boolean().default(false), title: z.string().trim().max(60).default(''), body: z.string().trim().max(240).default('') })
     .default({ enabled: false, title: '', body: '' }),
   /** 2.0 Worlds: which ready-made template it started from (informative), surfaces and effect intensity */
-  template: z.enum(['neon', 'minimal', 'aurora', 'cosmic', 'studio', 'arcade']).nullable().default(null),
+  template: z.enum(['neon', 'minimal', 'aurora', 'cosmic', 'studio', 'arcade', 'cyber-district', 'royal-obsidian', 'celestial', 'crimson-pulse', 'crystal-dimension']).nullable().default(null),
+  /** 2.1 Worlds Studio: banner colors/speed, animated icon, ambient effect and decorations */
+  sceneC1: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
+  sceneC2: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
+  speed: z.number().int().min(25).max(200).default(100),
+  iconAnim: z.enum(SERVER_ICON_ANIMS).default('none'),
+  ambient: z.enum(SERVER_AMBIENTS).default('none'),
+  emblem: z.enum(BADGES).nullable().default(null),
+  nameEffect: z.enum(NAME_EFFECTS).default('none'),
+  cardBorder: z.enum(CARD_BORDERS).default('none'),
+  presentation: z.enum(['none', 'nebula', 'grid', 'waves']).default('none'),
   surface: z.enum(['default', 'deep', 'tinted']).default('default'),
   /** 0–100: how strong scenes/textures/entrances are (the person's own motion settings still win) */
   intensity: z.number().int().min(0).max(100).default(70),
@@ -118,6 +157,12 @@ export const WORLD_TEMPLATES: Record<NonNullable<StudioTheme['template']>, Parti
   cosmic: { accent: '#a855f7', scene: 'galaxy', lighting: 'dim', texture: 'dots', hover: 'tilt', iconFrame: 'orbital', separator: 'dots', entrance: 'sweep', surface: 'deep', intensity: 75 },
   studio: { accent: '#f59e0b', scene: 'zen-dust', lighting: 'soft', texture: 'grain', hover: 'lift', iconFrame: 'ring', separator: 'line', entrance: 'sweep', surface: 'tinted', intensity: 55 },
   arcade: { accent: '#22c55e', scene: 'neon-grid', lighting: 'vivid', texture: 'grid', hover: 'tilt', iconFrame: 'neon', separator: 'dots', entrance: 'glitch', surface: 'deep', intensity: 85 },
+  // 2.1 complete server themes
+  'cyber-district': { accent: '#22d3ee', scene: 'neon-skyline', lighting: 'vivid', texture: 'grid', hover: 'glow', iconFrame: 'neon', separator: 'glow', entrance: 'glitch', surface: 'deep', intensity: 80, iconAnim: 'neon-trace', ambient: 'digital-atmosphere', nameEffect: 'glow', cardBorder: 'flow', presentation: 'grid' },
+  'royal-obsidian': { accent: '#eab308', scene: 'energy-core', sceneC1: '#eab308', sceneC2: '#78350f', lighting: 'dim', texture: 'grain', hover: 'lift', iconFrame: 'ring', separator: 'line', entrance: 'sweep', surface: 'deep', intensity: 60, iconAnim: 'crystal-shine', ambient: 'ambient-particles', emblem: 'crown', nameEffect: 'gradient', cardBorder: 'pulse', presentation: 'none' },
+  celestial: { accent: '#60a5fa', scene: 'cosmic-horizon', lighting: 'soft', texture: 'dots', hover: 'glow', iconFrame: 'orbital', separator: 'dots', entrance: 'bloom', surface: 'tinted', intensity: 70, iconAnim: 'orbit-glow', ambient: 'starlight', emblem: 'star', nameEffect: 'shimmer', cardBorder: 'flow', presentation: 'nebula' },
+  'crimson-pulse': { accent: '#e11d48', scene: 'energy-core', sceneC1: '#e11d48', sceneC2: '#4c0519', lighting: 'vivid', texture: 'none', hover: 'tilt', iconFrame: 'neon', separator: 'glow', entrance: 'glitch', surface: 'deep', intensity: 85, iconAnim: 'pulse-beacon', ambient: 'reactive-glow', emblem: 'bolt', nameEffect: 'glow', cardBorder: 'pulse', presentation: 'waves' },
+  'crystal-dimension': { accent: '#a5f3fc', scene: 'dreamscape', sceneC1: '#a5f3fc', sceneC2: '#c4b5fd', lighting: 'soft', texture: 'grain', hover: 'glow', iconFrame: 'ring', separator: 'line', entrance: 'bloom', surface: 'tinted', intensity: 65, iconAnim: 'hologram', ambient: 'aurora-background', emblem: 'diamond', nameEffect: 'shimmer', cardBorder: 'flow', presentation: 'waves' },
 };
 
 /** Which level a theme needs: Essencial (color/icon/static banner) · Alive (animated) · Signature (cover, entrance, frames). */

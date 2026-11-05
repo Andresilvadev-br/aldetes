@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useStore } from '@/store';
+import { AvatarDecoration } from '../profile/Cosmetics';
 
 const COLORS = ['#6c5ce7', '#00b894', '#e17055', '#0984e3', '#d63031', '#e84393', '#fdcb6e', '#00cec9'];
 export function colorFor(id: string) {
@@ -35,7 +36,12 @@ export function Avatar({
   showStatus = false,
   speaking = false,
   className,
+  decoration,
+  animateDecoration,
 }: {
+  /** undefined = the user's own frame; null = none (e.g. tiny chips); a string = preview. */
+  decoration?: string | null;
+  animateDecoration?: boolean;
   userId: string;
   url?: string | null;
   name?: string;
@@ -52,6 +58,7 @@ export function Avatar({
   let status = presence?.status ?? 'offline';
   if (me?.id === userId && showStatus) status = me.status === 'invisible' ? 'offline' : (presence?.status ?? me.status);
   const dot = Math.max(10, Math.round(size * 0.3));
+  const deco = decoration === undefined ? user?.avatarDecoration : decoration;
   return (
     <div className={clsx('relative shrink-0', className)} style={{ width: size, height: size }}>
       {src ? (
@@ -64,8 +71,9 @@ export function Avatar({
           {label.slice(0, 1).toUpperCase()}
         </div>
       )}
+      {deco && <AvatarDecoration id={deco} size={size} animate={animateDecoration} />}
       {showStatus && (
-        <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-bg-side p-[3px]" style={{ width: dot + 6, height: dot + 6 }}>
+        <span className="absolute z-[2] -bottom-0.5 -right-0.5 rounded-full bg-bg-side p-[3px]" style={{ width: dot + 6, height: dot + 6 }}>
           <StatusDot status={status} className="h-full w-full" />
         </span>
       )}

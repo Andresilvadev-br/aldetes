@@ -2,7 +2,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import clsx from 'clsx';
 import { DEFAULT_STUDIO, studioThemeSchema, type Server, type StudioTheme } from '@aldetes/shared';
 import { usePrefs, getPrefs, setPrefs } from '@/lib/prefs';
-import { BANNERS, BannerVideo, isVideoUrl } from '../profile/Cosmetics';
+import { BANNERS, BannerVideo, isVideoUrl, bannerVars, Badge, nameClass } from '../profile/Cosmetics';
+import { useStore } from '@/store';
 import { useOffscreenPause } from '@/lib/perf';
 
 /** The published theme of a server (defaults when there is none or it doesn't validate). */
@@ -49,7 +50,7 @@ export function ServerCover({ server, theme, className, children, fade = true, s
   return (
     <div ref={pause} className={clsx('absolute inset-0 overflow-hidden', className, !effects && 'studio-static')} style={style}>
       {scene ? (
-        <div className="absolute inset-0" style={{ opacity: 0.35 + (0.65 * theme.intensity) / 100 }}>
+        <div className="absolute inset-0" style={{ opacity: 0.35 + (0.65 * theme.intensity) / 100, ...bannerVars({ c1: theme.sceneC1, c2: theme.sceneC2, speed: theme.speed }) }}>
           {scene.render()}
         </div>
       ) : video ? (
@@ -69,12 +70,83 @@ export function ServerCover({ server, theme, className, children, fade = true, s
   );
 }
 
-/** Frame around a server icon (Signature). */
-export function IconFrame({ frame, accent, children }: { frame: StudioTheme['iconFrame']; accent: string | null; children: ReactNode }) {
-  if (frame === 'none') return <>{children}</>;
+/**
+ * Frame around a server icon (Signature) + 2.1 animated icon. `live` = this instance may loop (the open server's
+ * header, the Worlds preview); rail icons pass live only for the selected server, so the rail never runs a loop
+ * per server. Pulse Beacon pulses only while there is real activity (`active`: someone in a call / unread).
+ */
+export function IconFrame({ frame, accent, children, anim = 'none', live = false, active = false }: { frame: StudioTheme['iconFrame']; accent: string | null; children: ReactNode; anim?: StudioTheme['iconAnim']; live?: boolean; active?: boolean }) {
+  const effects = useServerEffects();
+  const a = anim !== 'none' && effects && (live || (anim === 'pulse-beacon' && active)) ? anim : 'none';
+  const inner =
+    a === 'none' ? children : (
+      <span className={`ia ia-${a}`} data-active={a === 'pulse-beacon' ? String(active) : undefined} data-icon-anim={a} style={{ '--sa': accent ?? 'rgb(var(--brand))' } as CSSProperties}>
+        {children}
+      </span>
+    );
+  if (frame === 'none') return <>{inner}</>;
   return (
     <span className={`studio-frame studio-frame-${frame}`} style={{ '--sa': accent ?? 'rgb(var(--brand))' } as CSSProperties}>
-      {children}
+      {inner}
     </span>
   );
+}
+
+// deterministic pseudo-random (same layout every render, no Math.random in render)
+const r = (i: number, salt: number) => {
+  const x = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+/** Particle budget per motion profile: Ultra full, Equilibrado ~60 %, Essencial a few static ones. */
+function useBudget(full: number) {
+  const motion = usePrefs((p) => p.motion);
+  return motion === 'ultra' ? full : motion === 'balanced' ? Math.ceil(full * 0.6) : Math.ceil(full * 0.3);
+}
+
+/**
+ * 2.1 server ambient effect. Lives ONLY behind the channel list (z-index 0, pointer-events none) — never over
+ * messages. Paused by CSS in Essencial / reduced motion / under load / offscreen. Reactive Glow follows real
+ * activity: how many people are in this server's calls right now.
+ */
+export function ServerAmbient({ theme, serverId }: { theme: StudioTheme; serverId: string }) {
+  const effects = useServerEffects();
+  const active = useStore((s) => (theme.ambient === 'reactive-glow' ? Object.values(s.voiceStates).filter((v) => v.serverId === serverId).length : 0));
+  const n = useBudget(theme.ambient === 'starlight' ? 22 : theme.ambient === 'ambient-particles' ? 14 : theme.ambient === 'digital-atmosphere' ? 5 : 2);
+  const pause = useOffscreenPause();
+  if (theme.ambient === 'none' || !effects) return null;
+  const o = 0.2 + (0.6 * theme.intensity) / 100;
+  const st = { '--amb-o': o, ...(theme.accent ? { '--sa': theme.accent } : {}) } as CSSProperties;
+  return (
+    <div ref={pause} className="amb" style={st} data-ambient={theme.ambient} aria-hidden>
+      {theme.ambient === 'ambient-particles' && Array.from({ length: n }, (_, i) => <i key={i} className="amb-dot" style={{ left: `${r(i, 1) * 100}%`, top: `${r(i, 2) * 100}%`, animationDelay: `${-r(i, 3) * 12}s`, animationDuration: `${10 + r(i, 4) * 8}s` }} />)}
+      {theme.ambient === 'starlight' && Array.from({ length: n }, (_, i) => <i key={i} className="amb-star" style={{ left: `${r(i, 5) * 100}%`, top: `${r(i, 6) * 100}%`, animationDelay: `${-r(i, 7) * 4}s`, opacity: 0.4 + r(i, 8) * 0.6 }} />)}
+      {theme.ambient === 'aurora-background' && Array.from({ length: n }, (_, i) => <i key={i} className="amb-aurora" style={{ top: `${5 + i * 30}%`, animationDelay: `${-i * 6}s` }} />)}
+      {theme.ambient === 'reactive-glow' && <i className="amb-react" style={{ '--react': Math.min(1, active / 5) } as CSSProperties} data-react={active} />}
+      {theme.ambient === 'digital-atmosphere' && Array.from({ length: n }, (_, i) => <i key={i} className="amb-geo" style={{ left: `${r(i, 9) * 85}%`, top: `${20 + r(i, 10) * 75}%`, animationDelay: `${-r(i, 11) * 22}s`, borderRadius: i % 2 ? 4 : 0, rotate: `${r(i, 12) * 90}deg` }} />)}
+    </div>
+  );
+}
+
+/** Server name with its 2.1 decorations (emblem + name highlight). */
+export function ServerName({ name, theme, className }: { name: string; theme: StudioTheme; className?: string }) {
+  return (
+    <span className={clsx('inline-flex min-w-0 max-w-full items-center gap-1.5', className)} style={theme.accent ? ({ '--brand': hexRgb(theme.accent) } as CSSProperties) : undefined}>
+      {theme.emblem && <Badge id={theme.emblem} size={15} />}
+      <span className={clsx('truncate', nameClass(theme.nameEffect))} data-name-effect={theme.nameEffect}>{name}</span>
+    </span>
+  );
+}
+export const hexRgb = (h: string) => `${parseInt(h.slice(1, 3), 16)} ${parseInt(h.slice(3, 5), 16)} ${parseInt(h.slice(5, 7), 16)}`;
+
+/** Presentation background (welcome card, invite): static, layered gradients — beautiful without motion. */
+export function PresentationBg({ kind, accent }: { kind: StudioTheme['presentation']; accent: string | null }) {
+  if (kind === 'none') return null;
+  const a = accent ?? '#7c5cff';
+  const bg =
+    kind === 'nebula'
+      ? `radial-gradient(60% 80% at 15% 20%, ${a}40, transparent 70%), radial-gradient(50% 70% at 85% 80%, ${a}30, transparent 70%)`
+      : kind === 'grid'
+        ? `linear-gradient(${a}22 1px, transparent 1px) 0 0/18px 18px, linear-gradient(90deg, ${a}22 1px, transparent 1px) 0 0/18px 18px, linear-gradient(180deg, ${a}18, transparent)`
+        : `radial-gradient(120% 60% at 50% 120%, ${a}45, transparent 60%), radial-gradient(120% 50% at 50% 135%, ${a}30, transparent 70%)`;
+  return <div className="pointer-events-none absolute inset-0" style={{ background: bg }} data-presentation={kind} aria-hidden />;
 }

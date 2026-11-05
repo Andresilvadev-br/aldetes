@@ -198,6 +198,7 @@ try {
   await A.goto(`${BASE}/#/channels/@me`);
   await A.evaluate(() => import('/src/lib/ui.ts').then((m) => m.openSettings('profile')));
   await A.getByText('ORBITAL', { exact: true }).click();
+  await A.getByRole('tab', { name: 'Sobre você' }).click();
   await A.getByRole('button', { name: 'Adicionar link' }).click();
   await A.getByPlaceholder('Nome').fill('Site');
   await A.getByPlaceholder('https://…').fill('https://example.com');
@@ -282,16 +283,16 @@ try {
   await A.getByRole('button', { name: 'Menu do servidor' }).click();
   await A.getByText('Configurações do servidor').click();
   await A.getByText('Worlds', { exact: true }).first().click();
-  await A.getByText('Galáxia', { exact: true }).first().click().catch(() => {});
+  await A.getByRole('tab', { name: 'Banners' }).click();
   await A.getByText('Orbital', { exact: true }).first().click();
-  const lvl = await A.getByText('Nível Alive').isVisible();
+  const lvl = await A.getByTestId('studio-status').getByText('Alterações não salvas').isVisible();
   await A.getByRole('button', { name: 'Antes (publicado)' }).click();
   await A.getByRole('button', { name: '150%' }).click();
   await A.screenshot({ path: `${SHOTS}/v1-studio-editor.png` });
   const canPublish = await A.getByRole('button', { name: 'Publicar' }).isEnabled();
   await A.getByRole('button', { name: 'Cancelar' }).click();
-  const after = await A.getByText('Nível Essencial').isVisible();
-  check('Editor do Studio: pré-visualização com antes/depois e zoom, nível calculado, cancelar desfaz', lvl && canPublish && after, JSON.stringify({ lvl, canPublish, after }));
+  const after = !(await A.getByTestId('studio-status').getByText('Alterações não salvas').isVisible());
+  check('Editor do Studio: pré-visualização com antes/depois e zoom, indicador de não salvo, cancelar desfaz', lvl && canPublish && after, JSON.stringify({ lvl, canPublish, after }));
   await A.keyboard.press('Escape');
 
   // ---------- audio center ----------

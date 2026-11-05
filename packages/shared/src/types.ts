@@ -20,6 +20,10 @@ export interface PublicUser {
   /** 2.0 Spaces: the person's corner (null = default) and its revision (cache key) */
   space?: import('./schemas').SpaceScene | null;
   spaceRev?: number;
+  /** 2.1 Identity Studio */
+  bannerOptions?: import('./schemas').BannerOptions | null;
+  profileTheme?: string | null;
+  profileDecor?: import('./schemas').ProfileDecor | null;
 }
 
 export interface SelfUser extends PublicUser {

@@ -1,5 +1,6 @@
 import { useMemo, useState, lazy, Suspense, useRef, useLayoutEffect, useEffect } from 'react';
-import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers } from '../studio/ServerScene';
+import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers, ServerAmbient, ServerName, PresentationBg } from '../studio/ServerScene';
+import { borderClass } from '../profile/Cosmetics';
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
@@ -93,6 +94,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
   usePlainServers();
   const theme = themeOf(server);
+  const inVoiceHere = useStore((s) => Object.values(s.voiceStates).some((v) => v.serverId === serverId));
   const effects = useServerEffects();
   // Signature entrance: short, only when the server is opened from the rail, never blocks anything
   const [entrance, setEntrance] = useState(0);
@@ -123,7 +125,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
   return (
     <div
-      className="flex h-full flex-col"
+      className="relative flex h-full flex-col"
       data-sep={theme.separator}
       style={{
         ...(theme.accent ? ({ '--sa': theme.accent } as React.CSSProperties) : {}),
@@ -137,12 +139,12 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
         {entrance > 0 && <span key={entrance} className={`studio-entr studio-entr-${theme.entrance}`} aria-hidden />}
         <button aria-haspopup="menu" aria-label="Menu do servidor" onClick={openMenu} className={clsx('group relative flex w-full items-end gap-3 px-4 pb-3 pt-7 text-left text-fg-strong', theme.iconPosition === 'center' && 'flex-col items-center text-center')}>
           <motion.span ref={headerIcon} whileHover={{ rotate: -6, scale: 1.06 }} transition={spring.snappy} className="rounded-[18px] shadow-[0_10px_30px_-8px_rgb(0_0_0/0.8)] ring-2 ring-bg-side">
-            <IconFrame frame={theme.iconFrame} accent={theme.accent}>
+            <IconFrame frame={theme.iconFrame} accent={theme.accent} anim={theme.iconAnim} live active={inVoiceHere}>
               <ServerIcon name={server.name} iconUrl={server.iconUrl} size={46} active />
             </IconFrame>
           </motion.span>
           <span className="min-w-0 flex-1 pb-0.5">
-            <span className="block truncate text-[17px] font-black leading-tight tracking-tight drop-shadow">{server.name}</span>
+            <ServerName name={server.name} theme={theme} className="block text-[17px] font-black leading-tight tracking-tight drop-shadow" />
             <OnlineCount serverId={serverId} />
           </span>
           <motion.span
@@ -170,7 +172,10 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
       </div>
       <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-line/10 to-transparent" />
 
-      <motion.div key={serverId} variants={listV} initial="hidden" animate="show" className="scroll-thin flex-1 overflow-y-auto px-2 pb-4 pt-2">
+      {/* ambient effect: behind the channel list only — the list sits above it (z-10), messages are another column */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <ServerAmbient theme={theme} serverId={serverId} />
+      <motion.div key={serverId} variants={listV} initial="hidden" animate="show" className="scroll-thin relative z-10 flex-1 overflow-y-auto px-2 pb-4 pt-2">
         <WelcomeCard serverId={serverId} theme={theme} />
         {favChannels.length > 0 && (
           <motion.div variants={itemV} className="mb-2">
@@ -217,6 +222,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
           );
         })}
       </motion.div>
+      </div>
       {menuOpen && (
         <Popover x={menuOpen.x} y={menuOpen.y} onClose={() => setMenuOpen(null)}>
           <div className="menu w-[220px]" onClick={() => setMenuOpen(null)}>
@@ -447,7 +453,8 @@ function WelcomeCard({ serverId, theme }: { serverId: string; theme: ReturnType<
     setSeen(true);
   };
   return (
-    <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring.gentle} className="relative mb-2 overflow-hidden rounded-2xl border border-line/[0.08] p-3" style={{ background: `linear-gradient(135deg, ${theme.accent ?? 'rgb(var(--brand))'}33, transparent 70%)` }} role="note" aria-label="Boas-vindas do servidor">
+    <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring.gentle} className={clsx('relative mb-2 overflow-hidden rounded-2xl border border-line/[0.08] p-3', borderClass(theme.cardBorder))} style={{ background: `linear-gradient(135deg, ${theme.accent ?? 'rgb(var(--brand))'}33, transparent 70%)` }} role="note" aria-label="Boas-vindas do servidor">
+      <PresentationBg kind={theme.presentation} accent={theme.accent} />
       <button className="absolute right-1.5 top-1.5 rounded-md p-1 text-fg-faint hover:text-fg-strong" aria-label="Fechar boas-vindas" onClick={close}>
         <Icon name="x" size={14} />
       </button>

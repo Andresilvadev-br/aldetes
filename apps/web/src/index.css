@@ -455,3 +455,127 @@ body {
 :root[data-motion='performance'] .backdrop-blur, :root[data-motion='performance'] .backdrop-blur-md,
 :root[data-load='mid'] .backdrop-blur, :root[data-load='mid'] .backdrop-blur-md { --tw-backdrop-blur: blur(2px); }
 :root[data-motion='performance'] .entr, :root[data-motion='performance'] .studio-entr { display: none; }
+
+/* =====================================================================================================
+   2.1 IDENTITY STUDIO — profile banners, avatar frames, profile effects, themes, decorations,
+   server banners, icon animations and ambient effects.
+   Rules: transform/opacity only (no blur/filter loops), ≤ 24 particles per effect, every loop takes
+   var(--spd) (speed option) and pauses in Essencial/Reduzido, under measured load and off screen.
+   ===================================================================================================== */
+.bn { position: absolute; inset: 0; overflow: hidden; --spd: 1; }
+.bn > * { position: absolute; }
+.bn.bn-reduced *, .bn-reduced-wrap .bn * { animation-duration: calc(var(--d, 10s) * var(--spd) * 2.5) !important; }
+.bn.bn-reduced .bn-part, .bn-reduced-wrap .bn-part { display: none; }
+.bn-anim { animation-duration: calc(var(--d, 10s) * var(--spd)); animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+/* nebula flow */
+.bn-neb { inset: -30%; border-radius: 50%; background: radial-gradient(closest-side, var(--c), transparent 72%); opacity: .7; animation-name: bn-drift; }
+@keyframes bn-drift { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(8%, -6%) scale(1.12); } 66% { transform: translate(-7%, 5%) scale(.94); } }
+.bn-star { width: 3px; height: 3px; border-radius: 50%; background: #fff; animation-name: cz-twinkle; }
+/* cyber rain x */
+.bn-line { top: -40%; width: 2px; height: 40%; background: linear-gradient(transparent, var(--c)); animation-name: bn-fall; animation-timing-function: linear; }
+@keyframes bn-fall { to { transform: translateY(380%); } }
+/* aurora dream */
+.bn-ribbon { left: -30%; width: 160%; height: 55%; border-radius: 50%; background: linear-gradient(90deg, transparent, var(--c), transparent); opacity: .55; animation-name: bn-wave; }
+@keyframes bn-wave { 0%, 100% { transform: translateY(0) skewY(-6deg) scaleX(1); } 50% { transform: translateY(14%) skewY(5deg) scaleX(1.08); } }
+/* liquid chrome */
+.bn-chrome { inset: 0; background: linear-gradient(115deg, #2a2d34, #c9ccd3 22%, #5b5f68 38%, #eef0f4 52%, #6b6f78 66%, #d7d9de 82%, #33363d); background-size: 220% 100%; animation-name: bn-slide; }
+@keyframes bn-slide { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.bn-sheen { top: -20%; bottom: -20%; width: 30%; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .55), transparent); animation-name: bn-sweep; animation-timing-function: linear; }
+@keyframes bn-sweep { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(460%) skewX(-18deg); } }
+/* galaxy drift: star layers scroll at different speeds (depth) */
+.bn-field { inset: 0 -100% 0 0; background-repeat: repeat; animation-name: bn-scroll; animation-timing-function: linear; }
+@keyframes bn-scroll { to { transform: translateX(-50%); } }
+/* server banners */
+.bn-building { bottom: 0; background: #070312; border-top: 2px solid var(--c); }
+.bn-win { width: 3px; height: 4px; animation-name: cz-blink; animation-timing-function: steps(2); }
+.bn-beam { bottom: 0; width: 18%; height: 120%; background: linear-gradient(transparent, var(--c)); opacity: .18; transform-origin: bottom; animation-name: bn-beam; }
+@keyframes bn-beam { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+.bn-ring { left: 50%; top: 50%; border-radius: 50%; border: 2px solid var(--c); animation-name: cz-pulse-ring; animation-timing-function: ease-out; }
+.bn-core { left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: radial-gradient(circle, #fff, var(--c) 45%, transparent 72%); animation-name: bn-core; }
+@keyframes bn-core { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.18); opacity: 1; } }
+.bn-grid { inset: -50% 0 0 0; background-image: linear-gradient(var(--c) 1px, transparent 1px), linear-gradient(90deg, var(--c) 1px, transparent 1px); background-size: 28px 28px; opacity: .35; transform: perspective(240px) rotateX(55deg); transform-origin: bottom; animation-name: bn-gridmove; animation-timing-function: linear; }
+@keyframes bn-gridmove { to { background-position: 0 28px; } }
+.bn-node { width: 6px; height: 6px; border-radius: 2px; background: var(--c); animation-name: cz-twinkle; }
+
+/* ---- avatar frames (deco-*) — drawn AROUND the photo. .deco-static = small sizes: same look, no motion ---- */
+.deco-quantum-orbit::before, .deco-quantum-orbit::after { content: ''; position: absolute; inset: -6%; border-radius: 50%; border: 1.5px solid #7dd3fc; transform: rotateX(70deg); animation: deco-spin3d 3.2s linear infinite; }
+.deco-quantum-orbit::after { inset: -2%; border-color: #c084fc; transform: rotateY(70deg); animation-duration: 4.6s; animation-direction: reverse; }
+.deco-quantum-orbit { box-shadow: 0 0 0 1.5px rgb(125 211 252 / .55), 0 0 14px rgb(125 211 252 / .35); }
+@keyframes deco-spin3d { from { rotate: 0deg; } to { rotate: 360deg; } }
+.deco-plasma-crown { box-shadow: 0 0 0 2px #f0abfc, 0 0 16px 2px rgb(217 70 239 / .45); }
+.deco-plasma-crown > i { position: absolute; left: 50%; top: -14%; width: 2px; height: 26%; margin-left: -1px; background: linear-gradient(#fff, #e879f9, transparent); transform-origin: 50% 190%; border-radius: 2px; animation: deco-flick 1.4s ease-in-out infinite; }
+@keyframes deco-flick { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.deco-crystal-prism { background: conic-gradient(from 0deg, #a5f3fc88, #f0abfc88, #fde68a88, #a5f3fc88); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); animation: cz-spin 7s linear infinite; }
+.deco-crystal-prism::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0 80%, #fff 88%, transparent 96%); animation: cz-spin 2.8s linear infinite; }
+.deco-neon-circuit { box-shadow: 0 0 0 2px #0f172a, 0 0 0 3px #22d3ee66; background: repeating-conic-gradient(#22d3ee 0 4deg, transparent 4deg 18deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); }
+.deco-neon-circuit::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0 86%, #a5f3fc 94%, #fff 97%, transparent); animation: cz-spin 2.2s linear infinite; }
+.deco-solar-eclipse { box-shadow: 0 0 0 3px #0b0b12, 0 0 0 4px #78350f; }
+.deco-solar-eclipse::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0 62%, #fbbf24 78%, #fff7ed 84%, transparent 92%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); animation: cz-spin 5s linear infinite; }
+/* small avatars and non-animated levels: static frames (no loops at all) */
+.deco-static, .deco-static *, .deco-static::before, .deco-static::after { animation: none !important; }
+.deco-static > i:nth-child(n + 3) { display: none; }
+:root[data-motion='performance'] .deco, :root[data-motion='performance'] .deco *, :root[data-motion='performance'] .deco::before, :root[data-motion='performance'] .deco::after,
+:root[data-reduce-motion='true'] .deco::before, :root[data-reduce-motion='true'] .deco::after,
+:root[data-load='high'] .deco::before, :root[data-load='high'] .deco::after { animation-play-state: paused !important; }
+
+/* ---- profile effects with entrance / permanence / exit ---- */
+.pfx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.pfx-p { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #e0e7ff; }
+.pfx-burst { animation: pfx-burst .9s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes pfx-burst { from { transform: translate(0, 0) scale(1.2); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.4); opacity: 0; } }
+.pfx-drift { animation: pfx-drift 9s ease-in-out infinite; opacity: .5; }
+@keyframes pfx-drift { 0%, 100% { transform: translateY(0); opacity: .2; } 50% { transform: translateY(-14px); opacity: .7; } }
+.pfx-holo { inset: -40%; background: linear-gradient(115deg, transparent 30%, rgb(255 0 200 / .16) 40%, rgb(0 220 255 / .16) 50%, rgb(255 255 0 / .12) 60%, transparent 70%); background-size: 200% 200%; mix-blend-mode: screen; background-position: var(--hx, 50%) var(--hy, 50%); transition: background-position .25s ease-out; }
+.pfx-ring { inset: 0; border-radius: inherit; padding: 2px; background: conic-gradient(from var(--a, 0deg), transparent 0 80%, #7dd3fc 90%, #fff 94%, transparent); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: pfx-ring 4.2s linear infinite; }
+@property --a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes pfx-ring { 0% { --a: 0deg; opacity: 0; } 8% { opacity: 1; } 40% { --a: 360deg; opacity: 1; } 48%, 100% { --a: 360deg; opacity: 0; } }
+.pfx-mist { width: 70%; height: 45%; border-radius: 50%; background: radial-gradient(closest-side, rgb(226 232 240 / .22), transparent); animation: pfx-mist 14s ease-in-out infinite; }
+@keyframes pfx-mist { 0%, 100% { transform: translateX(-10%); } 50% { transform: translateX(30%); } }
+.pfx-wing { top: 8%; width: 46%; height: 34%; background: radial-gradient(ellipse at var(--wx) 60%, rgb(253 230 138 / .55), rgb(196 181 253 / .2) 50%, transparent 72%); animation: pfx-wings 1.6s cubic-bezier(.22, 1, .36, 1) both; transform-origin: var(--wx) 70%; }
+@keyframes pfx-wings { 0% { transform: scale(.4); opacity: 0; } 35% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: .35; } }
+.pfx-exit { animation: pfx-exit .22s ease-in both !important; }
+@keyframes pfx-exit { to { opacity: 0; transform: scale(.98); } }
+:root[data-motion='performance'] .pfx-drift, :root[data-motion='performance'] .pfx-mist, :root[data-motion='performance'] .pfx-ring,
+:root[data-load='high'] .pfx-drift, :root[data-load='high'] .pfx-mist, :root[data-load='high'] .pfx-ring { animation-play-state: paused !important; }
+:root[data-reduce-motion='true'] .pfx-burst, :root[data-reduce-motion='true'] .pfx-wing { animation: none; opacity: .35; }
+
+/* ---- decorations ---- */
+.nm-glow { text-shadow: 0 0 10px rgb(var(--brand) / .75), 0 0 2px rgb(var(--brand)); }
+.nm-gradient { background: linear-gradient(90deg, rgb(var(--brand)), rgb(var(--brand-2))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nm-shimmer { background: linear-gradient(100deg, currentColor 40%, #fff 50%, currentColor 60%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: rgb(var(--fg-strong)); animation: nm-shimmer 3.6s linear infinite; }
+@keyframes nm-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+.cb-flow, .cb-pulse { position: relative; }
+.cb-flow::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; background: conic-gradient(from var(--a, 0deg), rgb(var(--brand)), rgb(var(--brand-2)), transparent 40%, rgb(var(--brand))); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: cb-flow 6s linear infinite; pointer-events: none; z-index: 1; }
+@keyframes cb-flow { to { --a: 360deg; } }
+.cb-pulse::before { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1.5px rgb(var(--brand) / .8), 0 0 18px -2px rgb(var(--brand) / .5); animation: deco-breathe 3s ease-in-out infinite; pointer-events: none; z-index: 1; }
+:root[data-motion='performance'] .nm-shimmer, :root[data-motion='performance'] .cb-flow::before, :root[data-motion='performance'] .cb-pulse::before,
+:root[data-load='high'] .nm-shimmer, :root[data-load='high'] .cb-flow::before { animation-play-state: paused !important; }
+
+/* ---- server icon animations (ia-*) ---- */
+.ia { position: relative; display: inline-block; border-radius: 18px; }
+.ia::after { content: ''; position: absolute; pointer-events: none; }
+.ia-orbit-glow::after { inset: -5px; border-radius: 22px; background: conic-gradient(from 0deg, transparent 0 70%, var(--sa, rgb(var(--brand))) 85%, transparent); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); animation: cz-spin 3s linear infinite; }
+.ia-crystal-shine { overflow: hidden; }
+.ia-crystal-shine::after { inset: 0; background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / .55) 48%, transparent 60%); transform: translateX(-120%); animation: ia-shine 4.5s ease-in-out infinite; }
+@keyframes ia-shine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.ia-pulse-beacon[data-active='true']::after { inset: -3px; border-radius: 21px; box-shadow: 0 0 0 2px var(--sa, rgb(var(--brand))); animation: ia-beacon 1.8s ease-out infinite; }
+@keyframes ia-beacon { from { transform: scale(1); opacity: .9; } to { transform: scale(1.28); opacity: 0; } }
+.ia-neon-trace::after { inset: -3px; border-radius: 21px; padding: 2px; background: conic-gradient(from var(--a, 0deg), transparent 0 75%, var(--sa, rgb(var(--brand))) 92%, #fff 96%, transparent); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: cb-flow 2.6s linear infinite; }
+.ia-hologram { overflow: hidden; }
+.ia-hologram::after { inset: 0; background: repeating-linear-gradient(0deg, rgb(255 255 255 / .1) 0 1px, transparent 1px 3px), linear-gradient(135deg, rgb(0 220 255 / .2), rgb(255 0 200 / .2)); mix-blend-mode: screen; animation: ia-holo 3.2s steps(1) infinite; }
+@keyframes ia-holo { 0%, 92%, 100% { transform: none; opacity: .7; } 93% { transform: translateX(2px); opacity: 1; } 96% { transform: translateX(-1px); } }
+:root[data-motion='performance'] .ia::after, :root[data-reduce-motion='true'] .ia::after, :root[data-load='high'] .ia::after { animation-play-state: paused !important; }
+
+/* ---- server ambient effects: behind the channel list only (never over messages) ---- */
+.amb { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; opacity: var(--amb-o, .5); }
+.amb > i { position: absolute; display: block; }
+.amb-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--sa, rgb(var(--brand))); animation: pfx-drift 12s ease-in-out infinite; }
+.amb-aurora { left: -20%; width: 140%; height: 40%; border-radius: 50%; background: linear-gradient(90deg, transparent, var(--sa, rgb(var(--brand))), transparent); opacity: .22; animation: bn-wave 16s ease-in-out infinite; }
+.amb-react { inset: 0; background: radial-gradient(80% 40% at 50% 0%, var(--sa, rgb(var(--brand))), transparent 70%); opacity: calc(.08 + var(--react, 0) * .25); transition: opacity 1.2s ease; }
+.amb-geo { width: 40px; height: 40px; border: 1px solid var(--sa, rgb(var(--brand))); opacity: .25; animation: amb-geo 22s linear infinite; }
+@keyframes amb-geo { from { transform: translateY(0) rotate(0); } to { transform: translateY(-60px) rotate(180deg); } }
+.amb-star { width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: cz-twinkle 4s ease-in-out infinite; }
+:root[data-motion='performance'] .amb *, :root[data-reduce-motion='true'] .amb *, :root[data-load='mid'] .amb *, :root[data-load='high'] .amb *, [data-offscreen='true'] .amb * { animation-play-state: paused !important; }
+
+/* 2.1: anything inside an offscreen-observed element stops animating (gallery thumbnails, banners, ambient) */
+[data-offscreen='true'] *, [data-offscreen='true'] *::before, [data-offscreen='true'] *::after { animation-play-state: paused !important; }

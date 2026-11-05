@@ -418,7 +418,7 @@ function ServerButton({ serverId }: { serverId: string }) {
           ])
         }
       >
-        <IconFrame frame={mobile ? 'none' : theme.iconFrame} accent={theme.accent}>
+        <IconFrame frame={mobile ? 'none' : theme.iconFrame} accent={theme.accent} anim={mobile ? 'none' : theme.iconAnim} live={active} active={inVoice || unread}>
           <ServerIcon name={s.name} iconUrl={s.iconUrl} active={active} />
         </IconFrame>
       </RailItem>

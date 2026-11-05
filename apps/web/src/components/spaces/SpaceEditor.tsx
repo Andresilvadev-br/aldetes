@@ -140,7 +140,7 @@ function SpaceEditor({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-3 rounded-2xl border border-line/[0.07] bg-line/[0.03] p-3">
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold text-fg-strong">Detalhes animados</div>
-              <div className="text-xs text-fg-muted">Brilho do monitor, abajur, neon. Param sozinhos em modo Econômico, com o PC sob carga ou durante transmissões.</div>
+              <div className="text-xs text-fg-muted">Brilho do monitor, abajur, neon. Param sozinhos no modo Essencial, com o PC sob carga ou durante transmissões.</div>
             </div>
             <Switch checked={d.animated} onChange={(v) => set({ animated: v })} />
           </div>

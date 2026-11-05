@@ -8,7 +8,7 @@ import { Popover, useContextMenu, confirmDialog, toastError, toast, Modal, type 
 import { api, upload } from '@/lib/api';
 import { openSettings } from '@/lib/ui';
 import { elapsed } from '@/lib/activity';
-import { ProfileBanner, ProfileEffect, AvatarDecoration, ProfileEntrance } from '../profile/Cosmetics';
+import { ProfileBanner, ProfileEffect, ProfileEntrance, ThemeLayer, themeStyle, nameClass, borderClass, Badge } from '../profile/Cosmetics';
 import { Icon } from './Icon';
 import { openDm } from '@/lib/actions';
 import { setLocalMute, setUserVolume, joinVoice, useVoice } from '@/lib/voice';
@@ -27,6 +27,8 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
   const [msg, setMsg] = useState('');
   const avatarInput = useRef<HTMLInputElement>(null);
   const [, tick] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const reduce = usePrefs((p) => p.reduceMotion);
   useEffect(() => {
     const t = setInterval(() => tick((x) => x + 1), 30000);
     return () => clearInterval(t);
@@ -97,11 +99,20 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
     await upload('/users/@me/avatar', fd).catch(toastError);
   };
 
+  // Effects have an exit phase: the card waits for it (220 ms) before closing; reduced motion closes at once.
+  const close = () => {
+    if (!user.profileEffect || reduce || closing) return onClose();
+    setClosing(true);
+    setTimeout(onClose, 220);
+  };
+  const decor = user.profileDecor;
   return (
-    <Popover x={x} y={y} onClose={onClose}>
-      <div className="relative w-[340px] overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float">
+    <Popover x={x} y={y} onClose={close}>
+      <div data-profile-card className={clsx('relative w-[340px] overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float', borderClass(decor?.cardBorder))} style={themeStyle(user.profileTheme)} data-theme-id={user.profileTheme ?? undefined}
+        onPointerMove={user.profileEffect === 'holographic-shift' ? (e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--hx', `${((e.clientX - r.left) / r.width) * 100}%`); e.currentTarget.style.setProperty('--hy', `${((e.clientY - r.top) / r.height) * 100}%`); } : undefined}>
+        <ThemeLayer id={user.profileTheme} />
         <ProfileEntrance id={user.profileEntrance} />
-        <ProfileEffect id={user.profileEffect} behind />
+        <ProfileEffect id={user.profileEffect} behind closing={closing} />
         <div className="relative">
           {isMe ? (
             <button className="group/banner relative block w-full" title="Mudar banner" onClick={() => (onClose(), openSettings('profile'))}>
@@ -117,14 +128,12 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
             <div className="-mt-11 mb-2 flex items-end justify-between">
               {isMe ? (
                 <button className="deco-host group/av relative w-fit rounded-full border-[6px] border-bg-float" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
-                  <AvatarDecoration id={user.avatarDecoration} size={84} />
                   <Avatar userId={userId} size={84} showStatus />
                   <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover/av:opacity-100">Mudar</span>
                   <input ref={avatarInput} type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
                 </button>
               ) : (
                 <div className="deco-host relative w-fit rounded-full border-[6px] border-bg-float">
-                  <AvatarDecoration id={user.avatarDecoration} size={84} />
                   <Avatar userId={userId} size={84} showStatus />
                 </div>
               )}
@@ -134,7 +143,10 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
                 </button>
               )}
             </div>
-            <div className="text-xl font-extrabold tracking-tight text-fg-strong">{member?.nickname ?? user.displayName}</div>
+            <div className="flex items-center gap-1.5 text-xl font-extrabold tracking-tight text-fg-strong">
+              <span className={nameClass(decor?.nameEffect)} data-name-effect={decor?.nameEffect ?? 'none'}>{member?.nickname ?? user.displayName}</span>
+              <Badge id={decor?.badge} size={18} />
+            </div>
             <div className="text-sm text-fg-muted">
               {user.username}
               {user.pronouns ? ` · ${user.pronouns}` : ''} · {STATUS_LABEL[status]}
@@ -240,7 +252,7 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
             )}
           </div>
         </div>
-        <ProfileEffect id={user.profileEffect} />
+        <ProfileEffect id={user.profileEffect} closing={closing} />
       </div>
     </Popover>
   );

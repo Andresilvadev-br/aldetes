@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { spring } from '@/lib/motion';
 import { useOffscreenPause } from '@/lib/perf';
 import { LiveAvatar } from '../voice/LiveAvatar';
+import { PROFILE_THEMES } from '../profile/Cosmetics';
 import { Icon } from '../common/Icon';
 import { useContextMenu } from '../common/overlay';
 import { useMemberMenu } from '../common/UserPopout';
@@ -73,6 +74,8 @@ function Corner({ id, serverId, density, focused, onFocus, worldTint }: { id: st
   const { scene } = useScene(id);
   const isMe = useStore((s) => s.me?.id === id);
   const vs = useStore((s) => s.voiceStates[id]);
+  // the person's profile theme lightly colors their corner (a static gradient: no extra asset or loop)
+  const tint = useStore((s) => PROFILE_THEMES[s.users[id]?.profileTheme ?? '']?.a ?? null);
   const menu = useContextMenu();
   const items = useMemberMenu(id, serverId);
   const pause = useOffscreenPause();
@@ -111,6 +114,7 @@ function Corner({ id, serverId, density, focused, onFocus, worldTint }: { id: st
           {density !== 'mini' && <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[12px] font-bold text-white">{displayName(id, serverId)}</span>}
         </div>
       )}
+      {tint && <span aria-hidden data-profile-tint className="pointer-events-none absolute inset-0 rounded-2xl" style={{ background: `radial-gradient(90% 70% at 50% 100%, rgb(${tint} / 0.22), transparent 70%)`, boxShadow: `inset 0 0 0 1px rgb(${tint} / 0.25)` }} />}
       {isMe && density !== 'mini' && (
         <button
           className="absolute right-2 top-2 flex items-center gap-1 rounded-lg bg-black/55 px-2 py-1 text-[11px] font-bold text-white opacity-0 transition-opacity hover:bg-black/75 focus:opacity-100 group-hover:opacity-100"

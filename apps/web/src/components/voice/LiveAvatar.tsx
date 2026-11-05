@@ -56,7 +56,8 @@ export function LiveAvatar({ identity, size = 48, showBadges = true }: { identit
         style={{ opacity: 0 }}
       />
       <span className={clsx('rounded-full transition-[filter,opacity] duration-200', muted && 'opacity-80 saturate-50')}>
-        <Avatar userId={identity} size={size} />
+        {/* call participants / Spaces: simplified (static) frame — never a running effect per participant */}
+        <Avatar userId={identity} size={size} animateDecoration={false} />
       </span>
       {showBadges && (muted || deaf) && (
         <motion.span

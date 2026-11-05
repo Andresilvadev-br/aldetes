@@ -1,7 +1,7 @@
 import type { Prisma, User } from '@prisma/client';
 import type { PublicUser, SelfUser, Message, Channel, Role, Member, Server, Attachment } from '@aldetes/shared';
 import type { Config } from '../config';
-import { studioThemeSchema, spaceSceneSchema } from '@aldetes/shared';
+import { studioThemeSchema, spaceSceneSchema, bannerOptionsSchema, profileDecorSchema } from '@aldetes/shared';
 
 let publicUrl = '';
 export function setPublicUrl(cfg: Config) {
@@ -28,6 +28,9 @@ export function publicUser(u: User): PublicUser {
     profileLinks: Array.isArray(u.profileLinks) ? (u.profileLinks as Array<{ label: string; url: string }>) : [],
     space: u.spaceScene ? (spaceSceneSchema.safeParse(u.spaceScene).data ?? null) : null,
     spaceRev: u.spaceRev,
+    bannerOptions: u.bannerOptions ? (bannerOptionsSchema.safeParse(u.bannerOptions).data ?? null) : null,
+    profileTheme: u.profileTheme,
+    profileDecor: u.profileDecor ? (profileDecorSchema.safeParse(u.profileDecor).data ?? null) : null,
   };
 }
 

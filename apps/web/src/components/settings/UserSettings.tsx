@@ -11,7 +11,7 @@ import { Icon } from '../common/Icon';
 import { ConnectionTest } from './ConnectionTest';
 import { logout as doLogout } from '@/lib/session';
 import { openWhatsNew, runningVersion } from '../common/WhatsNew';
-import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect, AvatarDecoration, ProfileEntrance, DECORATIONS, COLLECTIONS, ENTRANCES } from '../profile/Cosmetics';
+import { IdentityStudio } from '../profile/IdentityStudio';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
@@ -43,7 +43,7 @@ export function UserSettings({ onClose, initialTab = 'account' }: { onClose: () 
   return (
     <SettingsLayout sections={sections} active={tab} onSelect={setTab} onClose={onClose}>
       {tab === 'account' && <AccountTab />}
-      {tab === 'profile' && <ProfileTab />}
+      {tab === 'profile' && <IdentityStudio />}
       {tab === 'privacy' && <PrivacyTab />}
       {tab === 'devices' && <DevicesTab />}
       {tab === 'appearance' && <AppearanceTab />}
@@ -101,314 +101,6 @@ function AccountTab() {
         <button className="btn-primary w-fit">Alterar senha</button>
       </form>
     </>
-  );
-}
-
-type ProfileDraft = {
-  displayName: string;
-  bio: string;
-  accentColor: string;
-  bannerPreset: string | null;
-  profileEffect: string | null;
-  avatarDecoration: string | null;
-  profileEntrance: string | null;
-  pronouns: string;
-  profileLinks: Array<{ label: string; url: string }>;
-};
-const draftOf = (me: SelfUser): ProfileDraft => ({
-  displayName: me.displayName,
-  bio: me.bio,
-  accentColor: me.accentColor ?? '#6c5ce7',
-  bannerPreset: me.bannerPreset,
-  profileEffect: me.profileEffect,
-  avatarDecoration: me.avatarDecoration ?? null,
-  profileEntrance: me.profileEntrance ?? null,
-  pronouns: me.pronouns ?? '',
-  // JSONB comes back with its keys reordered: rebuild { label, url } so the draft compares equal
-  profileLinks: (me.profileLinks ?? []).map((l) => ({ label: l.label, url: l.url })),
-});
-
-/**
- * Profile identity editor: everything is a DRAFT shown live in the preview card; nothing reaches other people until
- * "Salvar". "Cancelar" drops the draft, "Restaurar padrão" clears banner/effect/decoration/entrance (name and bio stay).
- * Uploads (avatar/banner file) are the exception: they apply on upload, like before.
- */
-function ProfileTab() {
-  const me = useStore((s) => s.me)!;
-  const [d, setD] = useState<ProfileDraft>(() => draftOf(me));
-  const base = draftOf(me);
-  const [replay, setReplay] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const avatarInput = useRef<HTMLInputElement>(null);
-  const bannerInput = useRef<HTMLInputElement>(null);
-  const set = (p: Partial<ProfileDraft>) => setD((x) => ({ ...x, ...p }));
-  const dirty = JSON.stringify(d) !== JSON.stringify(base);
-  const linksValid = d.profileLinks.every((l) => l.label.trim() && /^https:\/\/[^\s]+\.[^\s]+/i.test(l.url.trim()));
-  const uploadImg = async (kind: 'avatar' | 'banner', f: File) => {
-    const isVideo = f.type.startsWith('video/');
-    if (isVideo && f.size > 12 * 1024 * 1024) return toast('Vídeo grande demais: até 12 MB (ele é cortado em 6 s e comprimido).', 'error');
-    const fd = new FormData();
-    fd.append('file', f);
-    try {
-      if (isVideo) toast('Convertendo o vídeo… pode levar alguns segundos.');
-      await upload(`/users/@me/${kind}`, fd);
-      if (kind === 'banner') {
-        if (me.bannerPreset) await api('PATCH', '/users/@me', { bannerPreset: null });
-        set({ bannerPreset: null });
-      }
-      toast(kind === 'avatar' ? 'Avatar atualizado' : 'Banner atualizado', 'success');
-    } catch (e) {
-      toastError(e);
-    }
-  };
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api('PATCH', '/users/@me', {
-        displayName: d.displayName.trim() || me.username,
-        bio: d.bio,
-        accentColor: d.accentColor,
-        bannerPreset: d.bannerPreset,
-        profileEffect: d.profileEffect,
-        avatarDecoration: d.avatarDecoration,
-        profileEntrance: d.profileEntrance,
-        pronouns: d.pronouns.trim() || null,
-        profileLinks: d.profileLinks.map((l) => ({ label: l.label.trim(), url: l.url.trim() })),
-      });
-      toast('Perfil salvo — todo mundo já vê o novo visual.', 'success');
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setSaving(false);
-    }
-  };
-  // keep the draft in sync when the profile changes elsewhere and there is nothing pending here
-  useEffect(() => {
-    if (!dirty) setD(draftOf(me));
-  }, [me]);
-  const preview = { ...me, ...d, bannerUrl: d.bannerPreset ? null : me.bannerUrl };
-  const pick = (k: keyof ProfileDraft, v: string | null) => (set({ [k]: v } as Partial<ProfileDraft>), k === 'profileEntrance' && setReplay((r) => r + 1));
-  return (
-    <>
-      <SettingsTitle>Perfil</SettingsTitle>
-      <div className="flex gap-8">
-        <div className="min-w-0 flex-1 space-y-7">
-          <div className="flex items-center gap-4">
-            <button className="group/av relative rounded-full" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
-              <Avatar userId={me.id} size={72} />
-              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover/av:opacity-100">Mudar</span>
-            </button>
-            <div className="flex-1">
-              <label className="label">Nome de exibição</label>
-              <input className="input" maxLength={32} value={d.displayName} onChange={(e) => set({ displayName: e.target.value })} />
-            </div>
-            <div className="w-36">
-              <label className="label">Pronomes</label>
-              <input className="input" maxLength={40} placeholder="opcional" value={d.pronouns} onChange={(e) => set({ pronouns: e.target.value })} />
-            </div>
-            <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('avatar', e.target.files[0])} />
-          </div>
-          {me.avatarUrl && (
-            <button className="-mt-5 text-xs text-fg-muted hover:text-danger" onClick={() => api('DELETE', '/users/@me/avatar').catch(toastError)}>
-              Remover avatar
-            </button>
-          )}
-
-          <div>
-            <div className="label !mb-0.5">Coleções</div>
-            <div className="mb-2 text-xs text-fg-muted">Um visual completo de uma vez: banner, moldura, efeito e entrada combinando.</div>
-            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-              {COLLECTIONS.map((c) => {
-                const on = d.bannerPreset === c.banner && d.avatarDecoration === c.decoration && d.profileEffect === c.effect && d.profileEntrance === c.entrance;
-                return (
-                  <PickTile key={c.id} active={on} label={c.name} onClick={() => (set({ bannerPreset: c.banner, avatarDecoration: c.decoration, profileEffect: c.effect, profileEntrance: c.entrance }), setReplay((r) => r + 1))}>
-                    <div className="relative">
-                      <ProfileBanner user={{ ...me, bannerPreset: c.banner }} height={64} />
-                      <span className="deco-host absolute bottom-1.5 left-2 rounded-full ring-2 ring-bg-float">
-                        <AvatarDecoration id={c.decoration} size={26} />
-                        <Avatar userId={me.id} size={26} />
-                      </span>
-                    </div>
-                  </PickTile>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-end justify-between">
-              <div>
-                <div className="label !mb-0.5">Banner</div>
-                <div className="text-xs text-fg-muted">Cenas animadas, gradientes estáticos, ou seu arquivo: imagem, GIF ou vídeo curto (até 12 MB; cortado em 6 s, sem som).</div>
-              </div>
-              <button className="btn-secondary shrink-0 px-3 py-1.5 text-xs" onClick={() => bannerInput.current?.click()}>
-                <Icon name="upload" size={14} /> Enviar arquivo
-              </button>
-              <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm" hidden onChange={(e) => e.target.files?.[0] && uploadImg('banner', e.target.files[0])} />
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              <PickTile active={!d.bannerPreset} label={me.bannerUrl ? 'Meu arquivo' : 'Cor do perfil'} onClick={() => pick('bannerPreset', null)}>
-                <ProfileBanner user={{ ...me, bannerPreset: null, accentColor: d.accentColor }} height={64} />
-              </PickTile>
-              {Object.entries(BANNERS).map(([id, b]) => (
-                <PickTile key={id} active={d.bannerPreset === id} label={b.label} tag={b.tag} onClick={() => pick('bannerPreset', id)}>
-                  <ProfileBanner user={{ ...me, bannerPreset: id }} height={64} />
-                </PickTile>
-              ))}
-            </div>
-            {me.bannerUrl && (
-              <button className="mt-2 text-xs text-fg-muted hover:text-danger" onClick={() => api('DELETE', '/users/@me/banner').catch(toastError)}>
-                Remover meu arquivo de banner
-              </button>
-            )}
-          </div>
-
-          <div>
-            <div className="label !mb-0.5">Moldura do avatar</div>
-            <div className="mb-2 text-xs text-fg-muted">Fica em volta da sua foto — a imagem original não é alterada.</div>
-            <div className="flex flex-wrap gap-3">
-              {[null, ...Object.keys(DECORATIONS)].map((id) => (
-                <button key={id ?? 'none'} onClick={() => pick('avatarDecoration', id)} aria-pressed={d.avatarDecoration === id} className={clsx('deco-host flex w-[84px] flex-col items-center gap-1.5 rounded-2xl border-2 p-2.5 transition-colors', d.avatarDecoration === id ? 'border-brand bg-brand/10' : 'border-transparent hover:bg-line/[0.05]')}>
-                  <span className="relative">
-                    <AvatarDecoration id={id} size={44} />
-                    <Avatar userId={me.id} size={44} />
-                  </span>
-                  <span className="truncate text-[11px] font-semibold text-fg">{id ? DECORATIONS[id]!.label : 'Nenhuma'}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="label !mb-0.5">Efeito do perfil</div>
-            <div className="mb-2 text-xs text-fg-muted">Aparece por cima do seu cartão quando alguém abre o seu perfil.</div>
-            <div className="grid grid-cols-3 gap-2.5">
-              <PickTile active={!d.profileEffect} label="Nenhum" onClick={() => pick('profileEffect', null)}>
-                <div className="h-16 bg-line/[0.04]" />
-              </PickTile>
-              {Object.entries(EFFECTS).map(([id, fx]) => (
-                <PickTile key={id} active={d.profileEffect === id} label={fx.label} onClick={() => pick('profileEffect', id)}>
-                  <div className="relative h-16 overflow-hidden bg-bg-float">
-                    <ProfileEffect id={id} behind />
-                    <ProfileEffect id={id} />
-                  </div>
-                </PickTile>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="label !mb-0.5">Entrada do perfil</div>
-            <div className="mb-2 text-xs text-fg-muted">Um efeito curto quando alguém abre o seu cartão. Não aparece para quem usa “reduzir movimento”.</div>
-            <Segmented id="entrance" value={d.profileEntrance ?? 'none'} onChange={(v) => pick('profileEntrance', v === 'none' ? null : v)} options={[['none', 'Nenhuma'], ...Object.entries(ENTRANCES)] as Array<[string, string]>} />
-          </div>
-
-          <div>
-            <label className="label">Cor do perfil</label>
-            <input type="color" className="h-10 w-20 cursor-pointer rounded bg-transparent" value={d.accentColor} onChange={(e) => set({ accentColor: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Sobre mim</label>
-            <textarea className="input min-h-[100px]" maxLength={190} value={d.bio} onChange={(e) => set({ bio: e.target.value })} />
-            <div className="text-right text-xs text-fg-faint">{190 - d.bio.length}</div>
-          </div>
-          <div>
-            <div className="label !mb-0.5">Links</div>
-            <div className="mb-2 text-xs text-fg-muted">Até 3, só https://. Aparecem no seu cartão para quem abrir o perfil.</div>
-            {d.profileLinks.map((l, i) => (
-              <div key={i} className="mb-2 flex gap-2">
-                <input className="input w-36" placeholder="Nome" maxLength={32} value={l.label} onChange={(e) => set({ profileLinks: d.profileLinks.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
-                <input className="input flex-1" placeholder="https://…" maxLength={200} value={l.url} onChange={(e) => set({ profileLinks: d.profileLinks.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} />
-                <button className="icon-btn hover:text-danger" aria-label="Remover link" onClick={() => set({ profileLinks: d.profileLinks.filter((_, j) => j !== i) })}>
-                  <Icon name="x" />
-                </button>
-              </div>
-            ))}
-            {d.profileLinks.length < 3 && (
-              <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => set({ profileLinks: [...d.profileLinks, { label: '', url: 'https://' }] })}>
-                <Icon name="plus" size={13} /> Adicionar link
-              </button>
-            )}
-            {!linksValid && <p className="mt-1 text-xs text-warn">Cada link precisa de um nome e de um endereço https:// válido.</p>}
-          </div>
-        </div>
-
-        <div className="hidden w-[300px] shrink-0 md:block">
-          <div className="sticky top-0">
-            <div className="label flex items-center justify-between">
-              Pré-visualização ao vivo
-              {d.profileEntrance && (
-                <button className="text-[11px] font-semibold normal-case text-brand hover:underline" onClick={() => setReplay((r) => r + 1)}>
-                  Rever entrada
-                </button>
-              )}
-            </div>
-            <div className="relative overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float" data-testid="profile-preview">
-              <ProfileEntrance id={d.profileEntrance} play={replay} />
-              <ProfileEffect id={d.profileEffect} behind />
-              <div className="relative">
-                <ProfileBanner user={preview} height={100} />
-                <div className="px-4 pb-5">
-                  <div className="deco-host relative -mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
-                    <AvatarDecoration id={d.avatarDecoration} size={76} />
-                    <Avatar userId={me.id} size={76} showStatus />
-                  </div>
-                  <div className="text-xl font-extrabold tracking-tight text-fg-strong">{d.displayName || me.username}</div>
-                  <div className="text-sm text-fg-muted">
-                    {me.username}
-                    {d.pronouns.trim() ? ` · ${d.pronouns.trim()}` : ''}
-                  </div>
-                  {d.bio && <p className="mt-2 whitespace-pre-wrap text-sm text-fg">{d.bio}</p>}
-                  {d.profileLinks.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {d.profileLinks.map((l, i) => (
-                        <span key={i} className="flex items-center gap-1 rounded-lg border border-line/[0.08] bg-line/[0.04] px-2 py-1 text-xs font-semibold text-sky-400">
-                          <Icon name="link" size={12} /> {l.label || 'link'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <ProfileEffect id={d.profileEffect} />
-            </div>
-            <p className="mt-2 text-[11px] text-fg-faint">É assim que os outros veem o seu cartão. Quem usa “reduzir movimento” vê tudo parado.</p>
-          </div>
-        </div>
-      </div>
-      <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-line/[0.08] bg-bg-rail p-3 shadow-float">
-        <button
-          className="btn-ghost text-sm"
-          onClick={() => (set({ bannerPreset: null, profileEffect: null, avatarDecoration: null, profileEntrance: null, accentColor: '#6c5ce7' }), setReplay((r) => r + 1))}
-        >
-          Restaurar padrão
-        </button>
-        <span className={clsx('flex-1 text-right text-sm', dirty ? 'text-fg' : 'text-fg-faint')}>{dirty ? 'Alterações não salvas — só você está vendo.' : 'Tudo salvo.'}</span>
-        <button className="btn-ghost" disabled={!dirty} onClick={() => setD(base)}>
-          Cancelar
-        </button>
-        <button className="btn bg-ok text-white hover:bg-ok/80 disabled:opacity-50" disabled={!dirty || saving || !linksValid} onClick={() => void save()}>
-          {saving ? 'Salvando…' : 'Salvar'}
-        </button>
-      </div>
-    </>
-  );
-}
-
-function PickTile({ active, label, tag, onClick, children }: { active: boolean; label: string; tag?: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <motion.button whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={spring.snappy} onClick={onClick} className="group relative text-left">
-      <span className={clsx('block overflow-hidden rounded-xl border-2 transition-colors', active ? 'border-brand shadow-glow' : 'border-transparent group-hover:border-line/20')}>{children}</span>
-      <span className="mt-1 flex items-center gap-1 text-xs font-semibold text-fg">
-        <span className="truncate">{label}</span>
-        {tag && <span className="rounded bg-line/[0.07] px-1 text-[10px] font-medium text-fg-muted">{tag}</span>}
-      </span>
-      {active && (
-        <span className="grad absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white">
-          <Icon name="check" size={11} strokeWidth={3} />
-        </span>
-      )}
-    </motion.button>
   );
 }
 
@@ -601,12 +293,12 @@ function AppearanceTab() {
 
       <h3 className="mb-3 mt-8 text-lg font-extrabold tracking-tight text-fg-strong">Fluidez</h3>
       <div className="card divide-y divide-line/[0.06] px-5">
-        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Movimento (UltraMotion 4.0)" desc="Cinema: tudo, com luz ambiente e transições completas. Equilibrado (padrão): mesmas interações, menos loops e brilhos. Econômico: fundos parados, só avatar e presença — tudo continua funcionando. Reduzido: sem transições espaciais, só o feedback de estado.">
+        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Movimento (UltraMotion 4.0)" desc="Ultra: tudo, com luz ambiente, partículas e transições completas. Equilibrado (padrão): mesmas interações, menos loops, partículas e brilhos. Essencial: banners, molduras e efeitos parados (versão estática), tudo continua funcionando. Reduzido: sem transições espaciais, só o feedback de estado.">
           <Segmented
             id="motion"
             value={p.reduceMotion ? 'reduced' : p.motion}
             onChange={(v) => (v === 'reduced' ? setPrefs({ reduceMotion: true }) : setPrefs({ reduceMotion: false, motion: v }))}
-            options={[['ultra', 'Cinema'], ['balanced', 'Equilibrado'], ['performance', 'Econômico'], ['reduced', 'Reduzido']]}
+            options={[['ultra', 'Ultra'], ['balanced', 'Equilibrado'], ['performance', 'Essencial'], ['reduced', 'Reduzido']]}
           />
         </SettingRow>
         <RefreshRateRow />
@@ -701,7 +393,7 @@ function PerfRow() {
       <div className="min-w-0 flex-1">
         <div className="font-bold text-fg-strong">Fluidez agora</div>
         <div className="text-sm text-fg-muted">
-          {pf.level === 'high' ? 'PC sob carga: efeitos decorativos parados (como no Econômico) até aliviar.' : pf.level === 'mid' ? 'Alguns quadros perdidos: menos loops e brilhos por enquanto (como no Equilibrado).' : 'Medido a cada 20 segundos enquanto o app está aberto. Voz e vídeo nunca são reduzidos por isso.'}
+          {pf.level === 'high' ? 'PC sob carga: efeitos decorativos parados (como no Essencial) até aliviar.' : pf.level === 'mid' ? 'Alguns quadros perdidos: menos loops e brilhos por enquanto (como no Equilibrado).' : 'Medido a cada 20 segundos enquanto o app está aberto. Voz e vídeo nunca são reduzidos por isso.'}
         </div>
       </div>
       <div className="shrink-0 text-right text-[12px] tabular-nums text-fg-muted">

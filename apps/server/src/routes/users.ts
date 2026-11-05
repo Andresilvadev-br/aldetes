@@ -13,8 +13,12 @@ export function userRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/users/@me', auth, async (req) => selfUser(await db.user.findUniqueOrThrow({ where: { id: req.auth.userId } })));
 
   app.patch('/users/@me', auth, async (req) => {
-    const { profileLinks, ...body } = updateProfileSchema.parse(req.body);
-    const user = await db.user.update({ where: { id: req.auth.userId }, data: { ...body, ...(profileLinks ? { profileLinks } : {}) } });
+    const { profileLinks, bannerOptions, profileDecor, ...body } = updateProfileSchema.parse(req.body);
+    const json = (v: unknown) => (v === null ? Prisma.DbNull : (v as Prisma.InputJsonValue));
+    const user = await db.user.update({
+      where: { id: req.auth.userId },
+      data: { ...body, ...(profileLinks ? { profileLinks } : {}), ...(bannerOptions !== undefined ? { bannerOptions: json(bannerOptions) } : {}), ...(profileDecor !== undefined ? { profileDecor: json(profileDecor) } : {}) },
+    });
     await broadcastUserUpdate(ctx, user.id);
     if (body.status !== undefined || body.customStatus !== undefined) {
       if (body.status !== undefined && (await ctx.redis.exists(`presence:${user.id}`))) {

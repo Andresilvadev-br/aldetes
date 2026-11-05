@@ -27,6 +27,10 @@ model User {
   /// 2.0 Spaces: the person's corner (declarative preset + options, validated) and its revision (client cache key)
   spaceScene          Json?
   spaceRev            Int       @default(0)
+  /// 2.1 Identity Studio: banner options, whole-card theme and decorations (validated JSON / enum string)
+  bannerOptions       Json?
+  profileTheme        String?
+  profileDecor        Json?
   bio                 String    @default("")
   customStatus        String?
   status              String    @default("online") // online|idle|dnd|invisible (preferred status)
