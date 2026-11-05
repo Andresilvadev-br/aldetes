@@ -50,7 +50,7 @@ function useScene(id: string): { scene: Scene | null; loading: boolean } {
     const ctl = new AbortController();
     api<PublicUser>('GET', `/users/${id}`, undefined, { signal: ctl.signal }).then(
       (u) => {
-        const sc = sceneOf(u.space);
+        const sc = sceneOf(u.space, id);
         remember(id, u.spaceRev ?? 0, sc);
         setFetched(sc);
       },
@@ -62,7 +62,7 @@ function useScene(id: string): { scene: Scene | null; loading: boolean } {
     if (!has) return fetched;
     const c = cache.get(id);
     if (c && c.rev === rev) return c.scene;
-    const sc = sceneOf(known!.space);
+    const sc = sceneOf(known!.space, id);
     remember(id, rev, sc);
     return sc;
   }, [has, rev, fetched, id]);

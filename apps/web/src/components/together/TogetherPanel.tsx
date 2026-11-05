@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'motion/react';
 import type { BoardItem, TogetherSession } from '@aldetes/shared';
-import { useStore, displayName } from '@/store';
+import { useStore, displayName, channelPermissions } from '@/store';
+import { Permissions, hasPermission } from '@aldetes/shared';
 import { useTogether, createTogether, togetherOp, closeTogether, sendPresence, serverNow, TogetherConflict } from '@/lib/together';
 import { spring, dur } from '@/lib/motion';
 import { Icon, type IconName } from '../common/Icon';
@@ -68,7 +69,7 @@ export default function TogetherPanel({ channelId, serverId, expanded, onExpand,
           <motion.div key={current.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={spring.gentle} className="flex h-full min-h-0 flex-col">
             <ToolHeader s={current} serverId={serverId} />
             <div className="min-h-0 flex-1 overflow-auto p-3">
-              {current.kind === 'poll' ? <PollView s={current} serverId={serverId} /> : current.kind === 'timer' ? <TimerView s={current} /> : current.kind === 'notes' ? <NotesView s={current} serverId={serverId} /> : <BoardView s={current} serverId={serverId} />}
+              {current.kind === 'poll' ? <PollView s={current} serverId={serverId} /> : current.kind === 'timer' ? <TimerView s={current} serverId={serverId} /> : current.kind === 'notes' ? <NotesView s={current} serverId={serverId} /> : <BoardView s={current} serverId={serverId} />}
             </div>
           </motion.div>
         )}
@@ -77,11 +78,16 @@ export default function TogetherPanel({ channelId, serverId, expanded, onExpand,
   );
 }
 const EMPTY: TogetherSession[] = [];
+/** Same rule as the server: the creator, or a moderator (MANAGE_MESSAGES) in a server channel. */
+function useCanModerate(s: TogetherSession, serverId: string | null) {
+  const me = useStore((st) => st.me?.id);
+  useStore((st) => st.channels[s.channelId]);
+  return s.createdBy === me || (!!serverId && hasPermission(channelPermissions(s.channelId), Permissions.MANAGE_MESSAGES));
+}
 const titleOf = (s: TogetherSession) => (s.kind === 'poll' ? (s.state.poll?.question ?? 'Enquete') : s.kind === 'timer' ? (s.state.timer?.label ?? 'Cronômetro') : s.kind === 'notes' ? (s.state.notes?.title ?? 'Notas') : (s.state.board?.title ?? 'Quadro')).slice(0, 22);
 
 function ToolHeader({ s, serverId }: { s: TogetherSession; serverId: string | null }) {
-  const me = useStore((st) => st.me?.id);
-  const canClose = s.createdBy === me || !!serverId; // o servidor confere de verdade (moderadores)
+  const canClose = useCanModerate(s, serverId); // o servidor confere de novo
   const close = async () => {
     const keep = await confirmDialog({ title: `Encerrar ${KIND[s.kind].label.toLowerCase()}`, body: 'Quer guardar uma cópia (fica disponível por 30 dias) ou descartar de vez?', confirm: 'Encerrar e guardar' });
     const discard = !keep && (await confirmDialog({ title: 'Descartar?', body: 'A ferramenta some para todo mundo e não dá para recuperar.', confirm: 'Descartar', danger: true }));
@@ -218,9 +224,9 @@ function PollView({ s, serverId }: { s: TogetherSession; serverId: string | null
 }
 
 /* ---------------- Cronômetro (relógio do servidor) ---------------- */
-function TimerView({ s }: { s: TogetherSession }) {
+function TimerView({ s, serverId }: { s: TogetherSession; serverId: string | null }) {
   const t = s.state.timer!;
-  const me = useStore((st) => st.me?.id);
+  const canControl = useCanModerate(s, serverId);
   const running = t.startedAt !== null;
   useNow(running ? 250 : 0);
   const left = Math.max(0, running ? t.remainingMs - (serverNow() - t.startedAt!) : t.remainingMs);
@@ -232,7 +238,6 @@ function TimerView({ s }: { s: TogetherSession }) {
     prevDone.current = done;
   }, [done]);
   const act = (action: 'start' | 'pause' | 'reset') => togetherOp(s, { type: 'timer', action }).catch(toastError);
-  const isOwner = s.createdBy === me;
   const R = 70;
   const C = 2 * Math.PI * R;
   return (
@@ -249,7 +254,7 @@ function TimerView({ s }: { s: TogetherSession }) {
           <div className="text-[11px] font-semibold text-fg-muted">{t.label}</div>
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className={clsx('flex gap-2', !canControl && 'hidden')}>
         {running ? (
           <button className="btn-secondary" onClick={() => void act('pause')}>
             <Icon name="pause" size={14} /> Pausar
@@ -263,7 +268,7 @@ function TimerView({ s }: { s: TogetherSession }) {
           Zerar
         </button>
       </div>
-      {!isOwner && <p className="text-center text-[11px] text-fg-faint">Quem criou o cronômetro (ou um moderador) controla o tempo. O relógio é o do servidor: todo mundo vê igual.</p>}
+      {!canControl && <p className="text-center text-[11px] text-fg-faint">Quem criou o cronômetro (ou um moderador) controla o tempo. O relógio é o do servidor: todo mundo vê igual.</p>}
     </div>
   );
 }
@@ -344,6 +349,7 @@ const COLORS = ['#ffffff', '#ff2d78', '#22d3ee', '#facc15', '#22c55e', '#a855f7'
 function BoardView({ s, serverId }: { s: TogetherSession; serverId: string | null }) {
   const items = s.state.board!.items;
   const me = useStore((st) => st.me?.id ?? '');
+  const canModerate = useCanModerate(s, serverId);
   const canvas = useRef<HTMLCanvasElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<'pen' | 'marker' | 'text' | 'eraser'>('pen');
@@ -434,9 +440,11 @@ function BoardView({ s, serverId }: { s: TogetherSession; serverId: string | nul
         <button className="btn-ghost h-8 px-2 text-xs" onClick={exportPng}>
           Exportar PNG
         </button>
-        <button className="btn-ghost h-8 px-2 text-xs hover:text-danger" onClick={() => void togetherOp(s, { type: 'clear' }).catch(toastError)} title="Só quem criou o quadro ou um moderador">
-          Limpar
-        </button>
+        {canModerate && (
+          <button className="btn-ghost h-8 px-2 text-xs hover:text-danger" onClick={() => void togetherOp(s, { type: 'clear' }).catch(toastError)}>
+            Limpar
+          </button>
+        )}
       </div>
       <div ref={wrap} className={clsx('relative min-h-0 flex-1 touch-none overflow-hidden rounded-xl border border-line/[0.08] bg-[#14121f]', tool === 'eraser' ? 'cursor-cell' : tool === 'text' ? 'cursor-text' : 'cursor-crosshair')} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} data-testid="board">
         <canvas ref={canvas} className="absolute inset-0 h-full w-full" />

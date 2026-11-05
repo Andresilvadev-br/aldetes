@@ -23,11 +23,21 @@ export const ITEM_LABEL: Record<Scene['items'][number], string> = {
   neon: 'Placa neon', window: 'Janela', rug: 'Tapete', speaker: 'Caixa de som', easel: 'Cavalete', cat: 'Gato', posters: 'Pôsteres',
 };
 
-/** Parse whatever came from the network into a valid scene (unknown/old data → defaults, never a crash). */
-export function sceneOf(raw: unknown): Scene {
-  if (!raw) return DEFAULT_SPACE;
-  const r = spaceSceneSchema.safeParse(raw);
-  return r.success ? r.data : DEFAULT_SPACE;
+/**
+ * Parse whatever came from the network into a valid scene (unknown/old data → defaults, never a crash).
+ * Someone who never chose gets one of the five ready scenes (always the same for that person, picked from the id)
+ * with its furniture — a full call never looks like a row of empty rooms.
+ */
+export function sceneOf(raw: unknown, userId?: string): Scene {
+  if (raw) {
+    const r = spaceSceneSchema.safeParse(raw);
+    if (r.success) return r.data;
+  }
+  if (!userId) return { ...DEFAULT_SPACE, ...PRESETS.minimal.defaults };
+  let h = 0;
+  for (const ch of userId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const preset = (Object.keys(PRESETS) as Scene['preset'][])[h % 5]!;
+  return { ...DEFAULT_SPACE, preset, ...PRESETS[preset].defaults, backdrop: (['a', 'b', 'c'] as const)[(h >>> 3) % 3]!, avatarPos: 'center' };
 }
 
 const WALLS: Record<Scene['lighting'], Record<Scene['backdrop'], [string, string]>> = {

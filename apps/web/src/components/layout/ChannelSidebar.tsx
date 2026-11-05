@@ -134,7 +134,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
       {/* hero header: Server Studio cover (scene › banner image/video › accent aurora), big icon, name, live online count */}
       <div className="cz-hover relative shrink-0 overflow-hidden" data-testid="server-header">
         <ServerCover server={server} theme={theme} />
-        {entrance && <span key={entrance} className={`studio-entr studio-entr-${theme.entrance}`} aria-hidden />}
+        {entrance > 0 && <span key={entrance} className={`studio-entr studio-entr-${theme.entrance}`} aria-hidden />}
         <button aria-haspopup="menu" aria-label="Menu do servidor" onClick={openMenu} className={clsx('group relative flex w-full items-end gap-3 px-4 pb-3 pt-7 text-left text-fg-strong', theme.iconPosition === 'center' && 'flex-col items-center text-center')}>
           <motion.span ref={headerIcon} whileHover={{ rotate: -6, scale: 1.06 }} transition={spring.snappy} className="rounded-[18px] shadow-[0_10px_30px_-8px_rgb(0_0_0/0.8)] ring-2 ring-bg-side">
             <IconFrame frame={theme.iconFrame} accent={theme.accent}>

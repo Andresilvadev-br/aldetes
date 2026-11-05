@@ -69,6 +69,9 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   }
   if (!res.ok) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent('aldetes:unauthorized'));
+    // a route this server doesn't have yet (app newer than the server during an update): a clear message, not "Route … not found"
+    if (res.status === 404 && typeof data?.message === 'string' && /^Route \w+:/.test(data.message))
+      throw new ApiError(404, 'OUTDATED_SERVER', 'O servidor ainda está terminando de atualizar. Tente de novo em alguns minutos.', undefined, data);
     throw new ApiError(res.status, data?.code ?? 'ERROR', data?.message ?? `Erro ${res.status}`, data?.details, data);
   }
   return data as T;

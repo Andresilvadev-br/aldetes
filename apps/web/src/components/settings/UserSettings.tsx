@@ -625,7 +625,7 @@ function AppearanceTab() {
         <SettingRow icon="focus" tint="text-brand bg-brand/15" title="Modo foco" desc="Esconde a barra de servidores e os painéis laterais para dar prioridade ao chat ou à call. Nada é desconectado. Atalho: Ctrl+Shift+F.">
           <Switch checked={p.focusMode} onChange={(v) => setPrefs({ focusMode: v })} />
         </SettingRow>
-        <SettingRow icon="palette" tint="text-emerald-400 bg-emerald-400/15" title="Efeitos animados dos servidores" desc="Banners animados, entradas e efeitos que os donos configuram no Server Studio. Desligue para ver tudo estático.">
+        <SettingRow icon="palette" tint="text-emerald-400 bg-emerald-400/15" title="Efeitos animados dos servidores" desc="Banners animados, entradas e efeitos que os donos configuram no Worlds. Desligue para ver tudo estático.">
           <Switch checked={p.serverEffects} onChange={(v) => setPrefs({ serverEffects: v })} />
         </SettingRow>
       </div>

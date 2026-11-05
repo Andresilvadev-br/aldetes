@@ -25,7 +25,7 @@ export function SpaceEditorHost() {
 
 function SpaceEditor({ onClose }: { onClose: () => void }) {
   const me = useStore((s) => s.me)!;
-  const saved = sceneOf(me.space);
+  const saved = sceneOf(me.space, me.id);
   const [d, setD] = useState<Scene>(saved);
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<Scene>) => setD((x) => ({ ...x, ...p }));

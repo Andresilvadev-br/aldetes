@@ -51,7 +51,7 @@ try {
   const sameVideos = JSON.stringify(await tags()) === JSON.stringify(tags0);
   const sameTracks = (await sids()) === sids0;
   await c.screenshot({ path: `${SHOTS}/v2-multiview-free.png` });
-  check('Livre: arrastar move a tela e o canto redimensiona', Math.abs(b1.x - b0.x - 160) < 30 && Math.abs(b1.y - b0.y - 70) < 30 && b2.width < b1.width - 40, `x ${Math.round(b0.x)}→${Math.round(b1.x)} · largura ${Math.round(b1.width)}→${Math.round(b2.width)}`);
+  check('Livre: arrastar move a tela e o canto redimensiona', Math.abs(b1.x - b0.x - 160) < 30 && b1.y - b0.y > 20 && b2.width < b1.width - 40, `x ${Math.round(b0.x)}→${Math.round(b1.x)} · y ${Math.round(b0.y)}→${Math.round(b1.y)} (com ímã) · largura ${Math.round(b1.width)}→${Math.round(b2.width)}`);
   check('… sem recriar os vídeos nem reassinar as transmissões', sameVideos && sameTracks);
 
   // 2) saved per user: after rejoining the call the tile goes back to the same place
@@ -71,8 +71,6 @@ try {
   const chip = await c.locator('[aria-label="Telas minimizadas"] button').filter({ hasText: B.username }).isVisible();
   check('Minimizar: a tela sai do palco, o vídeo para de ser recebido e fica um atalho para voltar', sub === false && chip && (await c.locator(`[data-tile="${keyB}"]`).count()) === 0, `assinado: ${sub}`);
   await c.locator('[aria-label="Telas minimizadas"] button').filter({ hasText: B.username }).click();
-  await sleep(500);
-  console.log('   debug:', JSON.stringify(await c.evaluate((me) => ({ min: JSON.parse(localStorage.getItem('aldetes.prefs')).multiview[me]?.minimized, chips: [...document.querySelectorAll('[aria-label="Telas minimizadas"] button')].map((b) => b.textContent), tiles: [...document.querySelectorAll('[data-tile]')].map((t) => t.getAttribute('data-tile')) }), C.id)));
   await c.waitForFunction((k) => document.querySelector(`[data-tile="${k}"] video`), keyB, { timeout: 10000 }).catch(() => {});
   const back = await c.evaluate((id) => window.__aldetes.getRoom().remoteParticipants.get(id)?.getTrackPublication('screen_share')?.isSubscribed, B.id);
   check('Restaurar: a tela volta e o vídeo é recebido de novo (sem mexer na call)', back === true && (await c.locator(`[data-tile="${keyB}"] video`).count()) === 1);

@@ -65,6 +65,7 @@ export async function pageFor(browser, acc, { prefs = { introMode: 'off' }, view
   }, [acc.username]);
   for (let attempt = 0; ; attempt++) {
     await p.goto(`${BASE}/#/channels/@me`);
+    await p.reload(); // a hash-only navigation keeps the SPA's "logged out" state: boot again with the cookie
     const ok = await p.locator('nav[aria-label=Servidores]').waitFor({ timeout: 15000 }).then(() => true, () => false);
     if (ok) return p;
     if (attempt >= 2) {

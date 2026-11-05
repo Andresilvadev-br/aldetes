@@ -48,7 +48,7 @@ export function ReleaseShowcase({ rel, onClose }: { rel: Release; onClose: () =>
       const st = get();
       const own = st.serverOrder.find((id) => st.servers[id]?.ownerId === st.me?.id);
       if (own) nav(`/channels/${own}`);
-      toast(own ? 'Abra o menu do servidor → Configurações → Server Studio.' : 'O Server Studio fica nas configurações dos servidores que você gerencia.');
+      toast(own ? 'Abra o menu do servidor → Configurações do servidor → Worlds.' : 'O Worlds fica nas configurações dos servidores que você gerencia.');
     }
   };
 

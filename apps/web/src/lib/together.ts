@@ -122,7 +122,9 @@ export async function togetherOp(s: TogetherSession, op: TogetherOp, baseVersion
   if (op.type === 'stroke' || op.type === 'text') {
     const me = useStore.getState().me?.id ?? '';
     const item = (op.type === 'stroke' ? { ...op, by: me, type: 'stroke' } : { ...op, by: me, type: 'text' }) as BoardItem;
-    upsert(s.channelId, { ...s, state: { ...s.state, board: { ...s.state.board!, items: [...s.state.board!.items, item] } } });
+    // always build on the CURRENT local state (two quick strokes must not overwrite each other)
+    const cur = get().byChannel[s.channelId]?.find((x) => x.id === s.id) ?? s;
+    if (cur.state.board && !cur.state.board.items.some((i) => i.id === item.id)) upsert(s.channelId, { ...cur, state: { ...cur.state, board: { ...cur.state.board, items: [...cur.state.board.items, item] } } });
   }
   for (let attempt = 0; ; attempt++) {
     set({ sync: 'syncing' });
