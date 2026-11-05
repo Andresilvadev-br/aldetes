@@ -11,7 +11,12 @@ import type { Transition } from 'motion/react';
  * composition ≤ 450 ms (release showcase, intro hand-off). Never longer: a UI that waits on its own animation feels slow.
  * Everything animates transform/opacity; reduced motion collapses them (MotionConfig + data-reduce-motion).
  */
-export const dur = { instant: 0.11, short: 0.18, spatial: 0.3, structural: 0.38, composition: 0.45 } as const;
+/**
+ * UltraMotion 4.0 tokens (seconds), by intent — never scaled by the monitor's Hz:
+ * instant 80–150 ms (hover, press, confirmation) · short 140–220 ms (buttons, reactions, cards, toggles) ·
+ * spatial 240–420 ms (focus, screens, tiles; springs, interruptible) · reveal 500–900 ms (only special moments, skippable).
+ */
+export const dur = { instant: 0.12, short: 0.18, spatial: 0.32, structural: 0.4, composition: 0.45, reveal: 0.7 } as const;
 export const ease = { out: [0.22, 1, 0.36, 1] as const, inOut: [0.65, 0, 0.35, 1] as const };
 
 export const spring = {

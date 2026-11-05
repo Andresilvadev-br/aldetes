@@ -102,9 +102,24 @@ export const studioThemeSchema = z.object({
   welcome: z
     .object({ enabled: z.boolean().default(false), title: z.string().trim().max(60).default(''), body: z.string().trim().max(240).default('') })
     .default({ enabled: false, title: '', body: '' }),
+  /** 2.0 Worlds: which ready-made template it started from (informative), surfaces and effect intensity */
+  template: z.enum(['neon', 'minimal', 'aurora', 'cosmic', 'studio', 'arcade']).nullable().default(null),
+  surface: z.enum(['default', 'deep', 'tinted']).default('default'),
+  /** 0–100: how strong scenes/textures/entrances are (the person's own motion settings still win) */
+  intensity: z.number().int().min(0).max(100).default(70),
 });
 export type StudioTheme = z.infer<typeof studioThemeSchema>;
 export const DEFAULT_STUDIO: StudioTheme = studioThemeSchema.parse({});
+/** 2.0 Worlds templates: declarative presets (data only — never CSS/JS from users). All editable afterwards. */
+export const WORLD_TEMPLATES: Record<NonNullable<StudioTheme['template']>, Partial<StudioTheme>> = {
+  neon: { accent: '#ff2d78', scene: 'neon-current', lighting: 'vivid', texture: 'grid', hover: 'glow', iconFrame: 'neon', separator: 'glow', entrance: 'glitch', surface: 'deep', intensity: 80 },
+  minimal: { accent: '#8b5cf6', scene: null, lighting: 'soft', texture: 'none', hover: 'lift', iconFrame: 'none', separator: 'line', entrance: 'none', surface: 'default', intensity: 40 },
+  aurora: { accent: '#22d3ee', scene: 'aurora', lighting: 'soft', texture: 'grain', hover: 'glow', iconFrame: 'ring', separator: 'glow', entrance: 'bloom', surface: 'tinted', intensity: 70 },
+  cosmic: { accent: '#a855f7', scene: 'galaxy', lighting: 'dim', texture: 'dots', hover: 'tilt', iconFrame: 'orbital', separator: 'dots', entrance: 'sweep', surface: 'deep', intensity: 75 },
+  studio: { accent: '#f59e0b', scene: 'zen-dust', lighting: 'soft', texture: 'grain', hover: 'lift', iconFrame: 'ring', separator: 'line', entrance: 'sweep', surface: 'tinted', intensity: 55 },
+  arcade: { accent: '#22c55e', scene: 'neon-grid', lighting: 'vivid', texture: 'grid', hover: 'tilt', iconFrame: 'neon', separator: 'dots', entrance: 'glitch', surface: 'deep', intensity: 85 },
+};
+
 /** Which level a theme needs: Essencial (color/icon/static banner) · Alive (animated) · Signature (cover, entrance, frames). */
 export function studioLevel(t: StudioTheme): 'essencial' | 'alive' | 'signature' {
   if (t.entrance !== 'none' || t.iconFrame !== 'none' || t.welcome.enabled || t.separator !== 'line') return 'signature';

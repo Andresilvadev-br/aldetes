@@ -1,15 +1,30 @@
 import type { CSSProperties, ReactNode } from 'react';
 import clsx from 'clsx';
 import { DEFAULT_STUDIO, studioThemeSchema, type Server, type StudioTheme } from '@aldetes/shared';
-import { usePrefs } from '@/lib/prefs';
+import { usePrefs, getPrefs, setPrefs } from '@/lib/prefs';
 import { BANNERS, BannerVideo, isVideoUrl } from '../profile/Cosmetics';
 import { useOffscreenPause } from '@/lib/perf';
 
 /** The published theme of a server (defaults when there is none or it doesn't validate). */
-export function themeOf(server: Pick<Server, 'studio'> | null | undefined): StudioTheme {
+export function themeOf(server: Pick<Server, 'studio'> & { id?: string } | null | undefined): StudioTheme {
   if (!server?.studio) return DEFAULT_STUDIO;
+  // the person's own choice always wins: "Usar aparência padrão" for this server
+  if (server.id && getPrefs().plainServers.includes(server.id)) return DEFAULT_STUDIO;
   const r = studioThemeSchema.safeParse(server.studio);
   return r.success ? r.data : DEFAULT_STUDIO;
+}
+
+/** Re-render when the person toggles "Usar aparência padrão" on any server. */
+export const usePlainServers = () => usePrefs((p) => p.plainServers);
+export function togglePlainServer(id: string) {
+  const cur = getPrefs().plainServers;
+  setPrefs({ plainServers: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+}
+
+/** Simple WCAG-style relative luminance of a #rrggbb color (for the contrast warning in the editor). */
+export function luminance(hex: string) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
 }
 
 /** Animated server effects can be turned off per person (Aparência → Efeitos animados dos servidores). */
@@ -34,7 +49,9 @@ export function ServerCover({ server, theme, className, children, fade = true, s
   return (
     <div ref={pause} className={clsx('absolute inset-0 overflow-hidden', className, !effects && 'studio-static')} style={style}>
       {scene ? (
-        scene.render()
+        <div className="absolute inset-0" style={{ opacity: 0.35 + (0.65 * theme.intensity) / 100 }}>
+          {scene.render()}
+        </div>
       ) : video ? (
         effects ? <BannerVideo src={server.bannerUrl!} /> : <video src={server.bannerUrl!} muted playsInline preload="metadata" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
       ) : !server.bannerUrl && still ? (
@@ -45,7 +62,7 @@ export function ServerCover({ server, theme, className, children, fade = true, s
           <span className="right-[-25%] top-[-40%] h-[150%] w-[70%] rounded-full blur-3xl" style={{ background: accent ? `${accent}55` : 'rgb(var(--brand-2) / 0.4)', animation: 'cz-blob 18s ease-in-out infinite reverse' }} />
         </div>
       ) : null}
-      {theme.texture !== 'none' && <div className={`studio-tex studio-tex-${theme.texture}`} aria-hidden />}
+      {theme.texture !== 'none' && <div className={`studio-tex studio-tex-${theme.texture}`} style={{ opacity: (0.35 * theme.intensity) / 70 }} aria-hidden />}
       {fade && <div className={clsx('absolute inset-0 bg-gradient-to-b', LIGHT[theme.lighting])} />}
       {children}
     </div>

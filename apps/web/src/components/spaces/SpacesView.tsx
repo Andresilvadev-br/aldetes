@@ -12,7 +12,7 @@ import { useContextMenu } from '../common/overlay';
 import { useMemberMenu } from '../common/UserPopout';
 import { SpaceScene, sceneOf, type Density } from './SpaceScene';
 import { openSpaceEditor } from './SpaceEditor';
-import { themeOf } from '../studio/ServerScene';
+import { themeOf, usePlainServers } from '../studio/ServerScene';
 
 export const SPACES_PAGE = 10;
 
@@ -130,6 +130,7 @@ export function SpacesView({ people, serverId, strip, focus, onFocus }: { people
   const [page, setPage] = useState(0);
   const pages = Math.max(1, Math.ceil(people.length / SPACES_PAGE));
   useEffect(() => setPage((p) => Math.min(p, pages - 1)), [pages]);
+  usePlainServers();
   const worldTint = useStore((s) => (serverId ? themeOf(s.servers[serverId]).accent : null));
   // focused person first on their page (smart focus when there are more people than fit)
   const ordered = focus && people.includes(focus) ? [focus, ...people.filter((p) => p !== focus)] : people;

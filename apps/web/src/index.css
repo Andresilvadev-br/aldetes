@@ -447,3 +447,11 @@ body {
 /* paused: Econômico/Reduzido, measured load, off screen, hidden window (the global data-hidden rule also applies) */
 :root[data-motion='performance'] .sp-anim, :root[data-load='high'] .sp-anim, :root[data-load='mid'] .sp-anim,
 [data-offscreen='true'] .sp-anim, :root[data-reduce-motion='true'] .sp-anim { animation: none !important; }
+
+/* ---------- UltraMotion 4.0: Econômico profile and the "mid" automatic level ---------- */
+:root[data-motion='performance'] .cz *, :root[data-motion='performance'] .deco, :root[data-motion='performance'] .deco *,
+:root[data-load='mid'] .cz *, :root[data-load='high'] .deco, :root[data-load='high'] .deco * { animation-play-state: paused !important; }
+:root[data-motion='performance'] [data-glow]::before, :root[data-load='mid'] [data-glow]::before { display: none; }
+:root[data-motion='performance'] .backdrop-blur, :root[data-motion='performance'] .backdrop-blur-md,
+:root[data-load='mid'] .backdrop-blur, :root[data-load='mid'] .backdrop-blur-md { --tw-backdrop-blur: blur(2px); }
+:root[data-motion='performance'] .entr, :root[data-motion='performance'] .studio-entr { display: none; }

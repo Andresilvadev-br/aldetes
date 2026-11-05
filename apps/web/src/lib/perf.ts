@@ -16,26 +16,38 @@ export interface PerfState {
   droppedPct: number | null;
   inputP75: number | null;
   high: boolean;
+  level: 'normal' | 'mid' | 'high';
+  /** p95 of the frame time in the last sample (ms) */
+  p95: number | null;
 }
-export const usePerf = create<PerfState>()(() => ({ hz: null, frameMs: null, droppedPct: null, inputP75: null, high: false }));
+export const usePerf = create<PerfState>()(() => ({ hz: null, frameMs: null, droppedPct: null, inputP75: null, high: false, level: 'normal', p95: null }));
 
+/**
+ * UltraMotion 4.0 — automatic degradation in three levels (decor goes first, never voice/video):
+ *  normal → "mid" (≥ 15% dropped in 2 samples: fewer loops/particles/blur, like Equilibrado)
+ *         → "high" (≥ 30%, or a live stream/game: static backgrounds, avatar + presence only, like Econômico).
+ * It climbs back one level after 2 calm samples.
+ */
+type Level = 'normal' | 'mid' | 'high';
 let started = false;
-let streak = 0;
+let midStreak = 0;
+let highStreak = 0;
 let calm = 0;
+let measured: Level = 'normal';
 let externalLoad = false;
 const latencies: number[] = [];
 
-function setHigh(on: boolean) {
-  const high = on || externalLoad;
-  if (usePerf.getState().high === high) return;
-  usePerf.setState({ high });
-  document.documentElement.dataset.load = high ? 'high' : 'normal';
+function apply() {
+  const level: Level = externalLoad ? 'high' : measured;
+  if (usePerf.getState().level === level) return;
+  usePerf.setState({ level, high: level === 'high' });
+  document.documentElement.dataset.load = level;
 }
 
 /** Desktop app: a live stream/game also counts as high load (keeps the GPU for the game/encoder). */
 export function setExternalLoad(on: boolean) {
   externalLoad = on;
-  setHigh(usePerf.getState().high && !on ? streak >= 2 : on);
+  apply();
 }
 
 function sample() {
@@ -55,15 +67,17 @@ function finish(t: number[]) {
   const sorted = [...d].sort((a, b) => a - b);
   const base = sorted[Math.floor(sorted.length * 0.25)]!; // the display's frame time (robust to hiccups)
   const dropped = d.filter((x) => x > base * 1.5).length / d.length;
-  usePerf.setState({ hz: Math.round(1000 / base), frameMs: +base.toFixed(2), droppedPct: Math.round(dropped * 100) });
-  if (dropped >= 0.25) {
-    streak++;
+  usePerf.setState({ hz: Math.round(1000 / base), frameMs: +base.toFixed(2), droppedPct: Math.round(dropped * 100), p95: +sorted[Math.floor(sorted.length * 0.95)]!.toFixed(1) });
+  if (dropped >= 0.3) (highStreak++, midStreak++, (calm = 0));
+  else if (dropped >= 0.15) ((highStreak = 0), midStreak++, (calm = 0));
+  else ((highStreak = 0), (midStreak = 0), calm++);
+  if (highStreak >= 2) measured = 'high';
+  else if (midStreak >= 2 && measured === 'normal') measured = 'mid';
+  else if (calm >= 2) {
+    measured = measured === 'high' ? 'mid' : 'normal';
     calm = 0;
-  } else {
-    calm++;
-    if (calm >= 2) streak = 0;
   }
-  setHigh(streak >= 2 ? true : calm >= 2 ? false : usePerf.getState().high);
+  apply();
 }
 
 export function startPerfMonitor() {

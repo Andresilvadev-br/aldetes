@@ -26,7 +26,7 @@ export function ServerSettings({ serverId, onClose }: { serverId: string; onClos
   const isOwner = server.ownerId === me.id;
   const sections = [
     can(Permissions.MANAGE_SERVER) && { id: 'overview', label: 'Visão geral', group: server.name },
-    can(Permissions.MANAGE_SERVER) && { id: 'studio', label: 'Server Studio', group: server.name },
+    can(Permissions.MANAGE_SERVER) && { id: 'studio', label: 'Worlds', group: server.name },
     can(Permissions.MANAGE_ROLES) && { id: 'roles', label: 'Cargos', group: server.name },
     can(Permissions.MANAGE_EMOJIS) && { id: 'emojis', label: 'Emojis', group: server.name },
     { id: 'members', label: 'Membros', group: 'Gerenciamento de membros' },
@@ -424,7 +424,7 @@ const ACTION_LABEL: Record<string, string> = {
   server_update: 'atualizou o servidor',
   server_icon_update: 'alterou o ícone do servidor',
   server_banner_update: 'alterou o banner do servidor',
-  server_studio_publish: 'publicou um novo visual no Server Studio',
+  server_studio_publish: 'publicou um novo visual no Worlds',
   server_studio_revert: 'reverteu o visual do servidor',
   owner_transfer: 'transferiu a posse',
   channel_create: 'criou um canal',

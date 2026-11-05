@@ -86,6 +86,8 @@ export interface Prefs {
   multiview: Record<string, { rects: Record<string, { x: number; y: number; w: number; h: number }>; pinned: string[]; minimized: string[] }>;
   /** volume of each person's STREAM audio (separate from their voice) */
   streamVolumes: Record<string, number>;
+  /** 2.0 Worlds: servers shown with the default look for ME only ("Usar aparência padrão") */
+  plainServers: string[];
   /** chat density */
   density: 'cozy' | 'compact' | 'spacious';
   streamQuality: '720p30' | '720p60' | '720p120' | '1080p30' | '1080p60' | '1080p120' | '1440p30' | '1440p60' | '1440p120';
@@ -98,7 +100,7 @@ const defaults: Prefs = {
   reduceMotion: false,
   accent: 'rosa',
   oled: false,
-  motion: 'ultra',
+  motion: 'balanced', // Equilibrado is the default (people who already chose keep their choice)
   uiSounds: true,
   cursorLight: true,
   introAnimation: true,
@@ -140,6 +142,7 @@ const defaults: Prefs = {
   serverEffects: true,
   density: 'cozy',
   callView: {},
+  plainServers: [],
   multiview: {},
   streamVolumes: {},
   streamQuality: '1080p60',
@@ -183,7 +186,9 @@ export function applyAppearance() {
   const theme = p.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : p.theme;
   root.dataset.theme = theme;
   root.dataset.oled = String(p.oled && theme === 'dark');
-  root.dataset.reduceMotion = String(p.reduceMotion || p.motion === 'performance');
+  // UltraMotion 4.0: Reduzido (reduceMotion) removes spatial transitions; Econômico (performance) keeps short
+  // transitions and state feedback but drops decorative loops, blur and glows.
+  root.dataset.reduceMotion = String(p.reduceMotion);
   root.dataset.motion = p.reduceMotion ? 'performance' : p.motion;
   const acc = ACCENTS[p.accent] ?? ACCENTS.rosa;
   const darker = acc.a.map((v) => Math.round(v * 0.85)).join(' ');

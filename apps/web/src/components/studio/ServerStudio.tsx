@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { DEFAULT_STUDIO, SERVER_SCENES, studioLevel, type Server, type StudioTheme } from '@aldetes/shared';
+import { DEFAULT_STUDIO, SERVER_SCENES, WORLD_TEMPLATES, studioLevel, type Server, type StudioTheme } from '@aldetes/shared';
 import { useStore } from '@/store';
 import { api, upload } from '@/lib/api';
 import { SettingsTitle, Segmented, Switch } from '../settings/SettingsLayout';
@@ -8,7 +8,9 @@ import { Icon } from '../common/Icon';
 import { toast, toastError, confirmDialog } from '../common/overlay';
 import { ServerIcon } from '../layout/ServerRail';
 import { BANNERS } from '../profile/Cosmetics';
-import { ServerCover, IconFrame, themeOf } from './ServerScene';
+import { ServerCover, IconFrame, themeOf, luminance } from './ServerScene';
+
+const TEMPLATE_LABEL = { neon: 'Neon', minimal: 'Minimal', aurora: 'Aurora', cosmic: 'Cosmic', studio: 'Studio', arcade: 'Arcade' } as const;
 
 type Remote = { live: StudioTheme | null; draft: StudioTheme | null; prev: StudioTheme | null };
 const LEVEL_LABEL = { essencial: 'Essencial', alive: 'Alive', signature: 'Signature' } as const;
@@ -70,7 +72,7 @@ export function ServerStudio({ serverId }: { serverId: string }) {
 
   return (
     <>
-      <SettingsTitle>Server Studio</SettingsTitle>
+      <SettingsTitle>Worlds</SettingsTitle>
       <p className="-mt-3 mb-5 text-sm text-fg-muted">Dê identidade ao servidor. Ninguém vê nada até você publicar. Quem preferir pode desligar os efeitos animados de servidores nas próprias configurações.</p>
 
       {/* preview */}
@@ -89,6 +91,23 @@ export function ServerStudio({ serverId }: { serverId: string }) {
         </div>
       </div>
 
+      {/* Worlds templates (data only) */}
+      <Section title="Modelos" desc="Um ponto de partida completo. Tudo continua editável abaixo.">
+        <div className="grid grid-cols-3 gap-2 py-4 md:grid-cols-6">
+          {(Object.keys(WORLD_TEMPLATES) as Array<keyof typeof WORLD_TEMPLATES>).map((id) => {
+            const tpl = { ...t, ...WORLD_TEMPLATES[id], template: id };
+            return (
+              <button key={id} onClick={() => setT(tpl)} aria-pressed={t.template === id} className={clsx('overflow-hidden rounded-xl border-2 text-left', t.template === id ? 'border-brand' : 'border-transparent hover:border-line/20')}>
+                <span className="relative block h-14 overflow-hidden">
+                  <ServerCover server={{ ...server, bannerUrl: null }} theme={tpl} fade={false} still />
+                </span>
+                <span className="block px-1.5 py-1 text-[11px] font-bold capitalize text-fg">{TEMPLATE_LABEL[id]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* Essencial */}
       <Section title="Essencial" desc="Cor, ícone e banner estático.">
         <Row label="Cor do servidor">
@@ -102,6 +121,9 @@ export function ServerStudio({ serverId }: { serverId: string }) {
             <input type="color" aria-label="Outra cor" className="h-8 w-10 cursor-pointer rounded bg-transparent" value={t.accent ?? '#ff2d78'} onChange={(e) => set({ accent: e.target.value })} />
           </div>
         </Row>
+        {t.accent && luminance(t.accent) > 0.62 && (
+          <div className="py-2 text-xs text-warn">Cor bem clara: textos brancos por cima dela ficam difíceis de ler. Os nomes continuam sobre o fundo escuro do cabeçalho, mas prefira um tom um pouco mais forte.</div>
+        )}
         <Row label="Ícone e banner">
           <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" onClick={() => iconInput.current?.click()}>
@@ -147,6 +169,13 @@ export function ServerStudio({ serverId }: { serverId: string }) {
         </Row>
         <Row label="Textura">
           <Segmented id="tex" value={t.texture} onChange={(v) => set({ texture: v })} options={[['none', 'Nenhuma'], ['grain', 'Grão'], ['grid', 'Grade'], ['dots', 'Pontos']]} />
+        </Row>
+        <Row label="Superfícies">
+          <Segmented id="surface" value={t.surface} onChange={(v) => set({ surface: v })} options={[['default', 'Padrão'], ['deep', 'Profunda'], ['tinted', 'Com a cor']]} />
+        </Row>
+        <Row label={`Intensidade dos efeitos · ${t.intensity}%`}>
+          <input type="range" min={0} max={100} step={5} value={t.intensity} onChange={(e) => set({ intensity: +e.target.value })} className="w-full accent-brand" aria-label="Intensidade dos efeitos" />
+          <p className="mt-1 text-[11px] text-fg-faint">Quem usa movimento reduzido, modo Econômico ou "Usar aparência padrão" sempre vê a versão leve.</p>
         </Row>
         <Row label="Ícone ao passar o mouse">
           <Segmented id="hover" value={t.hover} onChange={(v) => set({ hover: v })} options={[['lift', 'Subir'], ['glow', 'Brilhar'], ['tilt', 'Inclinar'], ['none', 'Nada']]} />

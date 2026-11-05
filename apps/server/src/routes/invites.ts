@@ -46,6 +46,9 @@ export function inviteRoutes(app: FastifyInstance, ctx: AppContext) {
   });
 
   // Public preview (no auth) — used by invite links before login.
+  // only a count (no names, no channels): what the invite card may show about activity
+  const voiceCount = async (serverId: string) => Object.values(await ctx.redis.hgetall('voice:states')).filter((r) => r.includes(`"serverId":"${serverId}"`)).length;
+
   app.get('/invites/:code', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) => {
     const { code } = req.params as { code: string };
     const inv = await db.invite.findUnique({ where: { code }, include: { server: { include: { _count: { select: { members: true } } } }, channel: true } });
@@ -54,7 +57,7 @@ export function inviteRoutes(app: FastifyInstance, ctx: AppContext) {
     const online = members.length ? (await ctx.redis.mget(members.map((m) => `presence:${m.userId}`))).filter((s) => s && s !== 'invisible').length : 0;
     return {
       code: inv.code,
-      server: { ...S.server(inv.server), memberCount: inv.server._count.members, onlineCount: online },
+      server: { ...S.server(inv.server), memberCount: inv.server._count.members, onlineCount: online, inVoice: await voiceCount(inv.serverId) },
       channel: inv.channel ? { id: inv.channel.id, name: inv.channel.name } : null,
       expiresAt: inv.expiresAt?.toISOString() ?? null,
     };

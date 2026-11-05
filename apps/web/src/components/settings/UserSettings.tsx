@@ -601,8 +601,13 @@ function AppearanceTab() {
 
       <h3 className="mb-3 mt-8 text-lg font-extrabold tracking-tight text-fg-strong">Fluidez</h3>
       <div className="card divide-y divide-line/[0.06] px-5">
-        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Animações" desc="Ultra: física completa, cenários animados e luz do cursor. Equilibrado: mesmas transições, mas banners e fundos só se mexem sob o mouse e sem luz do cursor. Desempenho: resposta instantânea, sem animações decorativas.">
-          <Segmented id="motion" value={p.motion} onChange={(v) => setPrefs({ motion: v })} options={[['ultra', 'Ultra'], ['balanced', 'Equilibrado'], ['performance', 'Desempenho']]} />
+        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Movimento (UltraMotion 4.0)" desc="Cinema: tudo, com luz ambiente e transições completas. Equilibrado (padrão): mesmas interações, menos loops e brilhos. Econômico: fundos parados, só avatar e presença — tudo continua funcionando. Reduzido: sem transições espaciais, só o feedback de estado.">
+          <Segmented
+            id="motion"
+            value={p.reduceMotion ? 'reduced' : p.motion}
+            onChange={(v) => (v === 'reduced' ? setPrefs({ reduceMotion: true }) : setPrefs({ reduceMotion: false, motion: v }))}
+            options={[['ultra', 'Cinema'], ['balanced', 'Equilibrado'], ['performance', 'Econômico'], ['reduced', 'Reduzido']]}
+          />
         </SettingRow>
         <RefreshRateRow />
         <PerfRow />
@@ -690,18 +695,21 @@ function PerfRow() {
   const pf = usePerf();
   return (
     <div className="flex items-center gap-4 py-4">
-      <span className={clsx('tile h-11 w-11', pf.high ? 'bg-warn/15 text-warn' : 'bg-sky-400/15 text-sky-400')}>
+      <span className={clsx('tile h-11 w-11', pf.level !== 'normal' ? 'bg-warn/15 text-warn' : 'bg-sky-400/15 text-sky-400')}>
         <Icon name="zap" size={19} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="font-bold text-fg-strong">Fluidez agora</div>
         <div className="text-sm text-fg-muted">
-          {pf.high ? 'PC sob carga: efeitos decorativos pausados até aliviar (transmissão, jogo ou quadros perdidos).' : 'Medido a cada poucos segundos enquanto o app está aberto.'}
+          {pf.level === 'high' ? 'PC sob carga: efeitos decorativos parados (como no Econômico) até aliviar.' : pf.level === 'mid' ? 'Alguns quadros perdidos: menos loops e brilhos por enquanto (como no Equilibrado).' : 'Medido a cada 20 segundos enquanto o app está aberto. Voz e vídeo nunca são reduzidos por isso.'}
         </div>
       </div>
       <div className="shrink-0 text-right text-[12px] tabular-nums text-fg-muted">
         <div>
           Quadros perdidos: <b className={clsx(pf.droppedPct != null && pf.droppedPct >= 25 ? 'text-warn' : 'text-fg-strong')}>{pf.droppedPct == null ? '—' : `${pf.droppedPct}%`}</b>
+        </div>
+        <div>
+          Quadro p95: <b className="text-fg-strong">{pf.p95 ? `${pf.p95} ms` : '—'}</b>
         </div>
         <div>
           Resposta ao toque (p75): <b className="text-fg-strong">{pf.inputP75 ? `${pf.inputP75} ms` : '—'}</b>

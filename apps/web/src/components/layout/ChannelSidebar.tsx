@@ -1,5 +1,5 @@
 import { useMemo, useState, lazy, Suspense, useRef, useLayoutEffect, useEffect } from 'react';
-import { ServerCover, IconFrame, themeOf, useServerEffects } from '../studio/ServerScene';
+import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers } from '../studio/ServerScene';
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
@@ -91,6 +91,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     await api('PATCH', `/servers/${serverId}/channels/reorder`, { items }).catch(toastError);
   }
 
+  usePlainServers();
   const theme = themeOf(server);
   const effects = useServerEffects();
   // Signature entrance: short, only when the server is opened from the rail, never blocks anything
@@ -121,7 +122,15 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   };
 
   return (
-    <div className="flex h-full flex-col" data-sep={theme.separator} style={theme.accent ? ({ '--sa': theme.accent } as React.CSSProperties) : undefined}>
+    <div
+      className="flex h-full flex-col"
+      data-sep={theme.separator}
+      style={{
+        ...(theme.accent ? ({ '--sa': theme.accent } as React.CSSProperties) : {}),
+        // Worlds surfaces: a tint/darkening of the column behind the channel list (text contrast is preserved)
+        ...(theme.surface === 'deep' ? { background: 'linear-gradient(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.18))' } : theme.surface === 'tinted' && theme.accent ? { background: `linear-gradient(180deg, ${theme.accent}14, transparent 60%)` } : {}),
+      }}
+    >
       {/* hero header: Server Studio cover (scene › banner image/video › accent aurora), big icon, name, live online count */}
       <div className="cz-hover relative shrink-0 overflow-hidden" data-testid="server-header">
         <ServerCover server={server} theme={theme} />

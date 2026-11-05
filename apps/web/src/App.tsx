@@ -14,7 +14,7 @@ import { isDesktop } from './lib/desktop';
 import { leaveVoice } from './lib/voice';
 import { MotionConfig } from 'motion/react';
 import { usePrefs } from './lib/prefs';
-import { spring } from './lib/motion';
+import { spring, dur, ease } from './lib/motion';
 import { Intro } from './components/common/Intro';
 import { UpdateCenter } from './components/common/UpdateCenter';
 import { PwaBanners } from './components/common/PwaBanners';
@@ -63,11 +63,12 @@ export function App() {
     }
   }, [status, loc.pathname, nav]);
 
-  const motionLevel = usePrefs((p) => (p.reduceMotion ? 'performance' : p.motion));
+  const reduced = usePrefs((p) => p.reduceMotion);
+  const economy = usePrefs((p) => p.motion === 'performance');
   // Brand intro on every launch of the app (not on the public site pages)
   const [intro, setIntro] = useState(() => !['/welcome', '/download'].some((p) => window.location.hash.startsWith(`#${p}`)));
   return (
-    <MotionConfig reducedMotion={motionLevel === 'performance' ? 'always' : 'user'} transition={spring.responsive}>
+    <MotionConfig reducedMotion={reduced ? 'always' : 'user'} transition={economy ? { duration: dur.instant, ease: ease.out } : spring.responsive}>
     <ContextMenuProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />

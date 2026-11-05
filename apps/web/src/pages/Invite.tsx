@@ -9,7 +9,7 @@ import { ServerCover, IconFrame, themeOf } from '@/components/studio/ServerScene
 
 interface Preview {
   code: string;
-  server: Server & { memberCount: number; onlineCount: number };
+  server: Server & { memberCount: number; onlineCount: number; inVoice?: number };
 }
 
 export function InvitePage() {
@@ -75,6 +75,7 @@ export function InvitePage() {
                 <span className="mr-1 inline-block h-2 w-2 rounded-full bg-fg-faint" />
                 {p.server.memberCount} membros
               </span>
+              {!!p.server.inVoice && <span className="text-ok">{p.server.inVoice} em call agora</span>}
             </p>
             {status === 'ready' ? (
               <button className="btn-primary mt-6 w-full py-2.5" disabled={busy} onClick={accept}>

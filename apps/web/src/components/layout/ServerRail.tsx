@@ -10,7 +10,7 @@ import { spring, dur, ease } from '@/lib/motion';
 import { useIsMobile } from '@/lib/mobile';
 import { usePrefs, setPrefs, getPrefs, type Prefs } from '@/lib/prefs';
 import { promptDialog } from '../common/overlay';
-import { IconFrame, themeOf, useServerEffects, ServerCover } from '../studio/ServerScene';
+import { IconFrame, themeOf, useServerEffects, ServerCover, usePlainServers, togglePlainServer } from '../studio/ServerScene';
 import { desktop } from '@/lib/desktop';
 import { Tooltip, useContextMenu, confirmDialog, toastError } from '../common/overlay';
 import { Avatar } from '../common/Avatar';
@@ -369,6 +369,7 @@ function ServerButton({ serverId }: { serverId: string }) {
   const [modal, setModal] = useState<'invite' | 'settings' | null>(null);
   const perms = BigInt(s.myPermissions);
   const inFolder = folders.find((f) => f.serverIds.includes(serverId));
+  const plain = usePlainServers().includes(serverId);
   const theme = themeOf(s);
   const effects = useServerEffects();
   return (
@@ -393,6 +394,7 @@ function ServerButton({ serverId }: { serverId: string }) {
                   { label: 'Nova pasta com este servidor', onClick: () => void newFolder(serverId) },
                   ...folders.filter((f) => f !== inFolder).map((f) => ({ label: `Mover para a pasta “${f.name}”`, onClick: () => moveToFolder(serverId, f.id) })),
                   { label: 'Tirar da pasta', onClick: () => moveToFolder(serverId, null), hidden: !inFolder },
+                  { label: plain ? 'Mostrar o visual do servidor' : 'Usar aparência padrão (só para mim)', onClick: () => togglePlainServer(serverId), hidden: !s.studio },
                   { separator: true, label: '' },
                 ]),
             {
