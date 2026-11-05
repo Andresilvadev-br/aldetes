@@ -51,7 +51,7 @@ export interface VoiceStore {
   /** actions waiting for the real result (button shows loading; state confirmed only after it returns) */
   pending: { mic: boolean; cam: boolean; screen: boolean };
   /** stage layout when 2+ videos: one in focus + thumbnails, or a mosaic (kept for the session) */
-  stageLayout: 'focus' | 'grid';
+  stageLayout: 'focus' | 'grid' | 'free';
   /** live reactions currently on screen */
   reactions: LiveReaction[];
   /** per-tile framing chosen by the viewer: whole picture (contain) or fill the tile (cover) */
@@ -112,7 +112,8 @@ export const useVoice = create<VoiceStore>()(() => ({
   pending: { mic: false, cam: false, screen: false },
   stageLayout: (() => {
     try {
-      return sessionStorage.getItem('aldetes.stageLayout') === 'grid' ? 'grid' : 'focus';
+      const v = sessionStorage.getItem('aldetes.stageLayout');
+      return v === 'grid' || v === 'free' ? v : 'focus';
     } catch {
       return 'focus';
     }
@@ -137,7 +138,7 @@ if (typeof document !== 'undefined')
     if (document.visibilityState === 'visible' && room) void room.startAudio().catch(() => {});
   });
 
-export function setStageLayout(l: 'focus' | 'grid') {
+export function setStageLayout(l: 'focus' | 'grid' | 'free') {
   vset({ stageLayout: l });
   try {
     sessionStorage.setItem('aldetes.stageLayout', l);
@@ -214,7 +215,8 @@ function applyRemoteAudio(p: RemoteParticipant) {
     pub.setEnabled(!deaf);
   }
   p.setVolume(vol, Track.Source.Microphone);
-  p.setVolume(vol, Track.Source.ScreenShareAudio);
+  // the stream's sound has its OWN volume (MultiView): never mixed with the person's voice volume
+  p.setVolume(prefs.streamVolumes[p.identity] ?? 1, Track.Source.ScreenShareAudio);
 }
 
 function attachRoomEvents(r: Room) {
@@ -758,6 +760,15 @@ export function setWatching(identity: string, watch: boolean) {
 }
 export function setStreamVolume(identity: string, v: number) {
   room?.remoteParticipants.get(identity)?.setVolume(v, Track.Source.ScreenShareAudio);
+  setPrefs({ streamVolumes: { ...getPrefs().streamVolumes, [identity]: Math.max(0, Math.min(2, v)) } });
+}
+/**
+ * MultiView: a minimized/hidden tile stops receiving the VIDEO only (bandwidth + decoding saved);
+ * the stream's audio keeps playing. Restoring subscribes again — the room and other tracks are untouched.
+ */
+export function setVideoPaused(identity: string, paused: boolean) {
+  room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare)?.setSubscribed(!paused);
+  bump();
 }
 export function focusStream(identity: string) {
   setWatching(identity, true);

@@ -17,6 +17,9 @@ export interface PublicUser {
   profileEntrance?: string | null;
   pronouns?: string | null;
   profileLinks?: Array<{ label: string; url: string }>;
+  /** 2.0 Spaces: the person's corner (null = default) and its revision (cache key) */
+  space?: import('./schemas').SpaceScene | null;
+  spaceRev?: number;
 }
 
 export interface SelfUser extends PublicUser {

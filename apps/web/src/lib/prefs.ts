@@ -80,6 +80,12 @@ export interface Prefs {
   railFolders: Array<{ id: string; name: string; serverIds: string[]; open: boolean }>;
   /** let servers show animated banners/effects (Server Studio) */
   serverEffects: boolean;
+  /** 2.0: call view per user+channel ('userId:channelId' → mode). Classic is the default (call-first). */
+  callView: Record<string, 'classic' | 'spaces'>;
+  /** 2.0 MultiView: per user id — tile places (fractions of the stage), pinned and minimized tiles */
+  multiview: Record<string, { rects: Record<string, { x: number; y: number; w: number; h: number }>; pinned: string[]; minimized: string[] }>;
+  /** volume of each person's STREAM audio (separate from their voice) */
+  streamVolumes: Record<string, number>;
   /** chat density */
   density: 'cozy' | 'compact' | 'spacious';
   streamQuality: '720p30' | '720p60' | '720p120' | '1080p30' | '1080p60' | '1080p120' | '1440p30' | '1440p60' | '1440p120';
@@ -133,6 +139,9 @@ const defaults: Prefs = {
   railFolders: [],
   serverEffects: true,
   density: 'cozy',
+  callView: {},
+  multiview: {},
+  streamVolumes: {},
   streamQuality: '1080p60',
 };
 

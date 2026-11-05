@@ -14,6 +14,7 @@ import { onGateway } from '@/lib/gateway';
 import { useIsMobile, MobileContentVisible, isMobileNow } from '@/lib/mobile';
 import { MobileShell } from '../mobile/MobileShell';
 import { WhatsNew } from '../common/WhatsNew';
+import { SpaceEditorHost } from '../spaces/SpaceEditor';
 import { MiniPlayer } from '../voice/MiniPlayer';
 import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice, sendReaction, REACTIONS } from '@/lib/voice';
 import { getPrefs, usePrefs, setPrefs, panelWidth, setPanelWidth, PANEL_LIMITS } from '@/lib/prefs';
@@ -140,6 +141,7 @@ export function AppShell() {
     <>
       <AnimatePresence>{switcher && <QuickSwitcher onClose={() => setSwitcher(false)} />}</AnimatePresence>
       <WhatsNew />
+      {!mobile && <SpaceEditorHost />}
       <MiniPlayer />
       {settingsTab && <Suspense fallback={null}><UserSettings key={settingsTab} initialTab={settingsTab} onClose={closeSettings} /></Suspense>}
     </>

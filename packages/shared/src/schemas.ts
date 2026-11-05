@@ -81,6 +81,7 @@ export const updateProfileSchema = z.object({
   profileLinks: z.array(profileLinkSchema).max(3).optional(),
 });
 
+
 /* ---------------- Server Studio ---------------- */
 export const SERVER_SCENES = ['aurora', 'galaxy', 'neon-grid', 'ocean', 'embers', 'neon-current', 'orbital', 'chroma-wave', 'zen-dust'] as const;
 export const studioThemeSchema = z.object({
@@ -170,3 +171,22 @@ export const createRoleSchema = z.object({
 });
 
 export const updateRoleSchema = createRoleSchema.partial().extend({ position: z.number().int().min(1).optional() });
+
+/* ---------------- Spaces (2.0): each person's own corner in the call ---------------- */
+/** Five ready-made 2.5D scenes. Everything is drawn by the app from these ids (no uploaded art, nothing remote). */
+export const SPACE_PRESETS = ['gamer', 'cozy', 'lounge', 'studio', 'minimal'] as const;
+/** Furniture/details each scene can show (the renderer ignores ids a preset doesn't use). Max 6 per corner. */
+export const SPACE_ITEMS = ['desk', 'monitors', 'chair', 'bed', 'sofa', 'plant', 'shelf', 'lamp', 'neon', 'window', 'rug', 'speaker', 'easel', 'cat', 'posters'] as const;
+export const spaceSceneSchema = z.object({
+  preset: z.enum(SPACE_PRESETS).default('minimal'),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#8b5cf6'),
+  lighting: z.enum(['day', 'night', 'neon', 'warm']).default('night'),
+  /** wall/background variant of the preset */
+  backdrop: z.enum(['a', 'b', 'c']).default('a'),
+  items: z.array(z.enum(SPACE_ITEMS)).max(6).default([]),
+  /** tiny looping details (monitor glow, lamp flicker…) — always off in Econômico/Reduzido, under load or off screen */
+  animated: z.boolean().default(true),
+  avatarPos: z.enum(['left', 'center', 'right']).default('center'),
+});
+export type SpaceScene = z.infer<typeof spaceSceneSchema>;
+export const DEFAULT_SPACE: SpaceScene = spaceSceneSchema.parse({});

@@ -430,3 +430,20 @@ body {
 .studio-hover-glow:hover { filter: drop-shadow(0 0 10px var(--sa, rgb(var(--brand)))); }
 [data-sep='glow'] .cat-sep { background: linear-gradient(90deg, var(--sa, rgb(var(--brand))), transparent); opacity: 0.7; box-shadow: 0 0 6px var(--sa, rgb(var(--brand))); }
 [data-sep='dots'] .cat-sep { height: 2px; background: radial-gradient(var(--sa, rgb(var(--brand))) 1px, transparent 1.5px) 0 0 / 7px 2px; opacity: 0.75; }
+
+/* ---------- Spaces (2.0): 2.5D corners ---------- */
+.sp-room { position: absolute; inset: 0; overflow: hidden; contain: strict; border-radius: inherit; isolation: isolate; }
+.sp-i { position: absolute; display: block; }
+.sp-floor { position: absolute; left: -20%; right: -20%; bottom: 0; height: 34%; transform-origin: bottom; transform: perspective(300px) rotateX(38deg); }
+.sp-person { position: absolute; bottom: 7%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 2; }
+.sp-d-mini .sp-person { bottom: 50%; transform: translate(-50%, 50%); }
+/* loops: few, slow, opacity/transform only */
+.sp-anim.sp-screen { animation: sp-glow 3.4s ease-in-out infinite; }
+.sp-anim.sp-lamp { animation: sp-glow 5s ease-in-out infinite; }
+.sp-anim.sp-neon { animation: sp-glow 2.6s ease-in-out infinite; }
+.sp-anim.sp-beat { animation: sp-beat 0.9s ease-in-out infinite; }
+@keyframes sp-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+@keyframes sp-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+/* paused: Econômico/Reduzido, measured load, off screen, hidden window (the global data-hidden rule also applies) */
+:root[data-motion='performance'] .sp-anim, :root[data-load='high'] .sp-anim, :root[data-load='mid'] .sp-anim,
+[data-offscreen='true'] .sp-anim, :root[data-reduce-motion='true'] .sp-anim { animation: none !important; }

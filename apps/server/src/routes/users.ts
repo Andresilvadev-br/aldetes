@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { updateProfileSchema, ServerEvents } from '@aldetes/shared';
+import { updateProfileSchema, ServerEvents, spaceSceneSchema } from '@aldetes/shared';
+import { Prisma } from '@prisma/client';
 import type { AppContext } from '../context';
 import { notFound } from '../lib/errors';
 import { selfUser, publicUser } from '../services/serialize';
@@ -21,6 +22,20 @@ export function userRoutes(app: FastifyInstance, ctx: AppContext) {
       }
       await ctx.gw.broadcastPresence(user.id);
     }
+    return selfUser(user);
+  });
+
+  // 2.0 Spaces: only the owner of the account changes their corner; every change bumps the revision so the other
+  // clients re-render just that corner (the scene is data, the art ships with the app — nothing to download).
+  app.put('/users/@me/space', { ...auth, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) => {
+    const scene = spaceSceneSchema.parse(req.body);
+    const user = await db.user.update({ where: { id: req.auth.userId }, data: { spaceScene: scene, spaceRev: { increment: 1 } } });
+    await broadcastUserUpdate(ctx, user.id);
+    return selfUser(user);
+  });
+  app.delete('/users/@me/space', auth, async (req) => {
+    const user = await db.user.update({ where: { id: req.auth.userId }, data: { spaceScene: Prisma.DbNull, spaceRev: { increment: 1 } } });
+    await broadcastUserUpdate(ctx, user.id);
     return selfUser(user);
   });
 

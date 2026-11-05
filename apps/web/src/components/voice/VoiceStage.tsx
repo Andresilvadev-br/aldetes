@@ -1,16 +1,18 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import clsx from 'clsx';
 import type { Participant, VideoTrack } from 'livekit-client';
 import { Track } from '@/lib/lk';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, stopScreenAudio, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, participantVersion, getRoom, SERVER_UPLINK_MBPS, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, stopScreenAudio, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, setVideoPaused, canShareScreen, setTileFit, setViewQuality, streamHasLayers, participantVersion, getRoom, SERVER_UPLINK_MBPS, type Tile } from '@/lib/voice';
 import { diagnoseViewer, diagnoseOwn } from '@/lib/streamDiag';
 import { spring, dur } from '@/lib/motion';
-import { usePrefs } from '@/lib/prefs';
+import { usePrefs, setPrefs, getPrefs } from '@/lib/prefs';
 import { LiveAvatar, ReactionPicker } from './LiveAvatar';
-import { useMedia, SHORT } from '@/lib/mobile';
+import { useMedia, SHORT, useIsMobile } from '@/lib/mobile';
+import { SpacesView } from '../spaces/SpacesView';
+import { openSpaceEditor } from '../spaces/SpaceEditor';
 import { Segmented } from '../settings/SettingsLayout';
 import { Avatar } from '../common/Avatar';
 import { Icon } from '../common/Icon';
@@ -309,6 +311,84 @@ function focusRects(n: number, W: number, H: number): Rect[] {
 }
 
 /** Measures an element that may mount later (callback ref → re-subscribes when it appears). */
+const EMPTY_MV = { rects: {}, pinned: [] as string[], minimized: [] as string[] };
+function mvOf(meId: string) {
+  return getPrefs().multiview[meId] ?? EMPTY_MV;
+}
+function saveMv(meId: string, patch: Partial<typeof EMPTY_MV & { rects: Record<string, Rect> }>) {
+  const all = getPrefs().multiview;
+  setPrefs({ multiview: { ...all, [meId]: { ...mvOf(meId), ...patch } } });
+}
+function toggleMinimized(meId: string, t: Tile) {
+  const cur = mvOf(meId).minimized;
+  const on = !cur.includes(t.key);
+  saveMv(meId, { minimized: on ? [...cur, t.key] : cur.filter((k) => k !== t.key) });
+  // remote screen: pause only its VIDEO while minimized (audio keeps playing); restore resumes it
+  if (t.source === Track.Source.ScreenShare && !t.isLocal) setVideoPaused(t.identity, on);
+}
+
+/**
+ * MultiView tile tools: pin, minimize and — in the "Livre" layout — drag (grip) and resize (corner) with snapping to
+ * a 2.5% grid and the stage edges (hold Alt for free placement). The tile itself (and its <video>) never remounts:
+ * only the wrapper's transform/size change; the place is saved as fractions of the stage, per user.
+ */
+function TileTools({ tile, pinned, meId, free, rect, W, H, onLive }: { tile: Tile; pinned: boolean; meId: string; free: boolean; rect: Rect; W: number; H: number; onLive: (r: Rect | null) => void }) {
+  const start = useRef<{ x: number; y: number; r: Rect; kind: 'move' | 'size' } | null>(null);
+  const snap = (v: number, total: number, alt: boolean) => (alt ? v : Math.round(v / (total * 0.025)) * (total * 0.025));
+  const clampR = (r: Rect): Rect => {
+    const w = Math.min(W, Math.max(200, r.w));
+    const h = Math.min(H, Math.max(120, r.h));
+    return { w, h, x: Math.min(W - w, Math.max(0, r.x)), y: Math.min(H - h, Math.max(0, r.y)) };
+  };
+  const down = (kind: 'move' | 'size') => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    start.current = { x: e.clientX, y: e.clientY, r: rect, kind };
+  };
+  const calc = (e: React.PointerEvent) => {
+    const st = start.current!;
+    const dx = e.clientX - st.x;
+    const dy = e.clientY - st.y;
+    const r = st.kind === 'move' ? { ...st.r, x: snap(st.r.x + dx, W, e.altKey), y: snap(st.r.y + dy, H, e.altKey) } : { ...st.r, w: snap(st.r.w + dx, W, e.altKey), h: snap(st.r.h + dy, H, e.altKey) };
+    return clampR(r);
+  };
+  const move = (e: React.PointerEvent) => start.current && onLive(calc(e));
+  const up = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const r = calc(e);
+    start.current = null;
+    onLive(null);
+    saveMv(meId, { rects: { ...mvOf(meId).rects, [tile.key]: { x: r.x / W, y: r.y / H, w: r.w / W, h: r.h / H } } });
+  };
+  const btn = 'flex h-7 w-7 items-center justify-center rounded-lg bg-black/70 text-white hover:bg-black/90';
+  return (
+    <>
+      <div className="absolute right-2 top-9 z-10 flex gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/mv:opacity-100" onClick={(e) => e.stopPropagation()}>
+        <button className={clsx(btn, pinned && 'bg-brand/80')} aria-pressed={pinned} aria-label={pinned ? 'Desafixar' : 'Fixar no começo'} title={pinned ? 'Desafixar' : 'Fixar no começo'} onClick={() => saveMv(meId, { pinned: pinned ? mvOf(meId).pinned.filter((k) => k !== tile.key) : [...mvOf(meId).pinned, tile.key] })}>
+          <Icon name="pin" size={13} />
+        </button>
+        <button className={btn} aria-label="Minimizar" title="Minimizar (o vídeo pausa, o som continua)" onClick={() => toggleMinimized(meId, tile)}>
+          <Icon name="arrowDown" size={13} />
+        </button>
+        {free && (
+          <button className={btn} aria-label="Restaurar posição" title="Voltar ao lugar automático" onClick={() => { const rr = { ...mvOf(meId).rects }; delete rr[tile.key]; saveMv(meId, { rects: rr }); }}>
+            <Icon name="grid" size={13} />
+          </button>
+        )}
+      </div>
+      {free && (
+        <>
+          <span role="separator" aria-label="Arrastar a tela" title="Arraste para mover (Alt: sem ímã)" onPointerDown={down('move')} onPointerMove={move} onPointerUp={up} onClick={(e) => e.stopPropagation()} className="absolute left-1/2 top-1.5 z-10 flex h-5 w-14 -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-black/70 text-white/70 opacity-0 transition-opacity active:cursor-grabbing group-hover/mv:opacity-100">
+            <Icon name="grip" size={14} className="rotate-90" />
+          </span>
+          <span role="separator" aria-label="Redimensionar a tela" title="Arraste para mudar o tamanho" onPointerDown={down('size')} onPointerMove={move} onPointerUp={up} onClick={(e) => e.stopPropagation()} className="absolute bottom-1 right-1 z-10 h-5 w-5 cursor-nwse-resize rounded-br-xl border-b-2 border-r-2 border-white/70 opacity-0 transition-opacity group-hover/mv:opacity-100" />
+        </>
+      )}
+    </>
+  );
+}
+
 function useSize() {
   const [el, setEl] = useState<HTMLElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -354,12 +434,29 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
   }, [firstScreen]);
 
   const [box, { w: W, h: H }] = useSize();
-  const focusKey = media.find((t) => t.key === focused)?.key ?? media[0]?.key;
-  const mode = media.length <= 1 ? 'focus' : layout;
-  const ordered = mode === 'focus' && focusKey ? [media.find((t) => t.key === focusKey)!, ...media.filter((t) => t.key !== focusKey)] : media;
-  const rects = W && H && ordered.length ? (mode === 'grid' ? gridRects(ordered.length, W, H) : focusRects(ordered.length, W, H)) : [];
+  // 2.0 MultiView: pinned first, minimized out of the stage (their video is paused, audio keeps playing)
+  const meIdMv = useStore((s) => s.me?.id ?? '');
+  const mv = usePrefs((p) => p.multiview[meIdMv]) ?? EMPTY_MV;
+  const mobileMv = useIsMobile();
+  const visible = media.filter((t) => !mv.minimized.includes(t.key));
+  const minimized = media.filter((t) => mv.minimized.includes(t.key));
+  const byPin = [...visible].sort((a, b) => Number(mv.pinned.includes(b.key)) - Number(mv.pinned.includes(a.key)));
+  const focusKey = visible.find((t) => t.key === focused)?.key ?? byPin[0]?.key;
+  const mode = visible.length <= 1 ? 'focus' : layout === 'free' && mobileMv ? 'grid' : layout;
+  const ordered = mode === 'focus' && focusKey ? [visible.find((t) => t.key === focusKey)!, ...byPin.filter((t) => t.key !== focusKey)] : byPin;
+  const [live, setLive] = useState<{ key: string; r: Rect } | null>(null);
+  const base = W && H && ordered.length ? (mode === 'focus' ? focusRects(ordered.length, W, H) : gridRects(ordered.length, W, H)) : [];
+  const rects =
+    mode === 'free' && W && H
+      ? ordered.map((t, i) => {
+          if (live?.key === t.key) return live.r;
+          const f = mv.rects[t.key];
+          return f ? { x: f.x * W, y: f.y * H, w: f.w * W, h: f.h * H } : base[i]!;
+        })
+      : base;
   const rectOf = new Map(ordered.map((t, i) => [t.key, rects[i]]));
   const voiceOnly = media.length === 0;
+  const heavy = visible.filter((t) => t.source === Track.Source.ScreenShare && !t.isLocal).length >= 3;
   const short = useMedia(SHORT); // phone in landscape: video gets the whole height
   // touch: swipe left/right on the stage to move the focus to the next/previous video
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -377,53 +474,91 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
     setFocus(next.key);
     setStageLayout('focus');
   };
+  // 2.0 Spaces: a pure VIEW switch (desktop). The room, tracks and the media stage below are untouched by it.
+  const mobileNow = useIsMobile();
+  const meId = useStore((s) => s.me?.id);
+  const viewKey = `${meId}:${channelId}`;
+  const view = usePrefs((p) => (mobileNow ? 'classic' : (p.callView[viewKey] ?? 'classic')));
+  const setView = (v: 'classic' | 'spaces') => setPrefs({ callView: { ...getPrefs().callView, [viewKey]: v } });
+  const [spaceFocus, setSpaceFocus] = useState<string | null>(null);
+  const spaces = view === 'spaces';
 
   return (
-    <div className={clsx('flex min-h-0 flex-1 flex-col', compact && 'h-[48vh] flex-none border-b border-line/[0.06] bg-black/30')}>
-      <div className={clsx('flex min-h-0 flex-1 gap-3 p-3', compact ? 'flex-col' : 'flex-col xl:flex-row')}>
+    <LayoutGroup id={`call-${channelId}`}>
+    <div className={clsx('flex min-h-0 flex-1 flex-col', compact && 'h-[48vh] flex-none border-b border-line/[0.06] bg-black/30')} data-call-view={view}>
+      {!mobileNow && (
+        <div className="flex shrink-0 items-center gap-2 px-3 pt-3">
+          <Segmented id={`call-view-${channelId}`} value={view} onChange={setView} options={[['classic', 'Clássico'], ['spaces', 'Spaces']]} />
+          {spaces && (
+            <button className="btn-ghost h-8 px-2.5 text-xs" onClick={openSpaceEditor}>
+              <Icon name="edit" size={13} /> Meu cantinho
+            </button>
+          )}
+        </div>
+      )}
+      <div className={clsx('flex min-h-0 flex-1 gap-3 p-3', compact ? 'flex-col' : spaces ? 'flex-col' : 'flex-col xl:flex-row')}>
         {voiceOnly ? (
-          <VoiceGrid people={people} serverId={serverId} />
+          spaces ? <SpacesView people={people} serverId={serverId} focus={spaceFocus} onFocus={setSpaceFocus} /> : <VoiceGrid people={people} serverId={serverId} />
         ) : (
           <div className="relative min-h-0 min-w-0 flex-1 touch-pan-y" onPointerDown={onTouchStart} onPointerUp={onTouchEnd}>
-            {media.length >= 2 && (
-              <div className="absolute right-1 top-1 z-20">
-                <Segmented
-                  id={`stage-layout-${channelId}`}
-                  value={layout}
-                  onChange={(l) => setStageLayout(l)}
-                  options={[
-                    ['focus', 'Foco'],
-                    ['grid', 'Grade'],
-                  ]}
-                />
+            {(media.length >= 2 || minimized.length > 0) && (
+              <div className="absolute left-1 right-1 top-1 z-20 flex items-center gap-2">
+                {minimized.length > 0 && (
+                  <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto" aria-label="Telas minimizadas">
+                    {minimized.map((t) => (
+                      <button key={t.key} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line/[0.1] bg-bg-float px-2 py-1 text-[12px] font-semibold text-fg hover:border-brand/40" onClick={() => toggleMinimized(meIdMv, t)} title="Voltar para o palco">
+                        <Icon name={t.source === Track.Source.ScreenShare ? 'screen' : 'camera'} size={13} /> {displayName(t.identity, serverId)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <span className="flex-1" />
+                {heavy && <span className="hidden rounded-lg bg-warn/15 px-2 py-1 text-[11px] font-semibold text-warn md:inline" title="Com 3 ou mais transmissões, cada tela pequena recebe uma versão proporcional ao tamanho dela. Minimize as que não está vendo para economizar ainda mais.">3+ telas: qualidade proporcional ao tamanho</span>}
+                {media.length >= 2 && (
+                  <Segmented
+                    id={`stage-layout-${channelId}`}
+                    value={mode === 'focus' && layout !== 'focus' ? layout : mode}
+                    onChange={(l) => setStageLayout(l)}
+                    options={mobileMv ? [['focus', 'Foco'], ['grid', 'Grade']] : [['focus', 'Foco'], ['grid', 'Grade'], ['free', 'Livre']]}
+                  />
+                )}
               </div>
             )}
-            <div ref={box} className={clsx('absolute inset-0', media.length >= 2 && 'top-11')}>
-              {media.map((t) => {
-                const r = rectOf.get(t.key);
-                if (!r) return null;
-                const isFocus = mode === 'focus' && t.key === focusKey;
-                return (
-                  <motion.div
-                    key={t.key}
-                    initial={false}
-                    animate={{ x: r.x, y: r.y, width: r.w, height: r.h, opacity: 1 }}
-                    transition={spring.stage}
-                    className="absolute left-0 top-0"
-                    style={{ zIndex: isFocus ? 1 : 2 }}
-                  >
-                    <TileView tile={t} serverId={serverId} big={isFocus || (mode === 'grid' && r.w > 380)} onClick={() => (mode === 'grid' ? (setFocus(t.key), setStageLayout('focus')) : setFocus(t.key))} />
-                  </motion.div>
-                );
-              })}
+            <div ref={box} className={clsx('absolute inset-0', (media.length >= 2 || minimized.length > 0) && 'top-11')}>
+              <AnimatePresence initial={false}>
+                {ordered.map((t) => {
+                  const r = rectOf.get(t.key);
+                  if (!r) return null;
+                  const isFocus = mode === 'focus' && t.key === focusKey;
+                  const dragging = live?.key === t.key;
+                  return (
+                    <motion.div
+                      key={t.key}
+                      initial={{ x: r.x, y: r.y + 24, width: r.w, height: r.h, opacity: 0, scale: 0.9 }}
+                      animate={{ x: r.x, y: r.y, width: r.w, height: r.h, opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92, transition: { duration: dur.short } }}
+                      transition={dragging ? { duration: 0 } : spring.stage}
+                      className="group/mv absolute left-0 top-0"
+                      style={{ zIndex: dragging ? 5 : isFocus ? 1 : 2 }}
+                      data-tile={t.key}
+                    >
+                      <TileView tile={t} serverId={serverId} big={isFocus || (mode !== 'focus' && r.w > 380)} onClick={() => (mode === 'grid' ? (setFocus(t.key), setStageLayout('focus')) : mode === 'focus' ? setFocus(t.key) : undefined)} />
+                      {media.length >= 2 && !mobileMv && (
+                        <TileTools tile={t} pinned={mv.pinned.includes(t.key)} meId={meIdMv} free={mode === 'free'} rect={r} W={W} H={H} onLive={(nr) => setLive(nr ? { key: t.key, r: nr } : null)} />
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
             <StreamReactions />
           </div>
         )}
-        {!voiceOnly && !short && <PeopleStrip people={people} serverId={serverId} vertical={!compact} />}
+        {!voiceOnly && !short && (spaces ? <SpacesView people={people} serverId={serverId} strip focus={null} onFocus={() => {}} /> : <PeopleStrip people={people} serverId={serverId} vertical={!compact} />)}
       </div>
       <CallDock />
     </div>
+    </LayoutGroup>
   );
 }
 
@@ -447,7 +582,9 @@ function VoiceGrid({ people, serverId }: { people: string[]; serverId: string | 
         {people.map((id, i) => (
           <motion.div key={id} layout initial={{ opacity: 0, scale: 0.85, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }} transition={{ ...spring.stage, delay: entering ? Math.min(i, 10) * 0.05 : 0 }} className="flex w-[150px] flex-col items-center gap-3">
             <PersonMenu id={id} serverId={serverId}>
-              <LiveAvatar identity={id} size={big} />
+              <motion.span layoutId={`person-${id}`} transition={spring.stage} className="inline-flex">
+                <LiveAvatar identity={id} size={big} />
+              </motion.span>
             </PersonMenu>
             <span className="max-w-full truncate text-sm font-semibold text-fg-strong">{displayName(id, serverId)}</span>
           </motion.div>
