@@ -1,6 +1,7 @@
 import { useMemo, useState, lazy, Suspense, useRef, useLayoutEffect, useEffect } from 'react';
 import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers, ServerAmbient, ServerName, PresentationBg } from '../studio/ServerScene';
 import { borderClass } from '../profile/Cosmetics';
+import { useSettle } from '@/lib/perf';
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
@@ -94,6 +95,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
   usePlainServers();
   const theme = themeOf(server);
+  const settle = useSettle(serverId);
   const inVoiceHere = useStore((s) => Object.values(s.voiceStates).some((v) => v.serverId === serverId));
   const effects = useServerEffects();
   // Signature entrance: short, only when the server is opened from the rail, never blocks anything
@@ -125,6 +127,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
   return (
     <div
+      ref={settle}
       className="relative flex h-full flex-col"
       data-sep={theme.separator}
       style={{

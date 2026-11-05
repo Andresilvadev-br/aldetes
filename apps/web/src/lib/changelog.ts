@@ -30,6 +30,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2.1.0',
+    date: '2026-11-06',
+    title: 'Identity & Worlds',
+    tagline: 'Seu perfil e o seu servidor do seu jeito: banners, molduras, efeitos, temas e coleções.',
+    highlights: [
+      { id: 'identity', category: 'Perfil', demo: 'profile', explore: 'profile', title: 'Identity Studio', body: 'Cinco banners novos com cor, intensidade e velocidade ajustáveis, cinco molduras, cinco efeitos com entrada e saída, cinco temas e decorações para o nome. Tudo com prévia ao vivo, desfazer e antes/depois.' },
+      { id: 'worlds-studio', category: 'Servidores', demo: 'studio', explore: 'studio', title: 'Worlds Studio', body: 'Cenas novas no cabeçalho, ícone animado, ambiente atrás da lista de canais (nunca por cima das mensagens), cinco temas completos, emblema e fundo de apresentação no convite.' },
+      { id: 'collections', category: 'Perfil', demo: 'profile', explore: 'profile', title: 'Coleções', body: 'NEON GENESIS, COSMIC LEGACY, OBSIDIAN ELITE, HOLOGRAPHIC e ETERNAL FLAME: um visual completo de uma vez, para o perfil e para o servidor. Depois troque qualquer peça.' },
+      { id: 'light', category: 'Movimento', demo: 'motion', explore: 'appearance', title: 'Leve de propósito', body: 'Em avatares pequenos (chat, listas, call) as molduras ficam paradas, só o que está na tela anima e os perfis Ultra, Equilibrado e Essencial definem quantas partículas aparecem.' },
+    ],
+  },
+  {
     version: '2.0.1',
     date: '2026-11-06',
     title: 'Correções da 2.0',

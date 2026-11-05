@@ -10,6 +10,7 @@ import { spring, dur, ease } from '@/lib/motion';
 import { useIsMobile } from '@/lib/mobile';
 import { usePrefs, setPrefs, getPrefs, type Prefs } from '@/lib/prefs';
 import { promptDialog } from '../common/overlay';
+import { useSettle } from '@/lib/perf';
 import { IconFrame, themeOf, useServerEffects, ServerCover, usePlainServers, togglePlainServer } from '../studio/ServerScene';
 import { desktop } from '@/lib/desktop';
 import { Tooltip, useContextMenu, confirmDialog, toastError } from '../common/overlay';
@@ -71,6 +72,8 @@ export function ServerRail() {
   const [creating, setCreating] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const homeActive = loc.pathname.startsWith('/channels/@me');
+  // icon frames/animations play when you arrive or point at the rail, then rest (Ultra keeps them running)
+  const settle = useSettle(loc.pathname.split('/')[2]);
   // unread DMs show as avatars on the rail
   const unreadDms = useStoreShallow((s) => s.dmIds.filter((id) => (s.readStates[id]?.mentionCount ?? 0) > 0));
   const mobile = useIsMobile();
@@ -92,7 +95,7 @@ export function ServerRail() {
   }, [mobile, folders, order]);
 
   return (
-    <nav className={clsx('scroll-none flex w-[76px] shrink-0 flex-col items-center gap-2 overflow-y-auto pb-3', desktop?.platform === 'darwin' ? 'pt-10' : 'pt-3')} aria-label="Servidores">
+    <nav ref={settle} className={clsx('scroll-none flex w-[76px] shrink-0 flex-col items-center gap-2 overflow-y-auto pb-3', desktop?.platform === 'darwin' ? 'pt-10' : 'pt-3')} aria-label="Servidores">
       <RailItem tooltip="Mensagens diretas" active={homeActive} onClick={() => nav('/channels/@me')}>
         <div className={clsx('flex h-12 w-12 items-center justify-center rounded-2xl transition-colors duration-200', homeActive ? 'grad text-white shadow-glow' : 'bg-line/[0.06] text-fg group-hover:text-fg-strong')}>
           <Logo size={26} />
@@ -418,7 +421,7 @@ function ServerButton({ serverId }: { serverId: string }) {
           ])
         }
       >
-        <IconFrame frame={mobile ? 'none' : theme.iconFrame} accent={theme.accent} anim={mobile ? 'none' : theme.iconAnim} live={active} active={inVoice || unread}>
+        <IconFrame frame={mobile ? 'none' : theme.iconFrame} accent={theme.accent} anim={mobile ? 'none' : theme.iconAnim} active={inVoice}>
           <ServerIcon name={s.name} iconUrl={s.iconUrl} active={active} />
         </IconFrame>
       </RailItem>

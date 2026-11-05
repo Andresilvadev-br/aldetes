@@ -350,7 +350,7 @@ export const BANNERS: Record<string, { label: string; tag: string; render: () =>
     tag: 'servidor',
     render: () => (
       <div className="bn" style={{ background: 'linear-gradient(#030014, #1e1b4b 65%, #312e81)' }}>
-        {many(18, (i) => (
+        {many(10, (i) => (
           <span key={i} className="bn-star bn-anim bn-part" style={css({ left: `${rnd(i, 81) * 100}%`, top: `${rnd(i, 82) * 55}%`, '--d': `${2.5 + rnd(i, 83) * 3}s`, animationDelay: `${-rnd(i, 84) * 3}s` })} />
         ))}
         <span style={{ left: '-20%', right: '-20%', bottom: '-160%', height: '200%', borderRadius: '50%', background: 'radial-gradient(closest-side, #0b1033 96%, transparent)', boxShadow: '0 -6px 30px var(--b1, #60a5fa)' }} />

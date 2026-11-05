@@ -1,4 +1,5 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePrefs } from './prefs';
 import { create } from 'zustand';
 
 /**
@@ -118,4 +119,37 @@ export function useOffscreenPause() {
     });
     io.observe(el);
   }, []);
+}
+
+/**
+ * 2.1 "settle": persistent decoration (server cover scene, ambient, animated icon, name highlight) plays when the
+ * server opens or the pointer is over it, then rests after `ms` without interaction — reading a chat for an hour
+ * doesn't keep loops running. Ultra keeps everything running; Essencial/Reduzido are already static.
+ * Returns a ref callback; CSS pauses everything under [data-settled='true'].
+ */
+export function useSettle(key: unknown, ms = 12000) {
+  const motion = usePrefs((p) => p.motion);
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!el) return;
+    if (motion === 'ultra') {
+      el.dataset.settled = 'false';
+      return;
+    }
+    let t = 0;
+    const wake = () => {
+      if (el.dataset.settled !== 'false') el.dataset.settled = 'false';
+      clearTimeout(t);
+      t = window.setTimeout(() => (el.dataset.settled = 'true'), ms);
+    };
+    wake();
+    el.addEventListener('pointerover', wake);
+    el.addEventListener('focusin', wake);
+    return () => {
+      clearTimeout(t);
+      el.removeEventListener('pointerover', wake);
+      el.removeEventListener('focusin', wake);
+    };
+  }, [el, motion, key, ms]);
+  return setEl;
 }

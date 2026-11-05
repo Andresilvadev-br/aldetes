@@ -579,3 +579,5 @@ body {
 
 /* 2.1: anything inside an offscreen-observed element stops animating (gallery thumbnails, banners, ambient) */
 [data-offscreen='true'] *, [data-offscreen='true'] *::before, [data-offscreen='true'] *::after { animation-play-state: paused !important; }
+/* 2.1 settle: decoration rests after a while without interaction (see lib/perf.ts useSettle) */
+[data-settled='true'] *, [data-settled='true'] *::before, [data-settled='true'] *::after { animation-play-state: paused !important; }
