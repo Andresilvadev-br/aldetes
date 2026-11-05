@@ -165,3 +165,26 @@ export interface ReadyPayload {
   readStates: Array<{ channelId: string; lastReadMessageId: string | null; mentionCount: number }>;
   sessionId: string;
 }
+
+/* ---------------- Together (2.0) ---------------- */
+export type BoardItem =
+  | { id: string; by: string; type: 'stroke'; tool: 'pen' | 'marker'; color: string; width: number; points: Array<[number, number]> }
+  | { id: string; by: string; type: 'text'; color: string; x: number; y: number; text: string };
+export interface TogetherState {
+  poll?: { question: string; options: string[]; votes: Record<string, number>; endsAt: number | null; closed: boolean };
+  timer?: { label: string; durationMs: number; startedAt: number | null; remainingMs: number };
+  notes?: { title: string; text: string; editedBy: string | null };
+  board?: { title: string; items: BoardItem[] };
+}
+export interface TogetherSession {
+  id: string;
+  channelId: string;
+  kind: 'poll' | 'timer' | 'notes' | 'board';
+  createdBy: string;
+  version: number;
+  state: TogetherState;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  keep: boolean;
+}

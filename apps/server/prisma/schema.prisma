@@ -175,9 +175,29 @@ model Channel {
   messages         Message[]
   recipients       ChannelRecipient[]
   invites          Invite[]
+  together         TogetherSession[]
 
   @@index([serverId])
   @@index([parentId])
+}
+
+/// 2.0 Together: one collaboration tool inside a call (poll, timer, notes or board).
+/// state is validated JSON (size-capped); version increments on every accepted operation.
+/// Open sessions without activity for 24 h are deleted; closed ones are deleted unless "keep" (kept 30 days).
+model TogetherSession {
+  id        String    @id
+  channelId String
+  kind      String
+  createdBy String
+  state     Json
+  version   Int       @default(0)
+  keep      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
 }
 
 model PermissionOverwrite {

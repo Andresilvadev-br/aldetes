@@ -37,6 +37,8 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public details?: Record<string, string[]>,
+    /** the full JSON error body (e.g. a 409 carries the current server state) */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -67,7 +69,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   }
   if (!res.ok) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent('aldetes:unauthorized'));
-    throw new ApiError(res.status, data?.code ?? 'ERROR', data?.message ?? `Erro ${res.status}`, data?.details);
+    throw new ApiError(res.status, data?.code ?? 'ERROR', data?.message ?? `Erro ${res.status}`, data?.details, data);
   }
   return data as T;
 }

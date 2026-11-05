@@ -28,6 +28,7 @@ import { roleRoutes } from './routes/roles';
 import { inviteRoutes } from './routes/invites';
 import { moderationRoutes } from './routes/moderation';
 import { uploadRoutes } from './routes/uploads';
+import { togetherRoutes } from './routes/together';
 import { voiceRoutes } from './routes/voice';
 import { dmRoutes } from './routes/dms';
 
@@ -138,6 +139,7 @@ export async function buildApp(cfg: Config, opts: { logger?: boolean } = {}): Pr
       inviteRoutes(api, ctx);
       moderationRoutes(api, ctx);
       voiceRoutes(api, ctx);
+      togetherRoutes(api, ctx);
     },
     { prefix: '/api' },
   );

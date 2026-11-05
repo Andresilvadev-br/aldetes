@@ -171,6 +171,25 @@ export class Gateway {
       if ((prev ?? null) !== next) await this.broadcastPresence(userId);
     });
 
+    // 2.0 Together: ephemeral presence (board cursors, "editing the notes") — relayed, never stored.
+    // Only for people in that call (checked against the voice state, cached 10 s per socket), max ~20/s per socket.
+    const inCallCache = new Map<string, number>();
+    let lastEphemeral = 0;
+    socket.on('together:presence', async (data: unknown) => {
+      const p = z.object({ channelId: z.string().max(32), sid: z.string().max(32), x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(), editing: z.boolean().optional() }).safeParse(data);
+      if (!p.success) return;
+      const now = Date.now();
+      if (now - lastEphemeral < 45) return;
+      lastEphemeral = now;
+      const ok = inCallCache.get(p.data.channelId);
+      if (!ok || now - ok > 10_000) {
+        const raw = await this.ctx.redis.hget('voice:states', userId);
+        if (!raw || (JSON.parse(raw) as VoiceState).channelId !== p.data.channelId) return void inCallCache.delete(p.data.channelId);
+        inCallCache.set(p.data.channelId, now);
+      }
+      socket.to(rooms.channel(p.data.channelId)).emit('together:presence', { ...p.data, userId });
+    });
+
     socket.on('voice:self', async (data: unknown) => {
       const parsed = z
         .object({ selfMute: z.boolean(), selfDeaf: z.boolean(), video: z.boolean().optional(), streaming: z.boolean().optional() })

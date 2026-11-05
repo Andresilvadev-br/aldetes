@@ -190,3 +190,40 @@ export const spaceSceneSchema = z.object({
 });
 export type SpaceScene = z.infer<typeof spaceSceneSchema>;
 export const DEFAULT_SPACE: SpaceScene = spaceSceneSchema.parse({});
+
+/* ---------------- Together (2.0): collaboration tools inside a call ---------------- */
+export const TOGETHER_KINDS = ['poll', 'timer', 'notes', 'board'] as const;
+export type TogetherKind = (typeof TOGETHER_KINDS)[number];
+const cleanText = (max: number) => z.string().max(max).transform((v) => v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ''));
+export const togetherCreateSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('poll'),
+    question: cleanText(200).pipe(z.string().trim().min(1)),
+    options: z.array(cleanText(80).pipe(z.string().trim().min(1))).min(2).max(8),
+    /** seconds until it closes by itself (null = until someone closes it) */
+    durationSec: z.number().int().min(30).max(86400).nullable().default(null),
+  }),
+  z.object({ kind: z.literal('timer'), label: cleanText(60).default('Foco'), minutes: z.number().int().min(1).max(180).default(25) }),
+  z.object({ kind: z.literal('notes'), title: cleanText(60).default('Notas') }),
+  z.object({ kind: z.literal('board'), title: cleanText(60).default('Quadro') }),
+]);
+export type TogetherCreate = z.infer<typeof togetherCreateSchema>;
+
+const point = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const togetherOpSchema = z.object({
+  /** client-generated id: replays after a reconnect are ignored (no duplicated actions) */
+  opId: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  baseVersion: z.number().int().min(0).optional(),
+  op: z.discriminatedUnion('type', [
+    z.object({ type: z.literal('vote'), option: z.number().int().min(0).max(7) }),
+    z.object({ type: z.literal('unvote') }),
+    z.object({ type: z.literal('timer'), action: z.enum(['start', 'pause', 'reset']), minutes: z.number().int().min(1).max(180).optional() }),
+    z.object({ type: z.literal('replace'), text: cleanText(20000) }),
+    z.object({ type: z.literal('stroke'), id: z.string().min(4).max(40), tool: z.enum(['pen', 'marker']), color, width: z.number().min(1).max(24), points: z.array(point).min(1).max(800) }),
+    z.object({ type: z.literal('text'), id: z.string().min(4).max(40), color, x: z.number().min(0).max(1), y: z.number().min(0).max(1), text: cleanText(200).pipe(z.string().trim().min(1)) }),
+    z.object({ type: z.literal('erase'), ids: z.array(z.string().max(40)).min(1).max(200) }),
+    z.object({ type: z.literal('clear') }),
+  ]),
+});
+export type TogetherOp = z.infer<typeof togetherOpSchema>['op'];

@@ -1,5 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from 'react';
+import { useTogether, watchTogether } from '@/lib/together';
+const TogetherPanel = lazy(() => import('../together/TogetherPanel'));
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import clsx from 'clsx';
 import type { Participant, VideoTrack } from 'livekit-client';
@@ -481,6 +483,15 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
   const view = usePrefs((p) => (mobileNow ? 'classic' : (p.callView[viewKey] ?? 'classic')));
   const setView = (v: 'classic' | 'spaces') => setPrefs({ callView: { ...getPrefs().callView, [viewKey]: v } });
   const [spaceFocus, setSpaceFocus] = useState<string | null>(null);
+  // 2.0 Together: lazy panel; follows only the call you are in
+  const [together, setTogether] = useState(false);
+  const [togetherFull, setTogetherFull] = useState(false);
+  const openTools = useTogether((t) => (t.byChannel[channelId] ?? []).filter((x) => !x.closedAt).length);
+  useEffect(() => {
+    if (mobileNow) return;
+    watchTogether(channelId);
+    return () => watchTogether(null);
+  }, [channelId, mobileNow]);
   const spaces = view === 'spaces';
 
   return (
@@ -494,9 +505,15 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
               <Icon name="edit" size={13} /> Meu cantinho
             </button>
           )}
+          <span className="flex-1" />
+          <button className={clsx('flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-bold transition-colors', together ? 'border-brand/40 bg-brand/15 text-fg-strong' : 'border-line/[0.08] text-fg-muted hover:text-fg-strong')} onClick={() => setTogether(!together)} aria-pressed={together} title="Enquetes, cronômetro, notas e quadro com quem está na call">
+            <Icon name="users" size={14} /> Together{openTools > 0 ? ` · ${openTools}` : ''}
+          </button>
         </div>
       )}
-      <div className={clsx('flex min-h-0 flex-1 gap-3 p-3', compact ? 'flex-col' : spaces ? 'flex-col' : 'flex-col xl:flex-row')}>
+      <div className="flex min-h-0 flex-1">
+      {!(together && togetherFull) && (
+      <motion.div layout transition={spring.stage} className={clsx('flex min-h-0 min-w-0 flex-1 gap-3 p-3', compact ? 'flex-col' : spaces ? 'flex-col' : 'flex-col xl:flex-row')}>
         {voiceOnly ? (
           spaces ? <SpacesView people={people} serverId={serverId} focus={spaceFocus} onFocus={setSpaceFocus} /> : <VoiceGrid people={people} serverId={serverId} />
         ) : (
@@ -555,6 +572,25 @@ export function VoiceStage({ channelId, compact }: { channelId: string; compact?
           </div>
         )}
         {!voiceOnly && !short && (spaces ? <SpacesView people={people} serverId={serverId} strip focus={null} onFocus={() => {}} /> : <PeopleStrip people={people} serverId={serverId} vertical={!compact} />)}
+      </motion.div>
+      )}
+      <AnimatePresence initial={false}>
+        {together && !mobileNow && (
+          <motion.aside
+            key="together"
+            layout
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 24, transition: { duration: dur.short } }}
+            transition={spring.stage}
+            className={clsx('min-h-0 shrink-0 py-3 pr-3', togetherFull ? 'flex-1 pl-3' : 'w-[380px]')}
+          >
+            <Suspense fallback={<div className="h-full animate-pulse rounded-2xl bg-line/[0.04]" />}>
+              <TogetherPanel channelId={channelId} serverId={serverId} expanded={togetherFull} onExpand={() => setTogetherFull((f) => !f)} onClose={() => (setTogether(false), setTogetherFull(false))} />
+            </Suspense>
+          </motion.aside>
+        )}
+      </AnimatePresence>
       </div>
       <CallDock />
     </div>
