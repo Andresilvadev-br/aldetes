@@ -46,6 +46,7 @@ function useScene(id: string): { scene: Scene | null; loading: boolean } {
     if (has) return;
     const c = cache.get(id);
     if (c) return setFetched(c.scene);
+    setFetched(null); // not cached: show the skeleton now, the real corner when it arrives
     const ctl = new AbortController();
     api<PublicUser>('GET', `/users/${id}`, undefined, { signal: ctl.signal }).then(
       (u) => {
@@ -183,5 +184,9 @@ export function SpacesView({ people, serverId, strip, focus, onFocus }: { people
   );
 }
 
-/** For tests/diagnostics: how many scenes are cached. */
+/** For tests/diagnostics: how many scenes are cached, and dropping one (simulates a friend not in cache). */
 export const spacesCacheSize = () => cache.size;
+export const forgetScene = (id: string) => cache.delete(id);
+
+// dev-only test hook (same module instance the app uses)
+if (import.meta.env.DEV) (window as unknown as { __spaces?: unknown }).__spaces = { forgetScene, spacesCacheSize };
