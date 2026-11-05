@@ -281,7 +281,7 @@ try {
   await A.evaluate(() => {});
   await A.getByRole('button', { name: 'Menu do servidor' }).click();
   await A.getByText('Configurações do servidor').click();
-  await A.getByText('Server Studio', { exact: true }).first().click();
+  await A.getByText('Worlds', { exact: true }).first().click();
   await A.getByText('Galáxia', { exact: true }).first().click().catch(() => {});
   await A.getByText('Orbital', { exact: true }).first().click();
   const lvl = await A.getByText('Nível Alive').isVisible();

@@ -43,6 +43,7 @@ export function ReleaseShowcase({ rel, onClose }: { rel: Release; onClose: () =>
     else if (t === 'voice') openSettings('voice');
     else if (t === 'desktop') openSettings(window.aldetesDesktop ? 'desktop' : 'appearance');
     else if (t === 'switcher') openSwitcher();
+    else if (t === 'spaces') toast('Entre numa call e escolha “Spaces” no topo do palco. Seu cantinho é editável em “Meu cantinho”.');
     else if (t === 'studio') {
       const st = get();
       const own = st.serverOrder.find((id) => st.servers[id]?.ownerId === st.me?.id);
@@ -223,6 +224,49 @@ function Frame({ children }: { children: ReactNode }) {
 const Dot = ({ c = 'bg-line/20', w = 'w-24' }: { c?: string; w?: string }) => <span className={clsx('block h-2.5 rounded-full', c, w)} />;
 
 export const DEMOS: Record<DemoId, () => ReactNode> = {
+  spaces: () => (
+    <Frame>
+      <div className="grid w-full max-w-[340px] grid-cols-2 gap-2">
+        {[
+          ['#ff2d78', 'linear-gradient(#1a0a2e,#0b0418)', 'Rafa'],
+          ['#f59e0b', 'linear-gradient(#3a2418,#22140c)', 'Lia'],
+          ['#22d3ee', 'linear-gradient(#12223a,#0a1426)', 'Você'],
+          ['#a855f7', 'linear-gradient(#e9e4f5,#cfc6e6)', 'Vini'],
+        ].map(([c, bg, n], i) => (
+          <motion.div key={n} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ ...spring.gentle, delay: 0.15 + i * 0.12 }} className="relative h-[86px] overflow-hidden rounded-xl" style={{ background: bg }}>
+            <span className="absolute inset-x-0 bottom-0 h-1/3" style={{ background: `${c}33` }} />
+            <span className="absolute bottom-3 left-1/2 h-9 w-9 -translate-x-1/2 rounded-full ring-2" style={{ background: c, boxShadow: `0 0 0 2px ${c}` }} />
+            <span className="absolute left-2 top-1.5 text-[10px] font-bold text-white/80">{n}</span>
+          </motion.div>
+        ))}
+      </div>
+    </Frame>
+  ),
+  multiview: () => (
+    <Frame>
+      <div className="relative h-full w-full rounded-2xl border border-line/[0.06] bg-black/30">
+        <motion.div animate={{ x: [0, 40, 0], width: ['55%', '62%', '55%'] }} transition={{ duration: 3.6, ease: 'easeInOut', ...loop }} className="absolute left-3 top-3 h-[58%] rounded-xl bg-gradient-to-br from-brand/60 to-violet-700/40" />
+        <motion.div animate={{ y: [0, 20, 0] }} transition={{ duration: 3.6, ease: 'easeInOut', ...loop }} className="absolute bottom-3 right-3 h-[38%] w-[38%] rounded-xl bg-gradient-to-br from-sky-400/60 to-blue-800/40" />
+        <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-bold text-white">▣ Lia (minimizada · som ligado)</span>
+      </div>
+    </Frame>
+  ),
+  together: () => (
+    <Frame>
+      <div className="w-full max-w-[320px] space-y-2">
+        <div className="text-[13px] font-extrabold text-fg-strong">Qual jogo hoje?</div>
+        {[['Valorant', 30], ['Minecraft', 70]].map(([o, p]) => (
+          <div key={o as string} className="relative overflow-hidden rounded-xl border border-line/[0.08] px-3 py-2 text-[12px] text-fg">
+            <motion.span initial={{ width: 0 }} animate={{ width: `${p}%` }} transition={{ ...spring.gentle, delay: 0.3 }} className="absolute inset-y-0 left-0 bg-brand/20" />
+            <span className="relative">{o}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-center gap-2 pt-1 text-[22px] font-black tabular-nums text-fg-strong">
+          ⏱ <motion.span animate={{ opacity: [1, 0.6, 1] }} transition={{ duration: 1, repeat: Infinity }}>24:58</motion.span>
+        </div>
+      </div>
+    </Frame>
+  ),
   pulse: () => (
     <Frame>
       <div className="grid w-full max-w-[340px] gap-2">

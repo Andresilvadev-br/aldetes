@@ -60,7 +60,26 @@ export function watchTogether(channelId: string | null) {
   if (channelId) void loadTogether(channelId);
 }
 
-function onUpdate(m: { type: string; session?: TogetherSession; id?: string; channelId?: string; version?: number; delta?: { add?: BoardItem; remove?: string[]; clear?: boolean }; serverNow?: number }) {
+// Coalescing: bursts of updates (a busy whiteboard) are applied together once per animation frame, so the
+// rest of the app — call controls above all — never waits for dozens of separate re-renders.
+type Update = Parameters<typeof applyUpdate>[0];
+let queue: Update[] = [];
+let scheduled = false;
+function onUpdate(m: Update) {
+  queue.push(m);
+  if (scheduled) return;
+  scheduled = true;
+  const flush = () => {
+    scheduled = false;
+    const batch = queue;
+    queue = [];
+    for (const u of batch) applyUpdate(u);
+  };
+  if (document.hidden) setTimeout(flush, 100);
+  else requestAnimationFrame(flush);
+}
+
+function applyUpdate(m: { type: string; session?: TogetherSession; id?: string; channelId?: string; version?: number; delta?: { add?: BoardItem; remove?: string[]; clear?: boolean }; serverNow?: number }) {
   if (m.serverNow) set({ offset: m.serverNow - Date.now() });
   if ((m.type === 'created' || m.type === 'state') && m.session) return upsert(m.session.channelId, m.session);
   if (m.type === 'deleted' && m.id && m.channelId) return set((st) => ({ byChannel: { ...st.byChannel, [m.channelId!]: (st.byChannel[m.channelId!] ?? []).filter((x) => x.id !== m.id) } }));

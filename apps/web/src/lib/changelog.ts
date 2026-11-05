@@ -4,9 +4,9 @@
  * A version without an entry shows nothing: the app opens normally.
  */
 /** Short animated demonstration rendered by the showcase (components/common/WhatsNew.tsx → DEMOS). */
-export type DemoId = 'pulse' | 'island' | 'studio' | 'profile' | 'motion' | 'chat' | 'audio' | 'nav';
+export type DemoId = 'pulse' | 'island' | 'studio' | 'profile' | 'motion' | 'chat' | 'audio' | 'nav' | 'spaces' | 'together' | 'multiview';
 /** Where "Explorar" takes the person (only real places in the app). */
-export type ExploreTarget = 'home' | 'profile' | 'appearance' | 'voice' | 'studio' | 'switcher' | 'desktop';
+export type ExploreTarget = 'home' | 'profile' | 'appearance' | 'voice' | 'studio' | 'switcher' | 'desktop' | 'spaces';
 
 export interface Highlight {
   title: string;
@@ -29,6 +29,25 @@ export interface Release {
 }
 
 export const RELEASES: Release[] = [
+  {
+    version: '2.0.0',
+    date: '2026-11-06',
+    title: 'Aldetes 2.0',
+    tagline: 'Uma nova forma de estar junto: seu cantinho na call, várias telas ao mesmo tempo e ferramentas para fazer coisas juntos.',
+    highlights: [
+      { id: 'spaces', category: 'Calls', demo: 'spaces', explore: 'spaces', title: 'Spaces', body: 'Uma nova visualização da call: cada pessoa aparece no seu cantinho — setup gamer, quarto aconchegante, lounge, estúdio ou minimalista. A call conecta na hora, como sempre; o cenário vem depois e nunca segura nada.' },
+      { id: 'multiview', category: 'Calls', demo: 'multiview', title: 'MultiView', body: 'Assista várias transmissões: modo Livre para arrastar e redimensionar as telas, fixar as favoritas e minimizar as outras (o vídeo pausa, o som continua). O volume da tela agora é separado do volume da voz.' },
+      { id: 'together', category: 'Calls', demo: 'together', title: 'Together', body: 'Enquete, cronômetro, notas e quadro de desenho dentro da call. Todo mundo vê na hora, o tempo é igual para todos e ninguém apaga o que o outro escreveu.' },
+      { id: 'worlds', category: 'Servidores', demo: 'studio', explore: 'studio', title: 'Worlds', body: 'Modelos prontos (Neon, Minimal, Aurora, Cosmic, Studio, Arcade), superfícies e intensidade dos efeitos. E cada um pode usar a aparência padrão num servidor, só para si.' },
+      { id: 'motion4', category: 'Movimento', demo: 'motion', explore: 'appearance', title: 'UltraMotion 4.0', body: 'Perfis Cinema, Equilibrado (padrão), Econômico e Reduzido. Se o PC pesar, os efeitos diminuem sozinhos — voz e vídeo nunca.' },
+    ],
+    fixes: [
+      'O volume da transmissão de alguém não muda mais junto com o volume da voz dessa pessoa',
+      'Transmissões que terminam saem do palco com transição, sem tela preta',
+      'O convite do servidor mostra quantas pessoas estão em call agora',
+      'Calls, transmissão, qualidade e o app no celular continuam iguais',
+    ],
+  },
   {
     version: '1.0.0',
     date: '2026-11-05',

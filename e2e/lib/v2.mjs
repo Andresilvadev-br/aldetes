@@ -63,10 +63,18 @@ export async function pageFor(browser, acc, { prefs = { introMode: 'off' }, view
   await p.evaluate(async ([login]) => {
     await fetch('/api/auth/login', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', 'X-Aldetes-Client': 'web' }, body: JSON.stringify({ login, password: 'senha-forte-123', remember: true }) });
   }, [acc.username]);
-  await p.goto(`${BASE}/#/channels/@me`);
-  await p.waitForURL(/channels/);
-  await p.locator('nav[aria-label=Servidores]').waitFor({ timeout: 20000 });
-  return p;
+  for (let attempt = 0; ; attempt++) {
+    await p.goto(`${BASE}/#/channels/@me`);
+    const ok = await p.locator('nav[aria-label=Servidores]').waitFor({ timeout: 15000 }).then(() => true, () => false);
+    if (ok) return p;
+    if (attempt >= 2) {
+      await p.screenshot({ path: `/tmp/claude-0/-home-user-aldetes/2176c550-003b-5845-8be4-e172552d8261/scratchpad/v2/login-fail.png` });
+      throw new Error(`login de ${acc.username} não abriu o app (url ${p.url()})`);
+    }
+    await p.evaluate(async ([login]) => {
+      await fetch('/api/auth/login', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', 'X-Aldetes-Client': 'web' }, body: JSON.stringify({ login, password: 'senha-forte-123', remember: true }) });
+    }, [acc.username]);
+  }
 }
 
 /** Joins the voice channel (direct to the channel page; waits for the server-confirmed state). */
