@@ -21,6 +21,9 @@ import { useNavigate } from 'react-router-dom';
 import type { Message } from '@aldetes/shared';
 import { MobileBack } from '../layout/MobileBack';
 import { useIsMobile } from '@/lib/mobile';
+import { usePrefs } from '@/lib/prefs';
+import { jumpToMessage } from '@/lib/actions';
+import { ChatInfoPanel } from './ChatInfoPanel';
 import { motion } from 'motion/react';
 import { dur, ease } from '@/lib/motion';
 import { loadServerEmojis } from './emojiData';
@@ -32,6 +35,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
     return saved ? saved !== '0' : !window.matchMedia?.('(max-width: 1023px)').matches;
   });
   const mobile = useIsMobile();
+  const focus = usePrefs((p) => p.focusMode);
   const [mobileMembers, setMobileMembers] = useState(false);
   const showMembers = mobile ? mobileMembers : showMembersDesk;
   const [panel, setPanel] = useState<null | 'pins' | 'threads'>(null);
@@ -104,8 +108,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
               <Icon name="pin" />
             </button>
           </Tooltip>
-          {!isDm || channel.type === 'group_dm' ? (
-            <Tooltip label={showMembers ? 'Ocultar lista de membros' : 'Mostrar lista de membros'} side="bottom">
+          {!isDm || channel.type === 'group_dm' || !mobile ? (
+            <Tooltip label={mobile ? (showMembers ? 'Ocultar lista de membros' : 'Mostrar lista de membros') : showMembers ? 'Ocultar painel (pessoas, arquivos, links, fixadas)' : 'Mostrar painel (pessoas, arquivos, links, fixadas)'} side="bottom">
               <button
                 className={`icon-btn ${showMembers ? 'text-fg-strong' : ''}`}
                 onClick={() => {
@@ -135,7 +139,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
           <SearchPanel channel={channel} initial={search} onClose={() => setSearch(null)} />
         ) : (
           showMembers &&
-          (!isDm || channel.type === 'group_dm') &&
+          (!isDm || channel.type === 'group_dm' || !mobile) &&
           (mobile ? (
             <div className="absolute inset-0 z-30 flex justify-end bg-black/60" onClick={() => setMobileMembers(false)}>
               <div className="h-full w-[82%] max-w-[320px] bg-bg-side" onClick={(e) => e.stopPropagation()}>
@@ -143,7 +147,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
               </div>
             </div>
           ) : (
-            <MemberList channel={channel} />
+            !focus && <ChatInfoPanel channel={channel} onJump={(id) => void jumpToMessage(channelId, id)} />
           ))
         )}
         {panel === 'pins' && <PinsPopover channelId={channelId} onClose={() => setPanel(null)} />}

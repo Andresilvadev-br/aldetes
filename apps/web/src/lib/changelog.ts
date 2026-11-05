@@ -3,15 +3,54 @@
  * Each entry describes what really shipped in that version (written by hand, never generated).
  * A version without an entry shows nothing: the app opens normally.
  */
+/** Short animated demonstration rendered by the showcase (components/common/WhatsNew.tsx → DEMOS). */
+export type DemoId = 'pulse' | 'island' | 'studio' | 'profile' | 'motion' | 'chat' | 'audio' | 'nav';
+/** Where "Explorar" takes the person (only real places in the app). */
+export type ExploreTarget = 'home' | 'profile' | 'appearance' | 'voice' | 'studio' | 'switcher' | 'desktop';
+
+export interface Highlight {
+  title: string;
+  body: string;
+  /** 1.0+: structured showcase fields (older entries don't have them and show as a simple list) */
+  id?: string;
+  category?: 'Início' | 'Navegação' | 'Chat' | 'Perfil' | 'Servidores' | 'Calls' | 'Movimento' | 'Áudio';
+  demo?: DemoId;
+  explore?: ExploreTarget;
+}
+
 export interface Release {
   version: string;
   date: string; // YYYY-MM-DD
   title: string;
-  highlights: Array<{ title: string; body: string }>;
+  /** one line under the hero title */
+  tagline?: string;
+  highlights: Highlight[];
   fixes?: string[];
 }
 
 export const RELEASES: Release[] = [
+  {
+    version: '1.0.0',
+    date: '2026-11-05',
+    title: 'Aldetes 1.0',
+    tagline: 'Sua galera. Agora. Com identidade própria, movimento de verdade e áudio sem retorno.',
+    highlights: [
+      { id: 'pulse', category: 'Início', demo: 'pulse', explore: 'home', title: 'Pulse', body: 'A nova tela inicial: quem está em call, jogando ou ouvindo música agora, seus atalhos, conversas pela metade e seus servidores. Reorganize os blocos do seu jeito.' },
+      { id: 'island', category: 'Calls', demo: 'island', explore: 'desktop', title: 'Live Island livre', body: 'No Windows, arraste a ilha por qualquer parte para onde quiser. Ela gruda no topo, nos cantos e nas bordas, lembra o lugar em cada monitor e nunca tira o foco do jogo.' },
+      { id: 'studio', category: 'Servidores', demo: 'studio', explore: 'studio', title: 'Server Studio', body: 'Donos dão identidade ao servidor: cor, cena animada, banner em vídeo, moldura, entrada e boas-vindas. Pré-visualização, rascunho, publicar e reverter.' },
+      { id: 'profile', category: 'Perfil', demo: 'profile', explore: 'profile', title: 'Perfis com identidade', body: 'Coleções NEON CURRENT, ORBITAL, CHROMA WAVE e ZEN DUST, molduras de avatar, efeitos de entrada, pronomes, links e banner em vídeo curto — com pré-visualização ao vivo.' },
+      { id: 'motion', category: 'Movimento', demo: 'motion', explore: 'appearance', title: 'UltraMotion 3.0', body: 'Ultra, Equilibrado ou Desempenho de verdade. Os efeitos pausam sozinhos fora da tela, em segundo plano e quando o PC está sob carga, como durante uma transmissão.' },
+      { id: 'chat', category: 'Chat', demo: 'chat', explore: 'home', title: 'Chat 2.0', body: 'Responder destaca a mensagem original, fotos abrem crescendo da miniatura, reações com física, rascunhos que não se perdem e um painel com pessoas, arquivos, links e fixadas.' },
+      { id: 'audio', category: 'Áudio', demo: 'audio', explore: 'voice', title: 'Som da transmissão sem retorno', body: 'No Windows 11 o app pede ao sistema para deixar as vozes da call fora do som da transmissão, então ninguém se ouve de volta. E uma nova central de áudio para escolher e testar microfone e saída.' },
+      { id: 'nav', category: 'Navegação', demo: 'nav', explore: 'switcher', title: 'Ctrl+K e modo foco', body: 'Barra de comandos para ir a qualquer canal, conversa, pessoa ou ação. Modo foco esconde os painéis, e as colunas mudam de largura arrastando a borda.' },
+    ],
+    fixes: [
+      'A transmissão continua com a mesma qualidade, FPS e codificação da 0.8',
+      'Se o microfone ou o fone desconectar no meio da call, o app avisa e usa o padrão até ele voltar',
+      'No Windows 10 o app avisa que o som do PC pode levar as vozes da call e começa com o som desligado',
+      'Pastas e prévia dos servidores ao passar o mouse; conversas fixadas e filtro de não lidas',
+    ],
+  },
   {
     version: '0.8.0',
     date: '2026-11-05',

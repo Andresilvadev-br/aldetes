@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useEffect, useState, lazy, Suspense, useContext } from 'react';
+import { useEffect, useState, lazy, Suspense, useContext, useRef } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useStore, get } from '@/store';
 import { ServerRail } from './ServerRail';
@@ -11,12 +11,13 @@ import { ChannelView } from '../chat/ChannelView';
 import { FriendsPage } from '@/pages/Friends';
 import { DiscoverPage } from '@/pages/Discover';
 import { onGateway } from '@/lib/gateway';
-import { useIsMobile, MobileContentVisible } from '@/lib/mobile';
+import { useIsMobile, MobileContentVisible, isMobileNow } from '@/lib/mobile';
 import { MobileShell } from '../mobile/MobileShell';
 import { WhatsNew } from '../common/WhatsNew';
 import { MiniPlayer } from '../voice/MiniPlayer';
 import { joinVoice, setPtt, toggleDeaf, toggleMute, useVoice, sendReaction, REACTIONS } from '@/lib/voice';
-import { getPrefs, usePrefs } from '@/lib/prefs';
+import { getPrefs, usePrefs, setPrefs, panelWidth, setPanelWidth, PANEL_LIMITS } from '@/lib/prefs';
+import { ResizeHandle } from './ResizeHandle';
 import { playSound } from '@/lib/sounds';
 import { desktop } from '@/lib/desktop';
 import { QuickSwitcher } from '../modals/QuickSwitcher';
@@ -24,14 +25,15 @@ import { Icon } from '../common/Icon';
 import { toast } from '../common/overlay';
 import { LiveIsland } from '../island/LiveIsland';
 import { useFloatingIslandSync } from '@/lib/islandSync';
-import { useUi, closeSettings } from '@/lib/ui';
+import { useUi, closeSettings, openSwitcher } from '@/lib/ui';
 const UserSettings = lazy(() => import('../settings/UserSettings').then((m) => ({ default: m.UserSettings })));
 import { AnimatePresence, motion } from 'motion/react';
 
 export function AppShell() {
   useFloatingIslandSync();
   const settingsTab = useUi((u) => u.settingsTab);
-  const [switcher, setSwitcher] = useState(false);
+  const switcher = useUi((u) => u.switcher);
+  const setSwitcher = (v: boolean | ((x: boolean) => boolean)) => openSwitcher(typeof v === 'function' ? v(useUi.getState().switcher) : v);
 
   // Global keyboard shortcuts + push-to-talk
   useEffect(() => {
@@ -48,6 +50,10 @@ export function AppShell() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         void toggleMute();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && !isMobileNow()) {
+        e.preventDefault();
+        toggleFocusMode();
       }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
@@ -121,6 +127,7 @@ export function AppShell() {
   }, [mentionTotal]);
 
   const mobile = useIsMobile();
+  const focusMode = usePrefs((p) => p.focusMode);
   const routes = (
     <Routes>
       <Route path="/channels/@me/:channelId?" element={<HomeLayout />} />
@@ -147,7 +154,7 @@ export function AppShell() {
     );
   return (
     <div className="flex h-full bg-bg-rail">
-      <ServerRail />
+      {!focusMode && <ServerRail />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onSearch={() => setSwitcher(true)} />
         <div className="flex min-h-0 flex-1 gap-2 pb-2 pr-2">{routes}</div>
@@ -177,24 +184,55 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
         </div>
       </div>
       <div className="flex-1" />
+      <FocusButton />
       {winControls && <div className="w-[138px] shrink-0" />}
     </div>
+  );
+}
+
+export function toggleFocusMode() {
+  const on = !getPrefs().focusMode;
+  setPrefs({ focusMode: on });
+  toast(on ? 'Modo foco: painéis escondidos. Ctrl+Shift+F para voltar.' : 'Modo foco desligado.');
+}
+
+function FocusButton() {
+  const on = usePrefs((p) => p.focusMode);
+  return (
+    <button
+      onClick={toggleFocusMode}
+      aria-pressed={on}
+      aria-label="Modo foco"
+      title="Modo foco (Ctrl+Shift+F): esconde os painéis laterais"
+      className={clsx('no-drag flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[12px] font-semibold transition-colors', on ? 'border-brand/40 bg-brand/15 text-fg-strong' : 'border-line/[0.07] bg-line/[0.03] text-fg-faint hover:text-fg-muted')}
+    >
+      <Icon name="sidebar" size={15} />
+      <span className="hidden lg:inline">{on ? 'Sair do foco' : 'Foco'}</span>
+    </button>
   );
 }
 
 function Sidebarred({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
   const mobile = useIsMobile();
   const visible = useContext(MobileContentVisible);
+  const meId = useStore((s) => s.me?.id);
+  const focus = usePrefs((p) => p.focusMode);
+  usePrefs((p) => p.panelWidths); // re-render when widths change
+  const width = panelWidth(meId, 'side');
+  const col = useRef<HTMLDivElement>(null);
   // phones: lists live in the mobile shell's tabs; the route only provides the content screen
   if (mobile && !visible) return null;
   if (mobile) return <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-main">{children}</main>;
+  const L = PANEL_LIMITS.side;
   return (
     <>
-      <div className="flex w-[272px] shrink-0 flex-col gap-2">
+      {/* Focus mode hides the column (connections, call and voice panel state stay as they are) */}
+      <div ref={col} className={clsx('flex shrink-0 flex-col gap-2', focus && 'hidden')} style={{ width }} data-testid="side-column">
         <div className="panel min-h-0 flex-1 overflow-hidden">{sidebar}</div>
         <VoicePanel />
         <UserPanel />
       </div>
+      {!focus && <ResizeHandle side="left" label="Largura da barra lateral" value={width} min={L.min} max={L.max} def={L.def} onPreview={(px) => col.current && (col.current.style.width = `${px}px`)} onCommit={(px) => meId && setPanelWidth(meId, 'side', px)} />}
       <main className="panel haze relative flex min-w-0 flex-1 flex-col overflow-hidden bg-bg-main">{children}</main>
     </>
   );

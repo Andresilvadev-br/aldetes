@@ -8,6 +8,7 @@ import type {
   RemoteTrackPublication,
   LocalTrackPublication,
   ScreenShareCaptureOptions,
+  AudioCaptureOptions,
 } from 'livekit-client';
 import { Track, ConnectionQuality, ConnectionState, loadLiveKit } from './lk';
 
@@ -18,6 +19,7 @@ import { emit } from './gateway';
 import { getPrefs, setPrefs } from './prefs';
 import { playSound } from './sounds';
 import { desktop } from './desktop';
+import { setExternalLoad } from './perf';
 import { toast } from '../components/common/overlay';
 
 export interface VoiceStore {
@@ -42,6 +44,8 @@ export interface VoiceStore {
   screenSince: number | null;
   /** what is really being sent, e.g. "1080p · 60 FPS" */
   screenInfo: string | null;
+  /** stream PC sound: true = call voices left out (no echo), false = may contain them, null = no sound */
+  screenAudioIsolated: boolean | null;
   /** live encoder stats of our own stream (sampled every 2 s) */
   screenStats: StreamStats | null;
   /** actions waiting for the real result (button shows loading; state confirmed only after it returns) */
@@ -103,6 +107,7 @@ export const useVoice = create<VoiceStore>()(() => ({
   connectedAt: null,
   screenSince: null,
   screenInfo: null,
+  screenAudioIsolated: null,
   screenStats: null,
   pending: { mic: false, cam: false, screen: false },
   stageLayout: (() => {
@@ -315,6 +320,7 @@ function cleanupRoom() {
 }
 
 export async function joinVoice(channelId: string, isRejoin = false) {
+  watchDevices();
   if (!isRejoin && vget().channelId === channelId && room) return;
   if (room) {
     intentionalLeave = true;
@@ -528,7 +534,9 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
   const motion = opts.contentHint === 'motion';
   if (desktop && opts.desktopSourceId) await desktop.selectScreenSource(opts.desktopSourceId, opts.audio);
   const capture: ScreenShareCaptureOptions = {
-    audio: opts.audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false,
+    // restrictOwnAudio: the PC sound must NOT carry Aldetes's own playback (the call's voices) — no echo for viewers.
+    // Electron ≥ 43.4 maps it to Windows process loopback excluding our process; Chrome does the same for tabs/screens.
+    audio: opts.audio ? ({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } as AudioCaptureOptions) : false,
     resolution: { width: preset.width, height: preset.height, frameRate: preset.frameRate },
     contentHint: motion ? 'motion' : 'detail',
     selfBrowserSurface: 'exclude',
@@ -555,6 +563,7 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
     vset({ screen: true, screenSince: Date.now() });
     setPrefs({ streamQuality: opts.quality, streamLite: !!opts.lite });
     desktop?.setStreaming?.(true); // desktop: raise the app's process priority while live
+    setExternalLoad(true); // UltraMotion: no decorative loops while encoding a stream
     const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
     const mst = pub?.track?.mediaStreamTrack as MediaStreamTrack | undefined;
     // Ask the capturer explicitly for the full frame rate (an "ideal" alone may be served at the 30 FPS default).
@@ -571,7 +580,11 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
       toast(`Transmitindo em ${settings.width}x${settings.height} — é a resolução da tela/janela escolhida.`);
     }
     startStreamStats(preset.frameRate);
-    const hasAudio = !!room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+    const audioPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+    const hasAudio = !!audioPub;
+    // Is the PC sound really isolated from the call? (the browser reports the applied constraint)
+    const aSet = (audioPub?.track?.mediaStreamTrack?.getSettings?.() ?? {}) as MediaTrackSettings & { restrictOwnAudio?: boolean };
+    vset({ screenAudioIsolated: hasAudio ? aSet.restrictOwnAudio === true || desktop?.ownAudioExcluded === true : null });
     if (opts.audio && !hasAudio) toast('O sistema/navegador não forneceu áudio para esta fonte; transmitindo apenas vídeo.');
   } catch (err) {
     const name = (err as Error)?.name;
@@ -582,10 +595,17 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
   publishSelfState();
 }
 
+/** Keep the stream going but stop sending the PC sound (safe fallback when it may echo the call). */
+export async function stopScreenAudio() {
+  const pub = room?.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+  if (pub?.track) await room!.localParticipant.unpublishTrack(pub.track as never, true);
+  vset({ screenAudioIsolated: null });
+}
+
 export async function stopScreenShare() {
   await room?.localParticipant.setScreenShareEnabled(false);
   stopStreamStats();
-  vset({ screen: false, screenInfo: null, screenSince: null });
+  vset({ screen: false, screenInfo: null, screenSince: null, screenAudioIsolated: null });
   publishSelfState();
 }
 
@@ -596,6 +616,7 @@ function stopStreamStats() {
   streamStatsTimer = null;
   if (vget().screenStats) vset({ screenStats: null });
   desktop?.setStreaming?.(false);
+  setExternalLoad(false);
 }
 function startStreamStats(targetFps: number) {
   if (streamStatsTimer) clearInterval(streamStatsTimer);
@@ -651,7 +672,40 @@ export function setLocalMute(userId: string, muted: boolean) {
   if (p) applyRemoteAudio(p);
 }
 
+// ---------- headset/USB swaps during a call ----------
+// The chosen device vanished → fall back to the system default WITH a notice; it came back → return to it.
+const fellBack: Record<'audioinput' | 'audiooutput', boolean> = { audioinput: false, audiooutput: false };
+let deviceWatch = false;
+async function onDeviceChange() {
+  if (!room) return;
+  const list = await navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]);
+  const p = getPrefs();
+  const kinds: Array<['audioinput' | 'audiooutput', string, string, string]> = [
+    ['audioinput', p.inputDeviceId, p.inputDeviceLabel, 'microfone'],
+    ['audiooutput', p.outputDeviceId, p.outputDeviceLabel, 'saída de áudio'],
+  ];
+  for (const [kind, id, label, what] of kinds) {
+    if (!id || id === 'default') continue;
+    const present = list.some((d) => d.kind === kind && d.deviceId === id);
+    if (!present && !fellBack[kind]) {
+      fellBack[kind] = true;
+      await room.switchActiveDevice(kind, 'default').catch(() => {});
+      toast(`${label || `O ${what} escolhido`} foi desconectado. Usando o ${what} padrão do sistema.`);
+    } else if (present && fellBack[kind]) {
+      fellBack[kind] = false;
+      await room.switchActiveDevice(kind, id).catch(() => {});
+      toast(`${label || `O ${what}`} voltou — usando ele de novo.`);
+    }
+  }
+}
+export function watchDevices() {
+  if (deviceWatch || !navigator.mediaDevices?.addEventListener) return;
+  deviceWatch = true;
+  navigator.mediaDevices.addEventListener('devicechange', () => void onDeviceChange());
+}
+
 export async function applyDevicePrefs() {
+  fellBack.audioinput = fellBack.audiooutput = false;
   if (!room) return;
   const p = getPrefs();
   await room.switchActiveDevice('audioinput', p.inputDeviceId || 'default').catch(() => {});

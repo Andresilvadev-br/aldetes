@@ -1,4 +1,5 @@
-import { useMemo, useState, lazy, Suspense } from 'react';
+import { useMemo, useState, lazy, Suspense, useRef, useLayoutEffect, useEffect } from 'react';
+import { ServerCover, IconFrame, themeOf, useServerEffects } from '../studio/ServerScene';
 import { useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
@@ -15,7 +16,7 @@ import { joinVoice, useVoice, focusStream } from '@/lib/voice';
 import { ackChannel } from '@/lib/actions';
 import { setPrefs, usePrefs } from '@/lib/prefs';
 import { UserPopoutTrigger } from '../common/UserPopout';
-import { ServerIcon } from './ServerRail';
+import { ServerIcon, lastRailRect } from './ServerRail';
 import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { isMobileNow, openContent } from '@/lib/mobile';
@@ -90,6 +91,27 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
     await api('PATCH', `/servers/${serverId}/channels/reorder`, { items }).catch(toastError);
   }
 
+  const theme = themeOf(server);
+  const effects = useServerEffects();
+  // Signature entrance: short, only when the server is opened from the rail, never blocks anything
+  const [entrance, setEntrance] = useState(0);
+  useEffect(() => {
+    if (theme.entrance !== 'none' && effects && lastRailRect?.serverId === serverId && performance.now() - lastRailRect.at < 700) setEntrance((e) => e + 1);
+  }, [serverId]);
+
+  // Shared transition: the icon clicked in the rail "flies" into this header (FLIP, transform only, ~300 ms).
+  const headerIcon = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const from = lastRailRect;
+    const el = headerIcon.current;
+    if (!el || !from || from.serverId !== serverId || performance.now() - from.at > 700 || document.documentElement.dataset.reduceMotion === 'true') return;
+    const to = el.getBoundingClientRect();
+    if (!to.width) return;
+    const dx = from.rect.left + from.rect.width / 2 - (to.left + to.width / 2);
+    const dy = from.rect.top + from.rect.height / 2 - (to.top + to.height / 2);
+    el.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${from.rect.width / to.width})`, opacity: 0.6 }, { transform: 'none', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+  }, [serverId]);
+
   const favChannels = favorites.map((id) => allChannels[id]).filter((c): c is Channel => !!c && c.serverId === serverId);
 
   const canInvite = hasPermission(perms, Permissions.CREATE_INVITE);
@@ -99,21 +121,16 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* hero header: banner (or animated accent aurora), big icon, name, live online count */}
-      <div className="cz-hover relative shrink-0 overflow-hidden">
-        <div className="absolute inset-0" style={server.bannerUrl ? { background: `center/cover url(${server.bannerUrl})` } : undefined}>
-          {!server.bannerUrl && (
-            <div className="cz">
-              <span className="left-[-20%] top-[-60%] h-[170%] w-[70%] rounded-full bg-[rgb(var(--brand)/0.45)] blur-3xl" style={{ animation: 'cz-blob 14s ease-in-out infinite' }} />
-              <span className="right-[-25%] top-[-40%] h-[150%] w-[70%] rounded-full bg-[rgb(var(--brand-2)/0.4)] blur-3xl" style={{ animation: 'cz-blob 18s ease-in-out infinite reverse' }} />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-bg-side/50 to-bg-side" />
-        </div>
-        <button aria-haspopup="menu" aria-label="Menu do servidor" onClick={openMenu} className="group relative flex w-full items-end gap-3 px-4 pb-3 pt-7 text-left text-fg-strong">
-          <motion.span whileHover={{ rotate: -6, scale: 1.06 }} transition={spring.snappy} className="rounded-[18px] shadow-[0_10px_30px_-8px_rgb(0_0_0/0.8)] ring-2 ring-bg-side">
-            <ServerIcon name={server.name} iconUrl={server.iconUrl} size={46} active />
+    <div className="flex h-full flex-col" data-sep={theme.separator} style={theme.accent ? ({ '--sa': theme.accent } as React.CSSProperties) : undefined}>
+      {/* hero header: Server Studio cover (scene › banner image/video › accent aurora), big icon, name, live online count */}
+      <div className="cz-hover relative shrink-0 overflow-hidden" data-testid="server-header">
+        <ServerCover server={server} theme={theme} />
+        {entrance && <span key={entrance} className={`studio-entr studio-entr-${theme.entrance}`} aria-hidden />}
+        <button aria-haspopup="menu" aria-label="Menu do servidor" onClick={openMenu} className={clsx('group relative flex w-full items-end gap-3 px-4 pb-3 pt-7 text-left text-fg-strong', theme.iconPosition === 'center' && 'flex-col items-center text-center')}>
+          <motion.span ref={headerIcon} whileHover={{ rotate: -6, scale: 1.06 }} transition={spring.snappy} className="rounded-[18px] shadow-[0_10px_30px_-8px_rgb(0_0_0/0.8)] ring-2 ring-bg-side">
+            <IconFrame frame={theme.iconFrame} accent={theme.accent}>
+              <ServerIcon name={server.name} iconUrl={server.iconUrl} size={46} active />
+            </IconFrame>
           </motion.span>
           <span className="min-w-0 flex-1 pb-0.5">
             <span className="block truncate text-[17px] font-black leading-tight tracking-tight drop-shadow">{server.name}</span>
@@ -145,6 +162,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
       <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-line/10 to-transparent" />
 
       <motion.div key={serverId} variants={listV} initial="hidden" animate="show" className="scroll-thin flex-1 overflow-y-auto px-2 pb-4 pt-2">
+        <WelcomeCard serverId={serverId} theme={theme} />
         {favChannels.length > 0 && (
           <motion.div variants={itemV} className="mb-2">
             <CategoryHeader label="Favoritos" icon="star" count={favChannels.length} />
@@ -232,7 +250,7 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
         </Popover>
       )}
       {modal?.kind === 'invite' && <InviteModal serverId={serverId} onClose={() => setModal(null)} />}
-      {modal?.kind === 'settings' && <ServerSettings serverId={serverId} onClose={() => setModal(null)} />}
+      {modal?.kind === 'settings' && <Suspense fallback={null}><ServerSettings serverId={serverId} onClose={() => setModal(null)} /></Suspense>}
       {modal?.kind === 'create' && <CreateChannelModal serverId={serverId} parentId={modal.parentId} initialType={modal.type} onClose={() => setModal(null)} />}
       {modal?.kind === 'channel' && <ChannelSettings channelId={modal.id} onClose={() => setModal(null)} />}
     </div>
@@ -396,6 +414,43 @@ const NO_SPEAKERS: Record<string, boolean> = {};
 const listV: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const itemV: Variants = { hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0, transition: spring.gentle } };
 
+/**
+ * Server Studio welcome scene: shown on a person's first visit to the server, inside the channel list (never a
+ * blocking modal), dismissible, remembered per user and server on this device.
+ */
+function WelcomeCard({ serverId, theme }: { serverId: string; theme: ReturnType<typeof themeOf> }) {
+  const me = useStore((s) => s.me?.id);
+  const key = `aldetes.welcomed.${me}.${serverId}`;
+  const [seen, setSeen] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return true;
+    }
+  });
+  if (!theme.welcome.enabled || seen || !theme.welcome.title) return null;
+  const close = () => {
+    try {
+      localStorage.setItem(key, '1');
+    } catch {
+      /* ignore */
+    }
+    setSeen(true);
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring.gentle} className="relative mb-2 overflow-hidden rounded-2xl border border-line/[0.08] p-3" style={{ background: `linear-gradient(135deg, ${theme.accent ?? 'rgb(var(--brand))'}33, transparent 70%)` }} role="note" aria-label="Boas-vindas do servidor">
+      <button className="absolute right-1.5 top-1.5 rounded-md p-1 text-fg-faint hover:text-fg-strong" aria-label="Fechar boas-vindas" onClick={close}>
+        <Icon name="x" size={14} />
+      </button>
+      <div className="pr-5 text-[13px] font-extrabold text-fg-strong">{theme.welcome.title}</div>
+      {theme.welcome.body && <p className="mt-0.5 text-[12px] text-fg-muted">{theme.welcome.body}</p>}
+      <button className="mt-2 text-[12px] font-bold text-brand hover:underline" onClick={close}>
+        Bora!
+      </button>
+    </motion.div>
+  );
+}
+
 function CategoryHeader({ label, count, collapsed, onToggle, onAdd, icon }: { label: string; count: number; collapsed?: boolean; onToggle?: () => void; onAdd?: () => void; icon?: IconName }) {
   return (
     <div className="group flex items-center gap-1 pb-1 pl-1 pr-1">
@@ -408,7 +463,7 @@ function CategoryHeader({ label, count, collapsed, onToggle, onAdd, icon }: { la
           </motion.span>
         )}
         <span className="truncate">{label}</span>
-        <span className="h-px min-w-3 flex-1 bg-gradient-to-r from-line/15 to-transparent" />
+        <span className="cat-sep h-px min-w-3 flex-1 bg-gradient-to-r from-line/15 to-transparent" />
         <span className="rounded-md bg-line/[0.06] px-1.5 text-[10px] tabular-nums tracking-normal">{count}</span>
       </button>
       {onAdd && (

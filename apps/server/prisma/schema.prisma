@@ -19,6 +19,11 @@ model User {
   accentColor         String?
   bannerPreset        String?
   profileEffect       String?
+  /// 1.0: decoration around the avatar (the image is never altered), entrance effect, pronouns, links (JSON array)
+  avatarDecoration    String?
+  profileEntrance     String?
+  pronouns            String?
+  profileLinks        Json?
   bio                 String    @default("")
   customStatus        String?
   status              String    @default("online") // online|idle|dnd|invisible (preferred status)
@@ -91,6 +96,10 @@ model Server {
   isPublic         Boolean   @default(false)
   rulesChannelId   String?
   welcomeChannelId String?
+  /// 1.0 Server Studio: published theme, saved draft, and the previous published theme (for "Reverter")
+  studio           Json?
+  studioDraft      Json?
+  studioPrev       Json?
   createdAt        DateTime  @default(now())
   owner            User      @relation("ServerOwner", fields: [ownerId], references: [id])
   members          Member[]

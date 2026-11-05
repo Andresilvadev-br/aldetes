@@ -67,6 +67,16 @@ const paths: Record<string, string> = {
   arrowLeft: 'M19 12H5M11 6l-6 6 6 6',
   download: 'M12 4v12M7 11l5 5 5-5M4 20h16',
   copy: 'M8 8h12v12H8zM16 8V4H4v12h4',
+  gamepad: 'M7 8h10a4 4 0 0 1 4 4v1.5a3.5 3.5 0 0 1-6.2 2.2L14 15h-4l-.8.7A3.5 3.5 0 0 1 3 13.5V12a4 4 0 0 1 4-4Zm1 2.5v3M6.5 12h3M15 11h.01M17 13h.01',
+  music: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm11-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z',
+  grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
+  arrowUp: 'M12 19V5M6 11l6-6 6 6',
+  arrowDown: 'M12 5v14M6 13l6 6 6-6',
+  folder: 'M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Z',
+  pencilDraft: 'M4 20h4L19 9l-4-4L4 16v4ZM14 20h6',
+  sidebar: 'M3 4h18v16H3zM9 4v16',
+  zap: 'M13 2 4 14h7l-1 8 9-12h-7l1-8Z',
   flip: 'M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5',
 };
 

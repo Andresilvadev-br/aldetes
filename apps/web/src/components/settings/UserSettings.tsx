@@ -1,3 +1,5 @@
+import { AudioCenter, useDevices } from './AudioCenter';
+import { usePerf } from '@/lib/perf';
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useStore, set as setStore, initialState, useStoreShallow } from '@/store';
@@ -9,7 +11,7 @@ import { Icon } from '../common/Icon';
 import { ConnectionTest } from './ConnectionTest';
 import { logout as doLogout } from '@/lib/session';
 import { openWhatsNew, runningVersion } from '../common/WhatsNew';
-import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
+import { BANNERS, EFFECTS, ProfileBanner, ProfileEffect, AvatarDecoration, ProfileEntrance, DECORATIONS, COLLECTIONS, ENTRANCES } from '../profile/Cosmetics';
 import { SettingsLayout, SettingsTitle, Toggle, Switch, Segmented } from './SettingsLayout';
 import { Avatar, colorFor } from '../common/Avatar';
 import { toastError, toast, confirmDialog } from '../common/overlay';
@@ -102,25 +104,90 @@ function AccountTab() {
   );
 }
 
+type ProfileDraft = {
+  displayName: string;
+  bio: string;
+  accentColor: string;
+  bannerPreset: string | null;
+  profileEffect: string | null;
+  avatarDecoration: string | null;
+  profileEntrance: string | null;
+  pronouns: string;
+  profileLinks: Array<{ label: string; url: string }>;
+};
+const draftOf = (me: SelfUser): ProfileDraft => ({
+  displayName: me.displayName,
+  bio: me.bio,
+  accentColor: me.accentColor ?? '#6c5ce7',
+  bannerPreset: me.bannerPreset,
+  profileEffect: me.profileEffect,
+  avatarDecoration: me.avatarDecoration ?? null,
+  profileEntrance: me.profileEntrance ?? null,
+  pronouns: me.pronouns ?? '',
+  // JSONB comes back with its keys reordered: rebuild { label, url } so the draft compares equal
+  profileLinks: (me.profileLinks ?? []).map((l) => ({ label: l.label, url: l.url })),
+});
+
+/**
+ * Profile identity editor: everything is a DRAFT shown live in the preview card; nothing reaches other people until
+ * "Salvar". "Cancelar" drops the draft, "Restaurar padrão" clears banner/effect/decoration/entrance (name and bio stay).
+ * Uploads (avatar/banner file) are the exception: they apply on upload, like before.
+ */
 function ProfileTab() {
   const me = useStore((s) => s.me)!;
-  const [form, setForm] = useState({ displayName: me.displayName, bio: me.bio, accentColor: me.accentColor ?? '#6c5ce7' });
+  const [d, setD] = useState<ProfileDraft>(() => draftOf(me));
+  const base = draftOf(me);
+  const [replay, setReplay] = useState(0);
+  const [saving, setSaving] = useState(false);
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
+  const set = (p: Partial<ProfileDraft>) => setD((x) => ({ ...x, ...p }));
+  const dirty = JSON.stringify(d) !== JSON.stringify(base);
+  const linksValid = d.profileLinks.every((l) => l.label.trim() && /^https:\/\/[^\s]+\.[^\s]+/i.test(l.url.trim()));
   const uploadImg = async (kind: 'avatar' | 'banner', f: File) => {
+    const isVideo = f.type.startsWith('video/');
+    if (isVideo && f.size > 12 * 1024 * 1024) return toast('Vídeo grande demais: até 12 MB (ele é cortado em 6 s e comprimido).', 'error');
     const fd = new FormData();
     fd.append('file', f);
     try {
+      if (isVideo) toast('Convertendo o vídeo… pode levar alguns segundos.');
       await upload(`/users/@me/${kind}`, fd);
-      if (kind === 'banner' && me.bannerPreset) await api('PATCH', '/users/@me', { bannerPreset: null });
+      if (kind === 'banner') {
+        if (me.bannerPreset) await api('PATCH', '/users/@me', { bannerPreset: null });
+        set({ bannerPreset: null });
+      }
       toast(kind === 'avatar' ? 'Avatar atualizado' : 'Banner atualizado', 'success');
     } catch (e) {
       toastError(e);
     }
   };
-  const patch = (data: Record<string, unknown>) => api('PATCH', '/users/@me', data).catch(toastError);
-  const dirty = form.displayName !== me.displayName || form.bio !== me.bio || form.accentColor !== (me.accentColor ?? '#6c5ce7');
-  const preview = { ...me, ...form };
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api('PATCH', '/users/@me', {
+        displayName: d.displayName.trim() || me.username,
+        bio: d.bio,
+        accentColor: d.accentColor,
+        bannerPreset: d.bannerPreset,
+        profileEffect: d.profileEffect,
+        avatarDecoration: d.avatarDecoration,
+        profileEntrance: d.profileEntrance,
+        pronouns: d.pronouns.trim() || null,
+        profileLinks: d.profileLinks.map((l) => ({ label: l.label.trim(), url: l.url.trim() })),
+      });
+      toast('Perfil salvo — todo mundo já vê o novo visual.', 'success');
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+  // keep the draft in sync when the profile changes elsewhere and there is nothing pending here
+  useEffect(() => {
+    if (!dirty) setD(draftOf(me));
+  }, [me]);
+  const preview = { ...me, ...d, bannerUrl: d.bannerPreset ? null : me.bannerUrl };
+  const pick = (k: keyof ProfileDraft, v: string | null) => (set({ [k]: v } as Partial<ProfileDraft>), k === 'profileEntrance' && setReplay((r) => r + 1));
   return (
     <>
       <SettingsTitle>Perfil</SettingsTitle>
@@ -133,7 +200,11 @@ function ProfileTab() {
             </button>
             <div className="flex-1">
               <label className="label">Nome de exibição</label>
-              <input className="input" maxLength={32} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+              <input className="input" maxLength={32} value={d.displayName} onChange={(e) => set({ displayName: e.target.value })} />
+            </div>
+            <div className="w-36">
+              <label className="label">Pronomes</label>
+              <input className="input" maxLength={40} placeholder="opcional" value={d.pronouns} onChange={(e) => set({ pronouns: e.target.value })} />
             </div>
             <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('avatar', e.target.files[0])} />
           </div>
@@ -144,24 +215,66 @@ function ProfileTab() {
           )}
 
           <div>
+            <div className="label !mb-0.5">Coleções</div>
+            <div className="mb-2 text-xs text-fg-muted">Um visual completo de uma vez: banner, moldura, efeito e entrada combinando.</div>
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+              {COLLECTIONS.map((c) => {
+                const on = d.bannerPreset === c.banner && d.avatarDecoration === c.decoration && d.profileEffect === c.effect && d.profileEntrance === c.entrance;
+                return (
+                  <PickTile key={c.id} active={on} label={c.name} onClick={() => (set({ bannerPreset: c.banner, avatarDecoration: c.decoration, profileEffect: c.effect, profileEntrance: c.entrance }), setReplay((r) => r + 1))}>
+                    <div className="relative">
+                      <ProfileBanner user={{ ...me, bannerPreset: c.banner }} height={64} />
+                      <span className="deco-host absolute bottom-1.5 left-2 rounded-full ring-2 ring-bg-float">
+                        <AvatarDecoration id={c.decoration} size={26} />
+                        <Avatar userId={me.id} size={26} />
+                      </span>
+                    </div>
+                  </PickTile>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
             <div className="mb-2 flex items-end justify-between">
               <div>
                 <div className="label !mb-0.5">Banner</div>
-                <div className="text-xs text-fg-muted">Animados exclusivos do Aldetes, ou envie uma imagem/GIF seu.</div>
+                <div className="text-xs text-fg-muted">Cenas animadas, gradientes estáticos, ou seu arquivo: imagem, GIF ou vídeo curto (até 12 MB; cortado em 6 s, sem som).</div>
               </div>
-              <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => bannerInput.current?.click()}>
-                <Icon name="upload" size={14} /> Enviar imagem/GIF
+              <button className="btn-secondary shrink-0 px-3 py-1.5 text-xs" onClick={() => bannerInput.current?.click()}>
+                <Icon name="upload" size={14} /> Enviar arquivo
               </button>
-              <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(e) => e.target.files?.[0] && uploadImg('banner', e.target.files[0])} />
+              <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm" hidden onChange={(e) => e.target.files?.[0] && uploadImg('banner', e.target.files[0])} />
             </div>
             <div className="grid grid-cols-3 gap-2.5">
-              <PickTile active={!me.bannerPreset} label={me.bannerUrl ? 'Minha imagem' : 'Cor do perfil'} onClick={() => patch({ bannerPreset: null })}>
-                <ProfileBanner user={{ ...me, bannerPreset: null, accentColor: form.accentColor }} height={64} />
+              <PickTile active={!d.bannerPreset} label={me.bannerUrl ? 'Meu arquivo' : 'Cor do perfil'} onClick={() => pick('bannerPreset', null)}>
+                <ProfileBanner user={{ ...me, bannerPreset: null, accentColor: d.accentColor }} height={64} />
               </PickTile>
               {Object.entries(BANNERS).map(([id, b]) => (
-                <PickTile key={id} active={me.bannerPreset === id} label={b.label} tag={b.tag} onClick={() => patch({ bannerPreset: id })}>
+                <PickTile key={id} active={d.bannerPreset === id} label={b.label} tag={b.tag} onClick={() => pick('bannerPreset', id)}>
                   <ProfileBanner user={{ ...me, bannerPreset: id }} height={64} />
                 </PickTile>
+              ))}
+            </div>
+            {me.bannerUrl && (
+              <button className="mt-2 text-xs text-fg-muted hover:text-danger" onClick={() => api('DELETE', '/users/@me/banner').catch(toastError)}>
+                Remover meu arquivo de banner
+              </button>
+            )}
+          </div>
+
+          <div>
+            <div className="label !mb-0.5">Moldura do avatar</div>
+            <div className="mb-2 text-xs text-fg-muted">Fica em volta da sua foto — a imagem original não é alterada.</div>
+            <div className="flex flex-wrap gap-3">
+              {[null, ...Object.keys(DECORATIONS)].map((id) => (
+                <button key={id ?? 'none'} onClick={() => pick('avatarDecoration', id)} aria-pressed={d.avatarDecoration === id} className={clsx('deco-host flex w-[84px] flex-col items-center gap-1.5 rounded-2xl border-2 p-2.5 transition-colors', d.avatarDecoration === id ? 'border-brand bg-brand/10' : 'border-transparent hover:bg-line/[0.05]')}>
+                  <span className="relative">
+                    <AvatarDecoration id={id} size={44} />
+                    <Avatar userId={me.id} size={44} />
+                  </span>
+                  <span className="truncate text-[11px] font-semibold text-fg">{id ? DECORATIONS[id]!.label : 'Nenhuma'}</span>
+                </button>
               ))}
             </div>
           </div>
@@ -170,11 +283,11 @@ function ProfileTab() {
             <div className="label !mb-0.5">Efeito do perfil</div>
             <div className="mb-2 text-xs text-fg-muted">Aparece por cima do seu cartão quando alguém abre o seu perfil.</div>
             <div className="grid grid-cols-3 gap-2.5">
-              <PickTile active={!me.profileEffect} label="Nenhum" onClick={() => patch({ profileEffect: null })}>
+              <PickTile active={!d.profileEffect} label="Nenhum" onClick={() => pick('profileEffect', null)}>
                 <div className="h-16 bg-line/[0.04]" />
               </PickTile>
               {Object.entries(EFFECTS).map(([id, fx]) => (
-                <PickTile key={id} active={me.profileEffect === id} label={fx.label} onClick={() => patch({ profileEffect: id })}>
+                <PickTile key={id} active={d.profileEffect === id} label={fx.label} onClick={() => pick('profileEffect', id)}>
                   <div className="relative h-16 overflow-hidden bg-bg-float">
                     <ProfileEffect id={id} behind />
                     <ProfileEffect id={id} />
@@ -185,50 +298,99 @@ function ProfileTab() {
           </div>
 
           <div>
+            <div className="label !mb-0.5">Entrada do perfil</div>
+            <div className="mb-2 text-xs text-fg-muted">Um efeito curto quando alguém abre o seu cartão. Não aparece para quem usa “reduzir movimento”.</div>
+            <Segmented id="entrance" value={d.profileEntrance ?? 'none'} onChange={(v) => pick('profileEntrance', v === 'none' ? null : v)} options={[['none', 'Nenhuma'], ...Object.entries(ENTRANCES)] as Array<[string, string]>} />
+          </div>
+
+          <div>
             <label className="label">Cor do perfil</label>
-            <input type="color" className="h-10 w-20 cursor-pointer rounded bg-transparent" value={form.accentColor} onChange={(e) => setForm({ ...form, accentColor: e.target.value })} />
+            <input type="color" className="h-10 w-20 cursor-pointer rounded bg-transparent" value={d.accentColor} onChange={(e) => set({ accentColor: e.target.value })} />
           </div>
           <div>
             <label className="label">Sobre mim</label>
-            <textarea className="input min-h-[100px]" maxLength={190} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
-            <div className="text-right text-xs text-fg-faint">{190 - form.bio.length}</div>
+            <textarea className="input min-h-[100px]" maxLength={190} value={d.bio} onChange={(e) => set({ bio: e.target.value })} />
+            <div className="text-right text-xs text-fg-faint">{190 - d.bio.length}</div>
+          </div>
+          <div>
+            <div className="label !mb-0.5">Links</div>
+            <div className="mb-2 text-xs text-fg-muted">Até 3, só https://. Aparecem no seu cartão para quem abrir o perfil.</div>
+            {d.profileLinks.map((l, i) => (
+              <div key={i} className="mb-2 flex gap-2">
+                <input className="input w-36" placeholder="Nome" maxLength={32} value={l.label} onChange={(e) => set({ profileLinks: d.profileLinks.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
+                <input className="input flex-1" placeholder="https://…" maxLength={200} value={l.url} onChange={(e) => set({ profileLinks: d.profileLinks.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })} />
+                <button className="icon-btn hover:text-danger" aria-label="Remover link" onClick={() => set({ profileLinks: d.profileLinks.filter((_, j) => j !== i) })}>
+                  <Icon name="x" />
+                </button>
+              </div>
+            ))}
+            {d.profileLinks.length < 3 && (
+              <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => set({ profileLinks: [...d.profileLinks, { label: '', url: 'https://' }] })}>
+                <Icon name="plus" size={13} /> Adicionar link
+              </button>
+            )}
+            {!linksValid && <p className="mt-1 text-xs text-warn">Cada link precisa de um nome e de um endereço https:// válido.</p>}
           </div>
         </div>
 
-        <div className="w-[300px] shrink-0">
+        <div className="hidden w-[300px] shrink-0 md:block">
           <div className="sticky top-0">
-            <div className="label">Pré-visualização</div>
-            <div className="relative overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float">
-              <ProfileEffect id={me.profileEffect} behind />
+            <div className="label flex items-center justify-between">
+              Pré-visualização ao vivo
+              {d.profileEntrance && (
+                <button className="text-[11px] font-semibold normal-case text-brand hover:underline" onClick={() => setReplay((r) => r + 1)}>
+                  Rever entrada
+                </button>
+              )}
+            </div>
+            <div className="relative overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float" data-testid="profile-preview">
+              <ProfileEntrance id={d.profileEntrance} play={replay} />
+              <ProfileEffect id={d.profileEffect} behind />
               <div className="relative">
                 <ProfileBanner user={preview} height={100} />
                 <div className="px-4 pb-5">
-                  <div className="-mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
+                  <div className="deco-host relative -mt-10 mb-2 w-fit rounded-full border-[6px] border-bg-float">
+                    <AvatarDecoration id={d.avatarDecoration} size={76} />
                     <Avatar userId={me.id} size={76} showStatus />
                   </div>
-                  <div className="text-xl font-extrabold tracking-tight text-fg-strong">{form.displayName || me.username}</div>
-                  <div className="text-sm text-fg-muted">{me.username}</div>
-                  {form.bio && <p className="mt-2 whitespace-pre-wrap text-sm text-fg">{form.bio}</p>}
+                  <div className="text-xl font-extrabold tracking-tight text-fg-strong">{d.displayName || me.username}</div>
+                  <div className="text-sm text-fg-muted">
+                    {me.username}
+                    {d.pronouns.trim() ? ` · ${d.pronouns.trim()}` : ''}
+                  </div>
+                  {d.bio && <p className="mt-2 whitespace-pre-wrap text-sm text-fg">{d.bio}</p>}
+                  {d.profileLinks.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {d.profileLinks.map((l, i) => (
+                        <span key={i} className="flex items-center gap-1 rounded-lg border border-line/[0.08] bg-line/[0.04] px-2 py-1 text-xs font-semibold text-sky-400">
+                          <Icon name="link" size={12} /> {l.label || 'link'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-              <ProfileEffect id={me.profileEffect} />
+              <ProfileEffect id={d.profileEffect} />
             </div>
+            <p className="mt-2 text-[11px] text-fg-faint">É assim que os outros veem o seu cartão. Quem usa “reduzir movimento” vê tudo parado.</p>
           </div>
         </div>
       </div>
-      {dirty && (
-        <div className="sticky bottom-4 mt-6 flex items-center justify-between rounded-2xl border border-line/[0.08] bg-bg-rail p-3 shadow-float">
-          <span className="text-sm text-fg">Cuidado — você tem alterações não salvas!</span>
-          <div className="flex gap-2">
-            <button className="btn-ghost" onClick={() => setForm({ displayName: me.displayName, bio: me.bio, accentColor: me.accentColor ?? '#6c5ce7' })}>
-              Redefinir
-            </button>
-            <button className="btn bg-ok text-white hover:bg-ok/80" onClick={() => api('PATCH', '/users/@me', form).then(() => toast('Perfil salvo', 'success'), toastError)}>
-              Salvar alterações
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-line/[0.08] bg-bg-rail p-3 shadow-float">
+        <button
+          className="btn-ghost text-sm"
+          onClick={() => (set({ bannerPreset: null, profileEffect: null, avatarDecoration: null, profileEntrance: null, accentColor: '#6c5ce7' }), setReplay((r) => r + 1))}
+        >
+          Restaurar padrão
+        </button>
+        <span className={clsx('flex-1 text-right text-sm', dirty ? 'text-fg' : 'text-fg-faint')}>{dirty ? 'Alterações não salvas — só você está vendo.' : 'Tudo salvo.'}</span>
+        <button className="btn-ghost" disabled={!dirty} onClick={() => setD(base)}>
+          Cancelar
+        </button>
+        <button className="btn bg-ok text-white hover:bg-ok/80 disabled:opacity-50" disabled={!dirty || saving || !linksValid} onClick={() => void save()}>
+          {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
     </>
   );
 }
@@ -389,6 +551,7 @@ function DevicesTab() {
 
 function AppearanceTab() {
   const p = usePrefs();
+  const me = useStore((s) => s.me);
   return (
     <>
       <SettingsTitle>Aparência</SettingsTitle>
@@ -428,8 +591,8 @@ function AppearanceTab() {
         <SettingRow icon="star" tint="text-brand bg-brand/15" title="Live Island abre ao passar o mouse" desc="Desligado: só abre com um clique. Arraste a alça embaixo da ilha aberta para mudar o tamanho.">
           <Switch checked={p.islandHover} onChange={(v) => setPrefs({ islandHover: v })} />
         </SettingRow>
-        <SettingRow icon="star" tint="text-violet-400 bg-violet-400/15" title="Animação de abertura" desc="A logo se monta e o ponto de voz solta ondas sempre que o app abre. Clique para pular.">
-          <Switch checked={p.introAnimation} onChange={(v) => setPrefs({ introAnimation: v })} />
+        <SettingRow icon="star" tint="text-violet-400 bg-violet-400/15" title="Abertura Signature" desc="A logo se monta, solta ondas e voa até o botão de início. Pule com qualquer tecla ou clique. Nunca toca com “reduzir movimento”.">
+          <Segmented id="intro" value={p.introMode ?? (p.introAnimation ? 'always' : 'off')} onChange={(v) => setPrefs({ introMode: v, introAnimation: v !== 'off' })} options={[['always', 'Sempre'], ['version', 'Só em versão nova'], ['off', 'Desligada']]} />
         </SettingRow>
         <SettingRow icon="volume" tint="text-emerald-400 bg-emerald-400/15" title="Sons da interface" desc="Entrar/sair da voz, mudo e mensagens. Chamadas recebidas sempre tocam.">
           <Switch checked={p.uiSounds} onChange={(v) => setPrefs({ uiSounds: v })} />
@@ -438,10 +601,28 @@ function AppearanceTab() {
 
       <h3 className="mb-3 mt-8 text-lg font-extrabold tracking-tight text-fg-strong">Fluidez</h3>
       <div className="card divide-y divide-line/[0.06] px-5">
-        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Animações" desc="Ultra: física completa e morphing. Equilibrado: mesmos efeitos, mais econômicos. Desempenho: resposta instantânea, sem animações decorativas.">
+        <SettingRow icon="signal" tint="text-brand bg-brand/15" title="Animações" desc="Ultra: física completa, cenários animados e luz do cursor. Equilibrado: mesmas transições, mas banners e fundos só se mexem sob o mouse e sem luz do cursor. Desempenho: resposta instantânea, sem animações decorativas.">
           <Segmented id="motion" value={p.motion} onChange={(v) => setPrefs({ motion: v })} options={[['ultra', 'Ultra'], ['balanced', 'Equilibrado'], ['performance', 'Desempenho']]} />
         </SettingRow>
         <RefreshRateRow />
+        <PerfRow />
+      </div>
+      <h3 className="mb-3 mt-8 text-lg font-extrabold tracking-tight text-fg-strong">Espaço e densidade</h3>
+      <div className="card divide-y divide-line/[0.06] px-5">
+        <SettingRow icon="chat" tint="text-sky-400 bg-sky-400/15" title="Densidade do chat" desc="Compacto cabe mais mensagens na tela; Espaçoso dá mais respiro.">
+          <Segmented id="density" value={p.density} onChange={(v) => setPrefs({ density: v })} options={[['compact', 'Compacto'], ['cozy', 'Padrão'], ['spacious', 'Espaçoso']]} />
+        </SettingRow>
+        <SettingRow icon="sidebar" tint="text-violet-400 bg-violet-400/15" title="Largura das colunas" desc="Arraste a borda da barra lateral ou do painel do chat. Duplo clique na borda volta ao tamanho padrão.">
+          <button className="btn-secondary" onClick={() => me && setPrefs({ panelWidths: { ...p.panelWidths, [me.id]: {} } })}>
+            Restaurar larguras
+          </button>
+        </SettingRow>
+        <SettingRow icon="focus" tint="text-brand bg-brand/15" title="Modo foco" desc="Esconde a barra de servidores e os painéis laterais para dar prioridade ao chat ou à call. Nada é desconectado. Atalho: Ctrl+Shift+F.">
+          <Switch checked={p.focusMode} onChange={(v) => setPrefs({ focusMode: v })} />
+        </SettingRow>
+        <SettingRow icon="palette" tint="text-emerald-400 bg-emerald-400/15" title="Efeitos animados dos servidores" desc="Banners animados, entradas e efeitos que os donos configuram no Server Studio. Desligue para ver tudo estático.">
+          <Switch checked={p.serverEffects} onChange={(v) => setPrefs({ serverEffects: v })} />
+        </SettingRow>
       </div>
 
       <div className="label mt-8">Tamanho da fonte do chat: {p.fontSize}px</div>
@@ -504,6 +685,32 @@ function RefreshRateRow() {
   );
 }
 
+/** Real numbers from lib/perf (sampled frames + Event Timing). */
+function PerfRow() {
+  const pf = usePerf();
+  return (
+    <div className="flex items-center gap-4 py-4">
+      <span className={clsx('tile h-11 w-11', pf.high ? 'bg-warn/15 text-warn' : 'bg-sky-400/15 text-sky-400')}>
+        <Icon name="zap" size={19} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="font-bold text-fg-strong">Fluidez agora</div>
+        <div className="text-sm text-fg-muted">
+          {pf.high ? 'PC sob carga: efeitos decorativos pausados até aliviar (transmissão, jogo ou quadros perdidos).' : 'Medido a cada poucos segundos enquanto o app está aberto.'}
+        </div>
+      </div>
+      <div className="shrink-0 text-right text-[12px] tabular-nums text-fg-muted">
+        <div>
+          Quadros perdidos: <b className={clsx(pf.droppedPct != null && pf.droppedPct >= 25 ? 'text-warn' : 'text-fg-strong')}>{pf.droppedPct == null ? '—' : `${pf.droppedPct}%`}</b>
+        </div>
+        <div>
+          Resposta ao toque (p75): <b className="text-fg-strong">{pf.inputP75 ? `${pf.inputP75} ms` : '—'}</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function A11yTab() {
   const p = usePrefs();
   return (
@@ -516,71 +723,11 @@ function A11yTab() {
   );
 }
 
-function useDevices() {
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  useEffect(() => {
-    const load = () => navigator.mediaDevices?.enumerateDevices().then(setDevices).catch(() => {});
-    load();
-    navigator.mediaDevices?.addEventListener('devicechange', load);
-    return () => navigator.mediaDevices?.removeEventListener('devicechange', load);
-  }, []);
-  return devices;
-}
-
 function VoiceTab() {
   const p = usePrefs();
   const devices = useDevices();
-  const [testing, setTesting] = useState(false);
-  const [level, setLevel] = useState(0);
   const [cam, setCam] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [recording, setRecording] = useState(false);
-
-  // Mic test: level meter + optional loopback
-  useEffect(() => {
-    if (!testing) return;
-    let stream: MediaStream | null = null;
-    let raf = 0;
-    let ctx: AudioContext | null = null;
-    let audio: HTMLAudioElement | null = null;
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: p.inputDeviceId !== 'default' ? { exact: p.inputDeviceId } : undefined, noiseSuppression: p.noiseSuppression, echoCancellation: p.echoCancellation, autoGainControl: p.autoGainControl },
-        });
-        ctx = new AudioContext();
-        const src = ctx.createMediaStreamSource(stream);
-        const an = ctx.createAnalyser();
-        an.fftSize = 512;
-        src.connect(an);
-        const buf = new Uint8Array(an.fftSize);
-        const tick = () => {
-          an.getByteTimeDomainData(buf);
-          let sum = 0;
-          for (const v of buf) sum += ((v - 128) / 128) ** 2;
-          setLevel(Math.min(1, Math.sqrt(sum / buf.length) * 4));
-          raf = requestAnimationFrame(tick);
-        };
-        tick();
-        if (recording) {
-          audio = new Audio();
-          audio.srcObject = stream;
-          if (p.outputDeviceId !== 'default') await (audio as any).setSinkId?.(p.outputDeviceId);
-          await audio.play();
-        }
-      } catch (e) {
-        toastError(e);
-        setTesting(false);
-      }
-    })();
-    return () => {
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-      void ctx?.close();
-      audio?.pause();
-      setLevel(0);
-    };
-  }, [testing, recording, p.inputDeviceId, p.outputDeviceId, p.noiseSuppression, p.echoCancellation, p.autoGainControl]);
 
   useEffect(() => {
     if (!cam) return;
@@ -632,29 +779,7 @@ function VoiceTab() {
         <Toggle label="Mostrar reações" desc="Corações, risadas, aplausos… que o pessoal manda durante a call (Alt+1…8). Sem som." checked={p.reactionsEnabled} onChange={(v) => setPrefs({ reactionsEnabled: v })} />
         <Toggle label="Mostrar reações por cima das transmissões" desc="Aparecem discretas no canto do vídeo. Desligue para assistir sem nada na tela." checked={p.reactionsOverStreams} disabled={!p.reactionsEnabled} onChange={(v) => setPrefs({ reactionsOverStreams: v })} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="label">Dispositivo de entrada</div>
-          {select('audioinput', p.inputDeviceId, (v) => (setPrefs({ inputDeviceId: v }), void applyDevicePrefs()))}
-        </div>
-        <div>
-          <div className="label">Dispositivo de saída</div>
-          {select('audiooutput', p.outputDeviceId, (v) => (setPrefs({ outputDeviceId: v }), void applyDevicePrefs()))}
-          {!('setSinkId' in HTMLMediaElement.prototype) && <p className="mt-1 text-xs text-fg-faint">Este navegador não permite escolher a saída de áudio.</p>}
-        </div>
-      </div>
-      <div className="label mt-6">Teste de microfone</div>
-      <div className="flex items-center gap-3">
-        <button className={testing ? 'btn-secondary' : 'btn-primary'} onClick={() => setTesting(!testing)}>
-          {testing ? 'Parar' : 'Vamos checar'}
-        </button>
-        <label className="flex items-center gap-2 text-sm text-fg">
-          <input type="checkbox" className="accent-brand" checked={recording} onChange={(e) => setRecording(e.target.checked)} /> Ouvir meu microfone
-        </label>
-        <div className="h-2 flex-1 overflow-hidden rounded bg-bg-rail">
-          <div className="h-full bg-ok transition-[width] duration-75" style={{ width: `${level * 100}%` }} />
-        </div>
-      </div>
+      <AudioCenter />
 
       <div className="label mt-8">Modo de entrada</div>
       {(
@@ -766,9 +891,14 @@ function DesktopTab() {
         <SettingRow icon="x" tint="text-fg bg-line/10" title="Fechar para a bandeja" desc="O X minimiza para a bandeja e você continua recebendo mensagens e chamadas. Para sair de vez, use “Sair” no ícone da bandeja.">
           <Switch checked={ds.minimizeToTray} onChange={(v) => patch({ minimizeToTray: v })} />
         </SettingRow>
-        <SettingRow icon="star" tint="text-amber-400 bg-amber-400/15" title="Live Island flutuante" desc="Quando o Aldetes não estiver em foco, a ilha aparece no topo da tela com a call e a música, e dá para controlar sem abrir o app.">
+        <SettingRow icon="star" tint="text-amber-400 bg-amber-400/15" title="Live Island flutuante" desc="Quando o Aldetes não estiver em foco, a ilha aparece com a call e a música e dá para controlar sem abrir o app. Clicar nela nunca tira o foco do jogo.">
           <Switch checked={ds.floatingIsland} onChange={(v) => patch({ floatingIsland: v })} />
         </SettingRow>
+        {ds.islandOverFullscreen !== undefined && (
+          <SettingRow icon="screen" tint="text-violet-400 bg-violet-400/15" title="Ilha por cima de jogos em tela cheia" desc="Arraste a ilha pela superfície para qualquer lugar; ela gruda no topo, nos cantos e nas bordas. Se algum jogo em tela cheia exclusiva piscar ou perder o foco, desligue: a ilha fica só sobre janelas normais.">
+            <Switch checked={ds.islandOverFullscreen} disabled={!ds.floatingIsland} onChange={(v) => patch({ islandOverFullscreen: v })} />
+          </SettingRow>
+        )}
       </div>
       <p className="mt-4 text-sm text-fg-muted">Sua sessão fica salva com a criptografia do sistema e se renova sozinha enquanto você usar o app, então não precisa entrar de novo.</p>
     </>

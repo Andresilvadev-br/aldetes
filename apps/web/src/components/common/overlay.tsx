@@ -324,3 +324,48 @@ export function ConfirmHost() {
     </Modal>
   );
 }
+
+// ---------------- Prompt dialog (one text field) ----------------
+interface PromptReq {
+  title: string;
+  label: string;
+  initial?: string;
+  confirm: string;
+  maxLength?: number;
+  resolve: (v: string | null) => void;
+}
+const usePrompt = create<{ req: PromptReq | null }>(() => ({ req: null }));
+export function promptDialog(o: Omit<PromptReq, 'resolve'>): Promise<string | null> {
+  return new Promise((resolve) => usePrompt.setState({ req: { ...o, resolve } }));
+}
+export function PromptHost() {
+  const req = usePrompt((s) => s.req);
+  const [v, setV] = useState('');
+  useEffect(() => setV(req?.initial ?? ''), [req]);
+  if (!req) return null;
+  const done = (val: string | null) => {
+    req.resolve(val?.trim() ? val.trim() : null);
+    usePrompt.setState({ req: null });
+  };
+  return (
+    <Modal
+      onClose={() => done(null)}
+      title={req.title}
+      footer={
+        <>
+          <button className="btn-ghost" onClick={() => done(null)}>
+            Cancelar
+          </button>
+          <button className="btn-primary" disabled={!v.trim()} onClick={() => done(v)}>
+            {req.confirm}
+          </button>
+        </>
+      }
+    >
+      <label className="block pb-2">
+        <span className="label">{req.label}</span>
+        <input className="input" autoFocus value={v} maxLength={req.maxLength ?? 64} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && v.trim() && done(v)} />
+      </label>
+    </Modal>
+  );
+}

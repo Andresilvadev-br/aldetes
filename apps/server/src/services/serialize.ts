@@ -1,6 +1,7 @@
 import type { Prisma, User } from '@prisma/client';
 import type { PublicUser, SelfUser, Message, Channel, Role, Member, Server, Attachment } from '@aldetes/shared';
 import type { Config } from '../config';
+import { studioThemeSchema } from '@aldetes/shared';
 
 let publicUrl = '';
 export function setPublicUrl(cfg: Config) {
@@ -21,6 +22,10 @@ export function publicUser(u: User): PublicUser {
     createdAt: u.createdAt.toISOString(),
     bannerPreset: u.bannerPreset,
     profileEffect: u.profileEffect,
+    avatarDecoration: u.avatarDecoration,
+    profileEntrance: u.profileEntrance,
+    pronouns: u.pronouns,
+    profileLinks: Array.isArray(u.profileLinks) ? (u.profileLinks as Array<{ label: string; url: string }>) : [],
   };
 }
 
@@ -146,6 +151,13 @@ export function member(m: Prisma.MemberGetPayload<{ include: typeof memberInclud
   };
 }
 
+/** Stored JSON is re-validated on the way out: a bad/old value falls back to defaults instead of breaking clients. */
+function parseStudio(v: unknown) {
+  if (!v) return null;
+  const r = studioThemeSchema.safeParse(v);
+  return r.success ? r.data : null;
+}
+
 export function server(s: Prisma.ServerGetPayload<object>): Server {
   return {
     id: s.id,
@@ -158,5 +170,6 @@ export function server(s: Prisma.ServerGetPayload<object>): Server {
     rulesChannelId: s.rulesChannelId,
     welcomeChannelId: s.welcomeChannelId,
     createdAt: s.createdAt.toISOString(),
+    studio: parseStudio(s.studio),
   };
 }

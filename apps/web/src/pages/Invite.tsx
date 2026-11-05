@@ -4,10 +4,12 @@ import { api } from '@/lib/api';
 import { useStore } from '@/store';
 import { ServerIcon } from '@/components/layout/ServerRail';
 import { Logo } from '@/components/common/Icon';
+import type { Server } from '@aldetes/shared';
+import { ServerCover, IconFrame, themeOf } from '@/components/studio/ServerScene';
 
 interface Preview {
   code: string;
-  server: { id: string; name: string; iconUrl: string | null; memberCount: number; onlineCount: number; description: string | null };
+  server: Server & { memberCount: number; onlineCount: number };
 }
 
 export function InvitePage() {
@@ -33,8 +35,15 @@ export function InvitePage() {
   };
   return (
     <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#2b2263] via-bg-rail to-[#123b46] p-4">
-      <div className="w-full max-w-md animate-pop rounded-lg bg-bg-main p-8 text-center shadow-2xl">
-        <div className="mb-4 flex justify-center text-brand">
+      <div className="relative w-full max-w-md animate-pop overflow-hidden rounded-lg bg-bg-main p-8 text-center shadow-2xl [&>*:not(:first-child)]:relative">
+        {p && !err && (
+          /* Server Studio cover on the invite page (same renderer as inside the app) */
+          <div className="absolute inset-x-0 top-0 h-36" aria-hidden>
+            <ServerCover server={p.server} theme={themeOf(p.server)} />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-bg-main" />
+          </div>
+        )}
+        <div className="relative mb-4 flex justify-center text-brand">
           <Logo size={36} />
         </div>
         {err ? (
@@ -49,10 +58,13 @@ export function InvitePage() {
           <p className="text-fg-muted">Carregando convite…</p>
         ) : (
           <>
-            <div className="mb-3 flex justify-center">
-              <ServerIcon name={p.server.name} iconUrl={p.server.iconUrl} size={72} active />
+            <div className="relative mb-3 flex justify-center">
+              <IconFrame frame={themeOf(p.server).iconFrame} accent={themeOf(p.server).accent}>
+                <ServerIcon name={p.server.name} iconUrl={p.server.iconUrl} size={72} active />
+              </IconFrame>
             </div>
-            <p className="text-sm text-fg-muted">Você recebeu um convite para entrar em</p>
+            {p.server.description && <p className="relative mb-2 line-clamp-2 text-sm text-fg-muted">{p.server.description}</p>}
+            <p className="relative text-sm text-fg-muted">Você recebeu um convite para entrar em</p>
             <h1 className="text-2xl font-bold text-fg-strong">{p.server.name}</h1>
             <p className="mt-2 flex justify-center gap-4 text-sm text-fg-muted">
               <span>

@@ -12,6 +12,8 @@ export const ACCENTS: Record<AccentName, { label: string; a: [number, number, nu
   vermelho: { label: 'Vermelho', a: [239, 68, 68], b: [244, 63, 94] },
 };
 
+export type PulseModule = 'now' | 'quick' | 'continue' | 'spaces';
+
 export interface Prefs {
   theme: 'dark' | 'light' | 'system';
   fontSize: number;
@@ -23,6 +25,9 @@ export interface Prefs {
   uiSounds: boolean;
   cursorLight: boolean;
   introAnimation: boolean;
+  /** 1.0: 'always' | only the first launch of each version | off. Old `introAnimation: false` maps to 'off'. */
+  introMode?: 'always' | 'version' | 'off';
+  introSeenVersion?: string;
   islandWidth: number;
   islandHover: boolean;
   shareGame: boolean;
@@ -47,6 +52,9 @@ export interface Prefs {
   notificationSounds: boolean;
   inputDeviceId: string;
   outputDeviceId: string;
+  /** names of the chosen devices, to say WHICH one went missing */
+  inputDeviceLabel: string;
+  outputDeviceLabel: string;
   videoDeviceId: string;
   inputVolume: number; // 0..2
   noiseSuppression: boolean;
@@ -58,6 +66,22 @@ export interface Prefs {
   userVolumes: Record<string, number>; // userId -> 0..2
   localMutes: Record<string, boolean>;
   favorites: string[]; // channel ids
+  /** Pulse home: order of the modules (reorderable, saved on this device) */
+  pulseOrder: PulseModule[];
+  /** DMs pinned to the top of the conversation list */
+  pinnedDms: string[];
+  /** conversation list filter */
+  dmFilter: 'all' | 'unread' | 'pinned';
+  /** column widths per user id (clamped on read) */
+  panelWidths: Record<string, { side?: number; members?: number }>;
+  /** Focus mode: hide side panels to give the chat/call all the room (connections stay up) */
+  focusMode: boolean;
+  /** server rail: folders (local) and servers pinned to the top */
+  railFolders: Array<{ id: string; name: string; serverIds: string[]; open: boolean }>;
+  /** let servers show animated banners/effects (Server Studio) */
+  serverEffects: boolean;
+  /** chat density */
+  density: 'cozy' | 'compact' | 'spacious';
   streamQuality: '720p30' | '720p60' | '720p120' | '1080p30' | '1080p60' | '1080p120' | '1440p30' | '1440p60' | '1440p120';
 }
 
@@ -88,6 +112,8 @@ const defaults: Prefs = {
   notificationSounds: true,
   inputDeviceId: 'default',
   outputDeviceId: 'default',
+  inputDeviceLabel: '',
+  outputDeviceLabel: '',
   videoDeviceId: '',
   inputVolume: 1,
   noiseSuppression: true,
@@ -99,6 +125,14 @@ const defaults: Prefs = {
   userVolumes: {},
   localMutes: {},
   favorites: [],
+  pulseOrder: ['now', 'quick', 'continue', 'spaces'],
+  pinnedDms: [],
+  dmFilter: 'all',
+  panelWidths: {},
+  focusMode: false,
+  railFolders: [],
+  serverEffects: true,
+  density: 'cozy',
   streamQuality: '1080p60',
 };
 
@@ -113,7 +147,10 @@ export const HAD_PREFS = (() => {
 })();
 function load(): Prefs {
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Prefs>;
+    // respect what the person already chose before 1.0
+    if (raw.introMode === undefined) raw.introMode = raw.introAnimation === false ? 'off' : 'always';
+    return { ...defaults, ...raw };
   } catch {
     return defaults;
   }
@@ -146,4 +183,23 @@ export function applyAppearance() {
   root.style.setProperty('--brand-hover', darker);
   root.style.setProperty('--font-size', `${p.fontSize}px`);
   root.dataset.cursorLight = String(p.cursorLight);
+  root.dataset.density = p.density;
+}
+
+/** Column width limits (px). Widths are saved per user and always clamped, so a bad value can't break the layout. */
+export const PANEL_LIMITS = { side: { min: 220, max: 380, def: 272 }, members: { min: 200, max: 340, def: 240 } } as const;
+export function panelWidth(userId: string | undefined, which: keyof typeof PANEL_LIMITS) {
+  const l = PANEL_LIMITS[which];
+  const v = userId ? getPrefs().panelWidths[userId]?.[which] : undefined;
+  return Math.round(Math.min(l.max, Math.max(l.min, typeof v === 'number' && Number.isFinite(v) ? v : l.def)));
+}
+export function setPanelWidth(userId: string, which: keyof typeof PANEL_LIMITS, px: number) {
+  const l = PANEL_LIMITS[which];
+  const cur = getPrefs().panelWidths;
+  setPrefs({ panelWidths: { ...cur, [userId]: { ...cur[userId], [which]: Math.round(Math.min(l.max, Math.max(l.min, px))) } } });
+}
+
+export function togglePinDm(id: string) {
+  const cur = getPrefs().pinnedDms;
+  setPrefs({ pinnedDms: cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur].slice(0, 12) });
 }

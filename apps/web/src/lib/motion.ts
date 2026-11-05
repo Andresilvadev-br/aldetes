@@ -7,10 +7,11 @@ import type { Transition } from 'motion/react';
 /**
  * Duration tokens (seconds), from the product spec:
  * instant 80–130 ms (press/hover/toggle) · short 150–230 ms (menu, tooltip, reaction) ·
- * spatial 240–380 ms (video focus, grid ↔ stage, island) · structural 290–450 ms (joining a call, recomposition).
+ * spatial 240–380 ms (video focus, grid ↔ stage, island) · structural 290–450 ms (joining a call, recomposition) ·
+ * composition ≤ 450 ms (release showcase, intro hand-off). Never longer: a UI that waits on its own animation feels slow.
  * Everything animates transform/opacity; reduced motion collapses them (MotionConfig + data-reduce-motion).
  */
-export const dur = { instant: 0.11, short: 0.18, spatial: 0.3, structural: 0.38 } as const;
+export const dur = { instant: 0.11, short: 0.18, spatial: 0.3, structural: 0.38, composition: 0.45 } as const;
 export const ease = { out: [0.22, 1, 0.36, 1] as const, inOut: [0.65, 0, 0.35, 1] as const };
 
 export const spring = {

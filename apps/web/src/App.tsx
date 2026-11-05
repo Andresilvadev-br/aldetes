@@ -7,7 +7,7 @@ import { LoginPage, RegisterPage, ForgotPage, ResetPage } from './pages/Auth';
 import { InvitePage } from './pages/Invite';
 const LandingPage = lazy(() => import('./pages/Landing').then((m) => ({ default: m.LandingPage })));
 import { AppShell } from './components/layout/AppShell';
-import { ContextMenuProvider, Toasts, ConfirmHost } from './components/common/overlay';
+import { ContextMenuProvider, Toasts, ConfirmHost, PromptHost } from './components/common/overlay';
 import { Logo } from './components/common/Icon';
 import { ServerSetup } from './pages/ServerSetup';
 import { isDesktop } from './lib/desktop';
@@ -86,6 +86,7 @@ export function App() {
       <UpdateCenter />
       <PwaBanners />
       <ConfirmHost />
+      <PromptHost />
     </ContextMenuProvider>
     </MotionConfig>
   );

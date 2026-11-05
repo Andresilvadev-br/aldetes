@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { jumpToMessage } from '@/lib/actions';
 import { useNavigate } from 'react-router-dom';
 import type { Channel, Message } from '@aldetes/shared';
 import { api } from '@/lib/api';
@@ -11,6 +12,12 @@ export function SearchPanel({ channel, initial, onClose }: { channel: Channel; i
   const [q, setQ] = useState(initial);
   const [scope, setScope] = useState<'channel' | 'server'>(channel.serverId ? 'server' : 'channel');
   const [has, setHas] = useState<'' | 'attachment' | 'image' | 'link'>('');
+  const [author, setAuthor] = useState('');
+  const people = useMemo(() => {
+    const st = get();
+    const list = channel.serverId ? Object.values(st.members[channel.serverId] ?? {}).map((m) => m.user) : [...(channel.recipients ?? []), ...(st.me ? [st.me] : [])];
+    return list.sort((a, b) => a.displayName.localeCompare(b.displayName)).slice(0, 200);
+  }, [channel]);
   const [res, setRes] = useState<{ total: number; messages: Message[] } | null>(null);
   const [offset, setOffset] = useState(0);
   const nav = useNavigate();
@@ -21,12 +28,17 @@ export function SearchPanel({ channel, initial, onClose }: { channel: Channel; i
     if (scope === 'server' && channel.serverId) p.set('serverId', channel.serverId);
     else p.set('channelId', channel.id);
     if (has) p.set('has', has);
+    if (author) p.set('authorId', author);
+    if (!q.trim() && !has && !author) {
+      setRes({ total: 0, messages: [] });
+      return;
+    }
     let alive = true;
     api<{ total: number; messages: Message[] }>('GET', `/search/messages?${p}`).then((r) => alive && setRes(r), toastError);
     return () => {
       alive = false;
     };
-  }, [q, scope, has, offset, channel]);
+  }, [q, scope, has, author, offset, channel]);
 
   return (
     <aside className="flex w-[420px] shrink-0 animate-slideUp flex-col border-l border-line/[0.06] bg-line/[0.015]">
@@ -49,6 +61,14 @@ export function SearchPanel({ channel, initial, onClose }: { channel: Channel; i
           <option value="image">Com imagem</option>
           <option value="link">Com link</option>
         </select>
+        <select className="rounded bg-bg-rail px-2 py-1 text-fg" value={author} aria-label="De quem" onChange={(e) => (setAuthor(e.target.value), setOffset(0))}>
+          <option value="">De qualquer pessoa</option>
+          {people.map((u) => (
+            <option key={u.id} value={u.id}>
+              De {u.displayName}
+            </option>
+          ))}
+        </select>
         <span className="ml-auto self-center text-fg-muted">{res ? `${res.total} resultado(s)` : 'Buscando…'}</span>
       </div>
       <div className="scroll-thin flex flex-1 flex-col gap-2 overflow-y-auto p-3 pt-0">
@@ -60,7 +80,9 @@ export function SearchPanel({ channel, initial, onClose }: { channel: Channel; i
               serverId={channel.serverId}
               onJump={() => {
                 const c = get().channels[m.channelId];
-                if (c) nav(c.serverId ? `/channels/${c.serverId}/${c.id}` : `/channels/@me/${c.id}`);
+                if (!c) return;
+                nav(c.serverId ? `/channels/${c.serverId}/${c.id}` : `/channels/@me/${c.id}`);
+                setTimeout(() => void jumpToMessage(c.id, m.id), c.id === channel.id ? 0 : 450);
               }}
             />
           </div>

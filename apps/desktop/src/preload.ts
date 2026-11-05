@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
   platform: process.platform,
   version: ipcRenderer.sendSync('app:version') as string,
   supportsSystemAudio,
+  /** Windows 11+: the stream's PC sound leaves out Aldetes's own audio (no echoed voices) */
+  ownAudioExcluded: ipcRenderer.sendSync('app:ownAudioExcluded') === true,
   getServerUrl: () => ipcRenderer.invoke('config:getServerUrl'),
   setServerUrl: (url: string) => ipcRenderer.invoke('config:setServerUrl', url),
   getToken: () => ipcRenderer.invoke('token:get'),
@@ -56,6 +58,8 @@ contextBridge.exposeInMainWorld('aldetesDesktop', {
     return () => ipcRenderer.removeListener('aldetes:island-command', h);
   },
   setIslandSize: (w: number, h: number) => ipcRenderer.send('island:size', w, h),
+  /** 1.0: drag the floating island by its surface (the main process follows the real cursor) */
+  islandDrag: (phase: 'press' | 'move' | 'end' | 'cancel') => ipcRenderer.send('island:drag', phase),
   setStreaming: (on: boolean) => ipcRenderer.send('stream:active', on === true),
   setDesktopSettings: (patch: Record<string, boolean>) => ipcRenderer.invoke('desktop:setSettings', patch),
   onGlobalShortcut: (cb: (name: string) => void) => {

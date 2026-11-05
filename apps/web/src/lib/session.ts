@@ -2,6 +2,7 @@ import { api, setSessionToken } from './api';
 import { leaveVoice } from './voice';
 import { disconnectGateway } from './gateway';
 import { set as setStore, initialState } from '../store';
+import { clearDrafts } from './drafts';
 import { confirmDialog } from '../components/common/overlay';
 
 /** Real logout: leaves the call, invalidates the session on the server, forgets the token. */
@@ -11,6 +12,7 @@ export async function logout(ask = true) {
   await api('POST', '/auth/logout').catch(() => {});
   await setSessionToken(null);
   disconnectGateway();
+  clearDrafts();
   setStore({ ...initialState, status: 'unauthenticated' });
   return true;
 }

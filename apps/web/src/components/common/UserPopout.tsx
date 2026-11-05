@@ -8,7 +8,7 @@ import { Popover, useContextMenu, confirmDialog, toastError, toast, Modal, type 
 import { api, upload } from '@/lib/api';
 import { openSettings } from '@/lib/ui';
 import { elapsed } from '@/lib/activity';
-import { ProfileBanner, ProfileEffect } from '../profile/Cosmetics';
+import { ProfileBanner, ProfileEffect, AvatarDecoration, ProfileEntrance } from '../profile/Cosmetics';
 import { Icon } from './Icon';
 import { openDm } from '@/lib/actions';
 import { setLocalMute, setUserVolume, joinVoice, useVoice } from '@/lib/voice';
@@ -100,6 +100,7 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
   return (
     <Popover x={x} y={y} onClose={onClose}>
       <div className="relative w-[340px] overflow-hidden rounded-3xl border border-line/[0.08] bg-bg-float shadow-float">
+        <ProfileEntrance id={user.profileEntrance} />
         <ProfileEffect id={user.profileEffect} behind />
         <div className="relative">
           {isMe ? (
@@ -115,13 +116,15 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
           <div className="relative px-4 pb-4">
             <div className="-mt-11 mb-2 flex items-end justify-between">
               {isMe ? (
-                <button className="group/av relative w-fit rounded-full border-[6px] border-bg-float" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
+                <button className="deco-host group/av relative w-fit rounded-full border-[6px] border-bg-float" title="Mudar avatar" onClick={() => avatarInput.current?.click()}>
+                  <AvatarDecoration id={user.avatarDecoration} size={84} />
                   <Avatar userId={userId} size={84} showStatus />
                   <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover/av:opacity-100">Mudar</span>
                   <input ref={avatarInput} type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
                 </button>
               ) : (
-                <div className="w-fit rounded-full border-[6px] border-bg-float">
+                <div className="deco-host relative w-fit rounded-full border-[6px] border-bg-float">
+                  <AvatarDecoration id={user.avatarDecoration} size={84} />
                   <Avatar userId={userId} size={84} showStatus />
                 </div>
               )}
@@ -133,7 +136,8 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
             </div>
             <div className="text-xl font-extrabold tracking-tight text-fg-strong">{member?.nickname ?? user.displayName}</div>
             <div className="text-sm text-fg-muted">
-              {user.username} · {STATUS_LABEL[status]}
+              {user.username}
+              {user.pronouns ? ` · ${user.pronouns}` : ''} · {STATUS_LABEL[status]}
             </div>
             {presence?.customStatus && <div className="mt-1 text-sm text-fg">{presence.customStatus}</div>}
 
@@ -190,6 +194,15 @@ export function UserPopout({ userId, serverId, x, y, onClose }: { userId: string
                 <div className="eyebrow mb-1 mt-3">Sobre mim</div>
                 <p className="whitespace-pre-wrap text-sm text-fg">{user.bio}</p>
               </>
+            )}
+            {!!user.profileLinks?.length && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {user.profileLinks.map((l) => (
+                  <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer nofollow" title={l.url} className="flex max-w-full items-center gap-1 rounded-lg border border-line/[0.08] bg-line/[0.04] px-2 py-1 text-xs font-semibold text-sky-400 hover:border-sky-400/40">
+                    <Icon name="link" size={12} /> <span className="truncate">{l.label}</span>
+                  </a>
+                ))}
+              </div>
             )}
             <div className="eyebrow mb-1 mt-3">Membro desde</div>
             <p className="text-sm text-fg">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>

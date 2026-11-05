@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MultipartFile } from '@fastify/multipart';
+import { transcodeBanner, VIDEO_INPUT_TYPES, VIDEO_MAX_INPUT } from '../lib/transcode';
 import { fileTypeFromBuffer } from 'file-type';
 import { imageSize } from 'image-size';
 import { z } from 'zod';
@@ -76,7 +77,8 @@ async function detect(buf: Buffer, declared: string, filename: string) {
       /* not decodable */
     }
   }
-  return { contentType, width, height, ext: ft?.ext };
+  // sniffed: the bytes themselves were recognized (images/videos must be — a declared type alone is never trusted)
+  return { contentType, width, height, ext: ft?.ext, sniffed: !!ft };
 }
 
 export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -88,7 +90,7 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!file) throw badRequest('Nenhum arquivo enviado');
     const buf = await readFile(file);
     const info = await detect(buf, file.mimetype, file.filename);
-    if (!IMAGE_TYPES.has(info.contentType)) throw badRequest('Envie uma imagem PNG, JPEG, GIF ou WebP');
+    if (!info.sniffed || !IMAGE_TYPES.has(info.contentType)) throw badRequest('Envie uma imagem PNG, JPEG, GIF ou WebP');
     return { buf, info };
   }
 
@@ -146,11 +148,31 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
     return reply.status(201).send(created.map((c) => S.attachment(byId.get(c.id)!)));
   });
 
+  /** Banners: image as before, or a short video that is ALWAYS re-encoded (see lib/transcode). */
+  async function bannerFile(req: FastifyRequest) {
+    const file = await req.file({ limits: { fileSize: VIDEO_MAX_INPUT } });
+    if (!file) throw badRequest('Nenhum arquivo enviado');
+    const buf = await readFile(file);
+    const info = await detect(buf, file.mimetype, file.filename);
+    if (!info.sniffed) throw badRequest('Envie uma imagem (PNG, JPEG, GIF, WebP) ou um vídeo curto (MP4/WebM, até 12 MB)');
+    if (IMAGE_TYPES.has(info.contentType)) {
+      if (buf.length > 8 * 1024 * 1024) throw badRequest('Imagem grande demais (máx. 8 MB)');
+      return { buf, contentType: info.contentType, ext: info.ext ?? 'png' };
+    }
+    if (VIDEO_INPUT_TYPES.has(info.contentType)) {
+      const out = await transcodeBanner(buf).catch((e: Error) => {
+        throw badRequest(e.message.startsWith('Este servidor') || e.message.startsWith('O vídeo') ? e.message : 'Não foi possível converter esse vídeo. Tente outro arquivo (MP4 ou WebM, até 6 s).');
+      });
+      return { buf: out, contentType: 'video/mp4', ext: 'mp4' };
+    }
+    throw badRequest('Envie uma imagem (PNG, JPEG, GIF, WebP) ou um vídeo curto (MP4/WebM, até 12 MB)');
+  }
+
   for (const kind of ['avatar', 'banner'] as const) {
     app.post(`/api/users/@me/${kind}`, { ...auth, config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (req) => {
-      const { buf, info } = await singleImage(req, 8);
-      const key = `${kind}s/${req.auth.userId}/${randomToken(12)}.${info.ext ?? 'png'}`;
-      await storage.put(key, buf, info.contentType);
+      const f = kind === 'banner' ? await bannerFile(req) : await singleImage(req, 8).then(({ buf, info }) => ({ buf, contentType: info.contentType, ext: info.ext ?? 'png' }));
+      const key = `${kind}s/${req.auth.userId}/${randomToken(12)}.${f.ext}`;
+      await storage.put(key, f.buf, f.contentType);
       const prev = await db.user.findUniqueOrThrow({ where: { id: req.auth.userId } });
       const user = await db.user.update({ where: { id: req.auth.userId }, data: kind === 'avatar' ? { avatarKey: key } : { bannerKey: key } });
       const old = kind === 'avatar' ? prev.avatarKey : prev.bannerKey;
@@ -166,12 +188,12 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
       await broadcastUserUpdate(ctx, user.id);
       return S.selfUser(user);
     });
-    app.post(`/api/servers/:id/${kind === 'avatar' ? 'icon' : 'banner'}`, auth, async (req) => {
+    app.post(`/api/servers/:id/${kind === 'avatar' ? 'icon' : 'banner'}`, { ...auth, config: { rateLimit: { max: 10, timeWindow: '10 minutes' } } }, async (req) => {
       const { id } = req.params as { id: string };
       await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
-      const { buf, info } = await singleImage(req, 8);
-      const key = `servers/${id}/${randomToken(12)}.${info.ext ?? 'png'}`;
-      await storage.put(key, buf, info.contentType);
+      const f = kind === 'banner' ? await bannerFile(req) : await singleImage(req, 8).then(({ buf, info }) => ({ buf, contentType: info.contentType, ext: info.ext ?? 'png' }));
+      const key = `servers/${id}/${randomToken(12)}.${f.ext}`;
+      await storage.put(key, f.buf, f.contentType);
       const prev = await db.server.findUniqueOrThrow({ where: { id } });
       const s = await db.server.update({ where: { id }, data: kind === 'avatar' ? { iconKey: key } : { bannerKey: key } });
       const old = kind === 'avatar' ? prev.iconKey : prev.bannerKey;
@@ -181,6 +203,17 @@ export function uploadRoutes(app: FastifyInstance, ctx: AppContext) {
       return S.server(s);
     });
   }
+
+  app.delete('/api/servers/:id/banner', auth, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    const prev = await db.server.findUniqueOrThrow({ where: { id } });
+    const s = await db.server.update({ where: { id }, data: { bannerKey: null } });
+    if (prev.bannerKey) await storage.delete(prev.bannerKey);
+    await audit(ctx, id, req.auth.userId, 'server_banner_update', id);
+    ctx.gw.toServer(id, ServerEvents.SERVER_UPDATE, S.server(s));
+    return S.server(s);
+  });
 
   // --- Custom emojis ---
   app.get('/api/servers/:id/emojis', auth, async (req) => {

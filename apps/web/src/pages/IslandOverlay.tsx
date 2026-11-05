@@ -70,39 +70,103 @@ export function IslandOverlay() {
   const cmd = (type: Parameters<NonNullable<typeof desktop>['sendIslandCommand']>[0]['type'], arg?: string) => desktop?.sendIslandCommand({ type, arg });
   const call = s?.call ?? null;
   const ring = s?.ring ?? null;
-  const big = !!ring || open;
+  const [auto, setAuto] = useState(false);
+  const big = !!ring || open || auto;
+  const hovered = useRef(false);
+
+  // Auto-layout: expands by itself for a moment when a call connects, a stream starts or someone rings;
+  // closes again on its own (or when the pointer leaves after you interacted).
+  const callKey = call ? `${call.name}|${call.state}` : '';
+  const prev = useRef({ callKey: '', screen: false });
+  useEffect(() => {
+    const p = prev.current;
+    const started = (!!callKey && callKey !== p.callKey && call?.state === 'connected') || (!!call?.screen && !p.screen);
+    prev.current = { callKey, screen: !!call?.screen };
+    if (!started || hovered.current) return;
+    setAuto(true);
+    const t = setTimeout(() => !hovered.current && setAuto(false), 3800);
+    return () => clearTimeout(t);
+  }, [callKey, call?.screen]);
+
+  // Drag by the surface (not by a tiny grip). The main process moves the window following the real cursor,
+  // clamps it to the monitor's work area and snaps magnetically when released. A press without movement is a click.
+  const drag = useRef<{ x: number; y: number; on: boolean; raf: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const canDrag = !!desktop?.islandDrag;
+  const onDown = (e: React.PointerEvent) => {
+    if (!canDrag || e.button !== 0 || (e.target as HTMLElement).closest('button, a, input, [role=separator]')) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = { x: e.screenX, y: e.screenY, on: false, raf: 0 };
+    desktop!.islandDrag!('press'); // the main process notes the real cursor now: no pixel of the drag is lost
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.on && Math.hypot(e.screenX - d.x, e.screenY - d.y) > 4) {
+      d.on = true;
+      setDragging(true);
+      clearTimeout(leaveT.current); // no hover-expand while it's being dragged
+    }
+    if (d.on && !d.raf)
+      d.raf = requestAnimationFrame(() => {
+        if (drag.current) drag.current.raf = 0;
+        desktop!.islandDrag!('move');
+      });
+  };
+  const onUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.on) {
+      cancelAnimationFrame(d.raf);
+      desktop!.islandDrag!('end');
+      setDragging(false);
+    } else if (d) desktop!.islandDrag!('cancel');
+  };
+  const SIZES: Array<[string, number]> = [
+    ['Compacta', 340],
+    ['Normal', 420],
+    ['Grande', 560],
+  ];
 
   return (
     <div className="flex h-screen w-screen justify-center overflow-hidden bg-transparent pt-1.5 text-white">
       <div
         ref={wrap}
         onMouseEnter={() => {
+          hovered.current = true;
           clearTimeout(leaveT.current);
-          leaveT.current = setTimeout(() => setOpen(true), 160);
+          if (!dragging) leaveT.current = setTimeout(() => setOpen(true), 160);
         }}
         onMouseLeave={() => {
+          hovered.current = false;
           clearTimeout(leaveT.current);
-          leaveT.current = setTimeout(() => setOpen(false), 280);
+          if (drag.current?.on) return;
+          leaveT.current = setTimeout(() => (setOpen(false), setAuto(false)), 280);
         }}
-        className="group/island relative h-fit pl-7"
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        className={clsx('group/island relative h-fit', !canDrag && 'pl-7', canDrag && (dragging ? 'cursor-grabbing' : 'cursor-grab'))}
+        data-testid="island-overlay"
       >
-        {/* native window drag (Electron app-region); double-click → back to the top center */}
-        <span
-          className="drag absolute left-0 top-1.5 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-black/70 text-white/50 opacity-0 transition-opacity group-hover/island:opacity-100"
-          title="Arraste para mover a ilha"
-        >
-          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
-            {[2, 7, 12].map((y) => [2.5, 7.5].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.3" />))}
-          </svg>
-        </span>
+        {/* older desktop apps (no surface drag): keep the native grip */}
+        {!canDrag && (
+          <span className="drag absolute left-0 top-1.5 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-black/70 text-white/50 opacity-0 transition-opacity group-hover/island:opacity-100" title="Arraste para mover a ilha">
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+              {[2, 7, 12].map((y) => [2.5, 7.5].map((x) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.3" />))}
+            </svg>
+          </span>
+        )}
         <motion.div
           layout="size"
           transition={spring.island}
+          animate={{ scale: dragging ? 1.03 : 1 }}
           style={big ? { borderRadius: 26, width: ring ? 400 : width } : { borderRadius: 22 }}
-          className={clsx('overflow-hidden border bg-black shadow-[0_14px_40px_-10px_rgb(0_0_0/0.8)]', call || ring ? 'border-brand/45 shadow-glow' : 'border-white/10', !big && 'min-w-[170px] max-w-[480px]')}
+          className={clsx('overflow-hidden border bg-black shadow-[0_14px_40px_-10px_rgb(0_0_0/0.8)]', call || ring ? 'border-brand/45 shadow-glow' : 'border-white/10', !big && 'min-w-[170px] max-w-[480px]', dragging && 'shadow-[0_22px_50px_-12px_rgb(0_0_0/0.9)]')}
         >
           <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div key={ring ? 'ring' : open ? 'open' : call ? 'call' : 'music'} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, transition: { duration: 0.08 } }} transition={{ duration: 0.18 }}>
+            <motion.div key={ring ? 'ring' : big ? 'open' : call ? 'call' : 'music'} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, transition: { duration: 0.08 } }} transition={{ duration: 0.18 }}>
               {ring ? (
                 <div className="flex items-center gap-3 p-3.5">
                   <motion.span animate={{ rotate: [0, -8, 8, -6, 6, 0] }} transition={{ duration: 0.7, repeat: Infinity, repeatDelay: 1.1 }}>
@@ -119,7 +183,7 @@ export function IslandOverlay() {
                     <Icon name="phone" size={19} />
                   </button>
                 </div>
-              ) : open ? (
+              ) : big ? (
                 <div className="p-4 pb-0">
                   {call && (
                     <>
@@ -164,9 +228,15 @@ export function IslandOverlay() {
                       <Logo size={16} /> Nada acontecendo agora
                     </div>
                   )}
-                  <div className="flex justify-center pt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
+                    {SIZES.map(([label, w]) => (
+                      <button key={label} aria-pressed={Math.abs(width - w) < 8} className={clsx('rounded-full px-2.5 py-1 text-[11px] font-semibold', Math.abs(width - w) < 8 ? 'bg-white text-black' : 'bg-white/10 text-white/80 hover:bg-white/20')} onClick={() => (setWidth(w), setPrefs({ islandWidth: w }))}>
+                        {label}
+                      </button>
+                    ))}
+                    <span className="w-1" />
                     <button className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/20" onClick={() => cmd('resetPos')}>
-                      <Icon name="arrowLeft" size={12} className="rotate-90" /> Voltar ao topo
+                      <Icon name="arrowLeft" size={12} className="rotate-90" /> Centralizar no topo
                     </button>
                   </div>
                   <ResizeGrip width={width} onWidth={setWidth} onCommit={(w) => setPrefs({ islandWidth: w })} />

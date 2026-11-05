@@ -103,7 +103,8 @@ try {
     await q.waitForTimeout(900);
     await q.screenshot({ path: `${SHOTS}/whatsnew.png` });
     check('Depois de atualizar, o painel de novidades aparece uma vez', shown);
-    if (shown) await q.getByRole('button', { name: 'Começar' }).click();
+    // 1.0: desktop windows get the showcase (Pular), phones the panel (Começar)
+    if (shown) await q.getByRole('button', { name: /^(Começar|Pular)$/ }).first().click();
     await q.reload();
     await q.waitForURL(/channels/);
     const again = await q.locator('#whatsnew-title').waitFor({ timeout: 4000 }).then(() => true, () => false);

@@ -10,6 +10,7 @@ import { RELEASES, releaseFor, type Release } from '@/lib/changelog';
 import { useIsMobile } from '@/lib/mobile';
 import { spring, dur, ease } from '@/lib/motion';
 import { Icon } from './Icon';
+import { ReleaseShowcase } from './ReleaseShowcase';
 
 /** The version really running: the installed desktop app, or the web build. */
 export const runningVersion = () => (desktop?.version && desktop.version !== '0.0.0' ? desktop.version : __APP_VERSION__);
@@ -46,7 +47,13 @@ export function WhatsNew() {
     if (me) setPrefs({ seenRelease: { ...getPrefs().seenRelease, [me.id]: version } });
     useWhatsNew.setState({ open: null, history: false });
   };
-  return createPortal(<AnimatePresence>{open && <Panel key={open.version} rel={open} history={history} onClose={close} />}</AnimatePresence>, document.body);
+  // Desktop + a release with the structured manifest → the cinematic showcase; phones keep the 0.8 panel.
+  const mobile = useIsMobile();
+  const showcase = !!open && !mobile && open.highlights.some((h) => h.demo);
+  return createPortal(
+    <AnimatePresence>{open && (showcase ? <ReleaseShowcase key={open.version} rel={open} onClose={close} /> : <Panel key={open.version} rel={open} history={history} onClose={close} />)}</AnimatePresence>,
+    document.body,
+  );
 }
 
 function Panel({ rel, history, onClose }: { rel: Release; history: boolean; onClose: () => void }) {

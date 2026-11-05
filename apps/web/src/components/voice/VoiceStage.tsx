@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import type { Participant, VideoTrack } from 'livekit-client';
 import { Track } from '@/lib/lk';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, participantVersion, getRoom, SERVER_UPLINK_MBPS, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, stopScreenAudio, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, participantVersion, getRoom, SERVER_UPLINK_MBPS, type Tile } from '@/lib/voice';
 import { diagnoseViewer, diagnoseOwn } from '@/lib/streamDiag';
 import { spring, dur } from '@/lib/motion';
 import { usePrefs } from '@/lib/prefs';
@@ -204,6 +204,7 @@ function OwnStreamBar() {
   const since = useVoice((v) => v.screenSince);
   const info = useVoice((v) => v.screenInfo);
   const st = useVoice((v) => v.screenStats);
+  const echoRisk = useVoice((v) => v.screenAudioIsolated === false);
   const [now, setNow] = useState(Date.now());
   const [change, setChange] = useState(false);
   useEffect(() => {
@@ -258,6 +259,14 @@ function OwnStreamBar() {
         </button>
       </div>
       {advice && <div className="self-start rounded-xl border border-warn/30 bg-black/80 px-3 py-1.5 text-xs text-warn">{advice}</div>}
+      {echoRisk && (
+        <div className="flex items-center gap-2 self-start rounded-xl border border-warn/30 bg-black/80 px-3 py-1.5 text-xs text-warn">
+          O som do PC pode levar as vozes da call (Windows 10): quem assiste pode se ouvir de volta.
+          <button className="rounded-md bg-white/10 px-2 py-0.5 font-semibold text-white hover:bg-white/20" onClick={() => void stopScreenAudio()}>
+            Tirar o som
+          </button>
+        </div>
+      )}
       {change && <ScreenShareModal onClose={() => setChange(false)} />}
     </div>
   );

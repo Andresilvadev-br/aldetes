@@ -1,3 +1,4 @@
+import { getDraft, setDraft } from '@/lib/drafts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { AnimatePresence } from 'motion/react';
@@ -48,7 +49,7 @@ export function encodeMentions(text: string, serverId: string | null, channelId:
 
 export function Composer({ channelId, replyTo, onClearReply }: { channelId: string; replyTo: Message | null; onClearReply: () => void }) {
   const channel = useStore((s) => s.channels[channelId])!;
-  const [text, setText] = useState(() => sessionStorage.getItem(`draft.${channelId}`) ?? '');
+  const [text, setText] = useState(() => getDraft(channelId));
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<number | null>(null);
   const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
@@ -74,7 +75,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
   }, [typingUsers.length]);
 
   useEffect(() => {
-    sessionStorage.setItem(`draft.${channelId}`, text);
+    setDraft(channelId, text);
   }, [text, channelId]);
   useEffect(() => {
     if (replyTo) ta.current?.focus();
@@ -310,10 +311,10 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
       </div>
       <div className="absolute bottom-1 left-4 h-5 text-xs text-fg-muted">
         {typingUsers.length > 0 && (
-          <span className="flex items-center gap-1">
-            <span className="flex gap-0.5">
+          <span className="flex items-center gap-1" role="status" aria-live="polite">
+            <span className="flex gap-0.5" aria-hidden>
               {[0, 1, 2].map((i) => (
-                <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand" style={{ animationDelay: `${i * 120}ms` }} />
+                <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-brand" style={{ animationDelay: `${i * 140}ms` }} />
               ))}
             </span>
             <b className="text-fg">{typingUsers.slice(0, 3).map((u) => displayName(u, channel.serverId)).join(', ')}</b>

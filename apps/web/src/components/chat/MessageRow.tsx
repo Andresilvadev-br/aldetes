@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { VoiceMessage } from './VoiceMessage';
@@ -10,7 +10,11 @@ import { Icon } from '../common/Icon';
 import { UserPopout, UserPopoutTrigger } from '../common/UserPopout';
 import { Tooltip, useContextMenu, confirmDialog, toastError, toast, Modal } from '../common/overlay';
 import { EmojiPicker } from './EmojiPicker';
-import { deleteMessage, editMessage, toggleReaction, resend, discardPending } from '@/lib/actions';
+import { deleteMessage, editMessage, toggleReaction, resend, discardPending, jumpToMessage } from '@/lib/actions';
+import { motion, AnimatePresence } from 'motion/react';
+import { spring, dur, ease } from '@/lib/motion';
+import { createPortal } from 'react-dom';
+import { isMobileNow } from '@/lib/mobile';
 import { api } from '@/lib/api';
 import { ForwardModal } from '../modals/ForwardModal';
 
@@ -107,7 +111,7 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
     <div
       className={clsx(
         'group relative pr-12 [content-visibility:auto] [contain-intrinsic-size:auto_48px]',
-        grouped ? 'py-0.5' : 'mt-4 py-0.5',
+        grouped ? 'py-[var(--msg-pad,0.125rem)]' : 'mt-[var(--msg-gap,1rem)] py-[var(--msg-pad,0.125rem)]',
         mentionsMe ? 'border-l-2 border-brand bg-brand/[0.07] hover:bg-brand/[0.1]' : 'hover:bg-line/[0.025]',
         fresh && 'msg-in',
         m.pending && !m.failed && 'opacity-60',
@@ -123,7 +127,10 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
           </span>
           <span
             className="cursor-pointer truncate hover:text-fg"
-            onClick={() => document.querySelector(`[data-message-id="${m.replyTo!.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && void jumpToMessage(channel.id, m.replyTo!.id)}
+            onClick={() => void jumpToMessage(channel.id, m.replyTo!.id)}
           >
             {m.replyTo.content || 'Clique para ver o anexo'}
           </span>
@@ -213,6 +220,17 @@ export const MessageRow = memo(function MessageRow({ message: m, channel, groupe
               </button>
             </Tooltip>
           )}
+          {m.content && (
+            <Tooltip label="Copiar texto">
+              <button
+                className="icon-btn"
+                aria-label="Copiar texto"
+                onClick={() => navigator.clipboard.writeText(m.content).then(() => toast('Texto copiado'), () => toast('Não foi possível copiar', 'error'))}
+              >
+                <Icon name="copy" size={17} />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip label="Mais">
             <button className="icon-btn" onClick={(e) => menu(e, actions())}>
               <Icon name="moreH" size={18} />
@@ -266,16 +284,42 @@ function EditBox({ initial, onSave, onCancel }: { initial: string; onSave: (v: s
   );
 }
 
+/**
+ * Reaction with micro-physics: springs in when it first appears, squashes on press, the counter rolls up/down,
+ * and your own reaction gets a short ring burst. Transform/opacity only; reduced motion = plain chip.
+ */
 function ReactionChip({ channelId, messageId, emoji, count, me, serverId }: { channelId: string; messageId: string; emoji: string; count: number; me: boolean; serverId: string | null }) {
   const custom = emoji.startsWith('custom:') ? (useStore.getState().emojis[serverId ?? '']?.find((e) => e.id === emoji.slice(7)) ?? null) : null;
+  const [prev, setPrev] = useState(count);
+  const [burst, setBurst] = useState(0);
+  const dir = count >= prev ? 1 : -1;
+  if (prev !== count) setPrev(count);
   return (
-    <button
-      onClick={() => toggleReaction(channelId, messageId, emoji).catch(toastError)}
-      className={clsx('flex h-7 items-center gap-1.5 rounded-lg border px-2 text-sm transition-[transform,background-color,border-color] duration-150 active:scale-90', me ? 'border-brand/60 bg-brand/15 text-fg-strong' : 'border-line/[0.06] bg-line/[0.05] text-fg-muted hover:border-line/20')}
+    <motion.button
+      layout="position"
+      initial={{ scale: 0.4, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      whileTap={{ scale: 0.86 }}
+      whileHover={{ y: -1 }}
+      transition={{ type: 'spring', stiffness: 620, damping: 22, mass: 0.6 }}
+      onClick={() => {
+        if (!me) setBurst((b) => b + 1);
+        toggleReaction(channelId, messageId, emoji).catch(toastError);
+      }}
+      aria-pressed={me}
+      aria-label={`${count} ${count === 1 ? 'reação' : 'reações'} ${custom ? custom.name : emoji}${me ? ', incluindo a sua' : ''}`}
+      className={clsx('relative flex h-7 items-center gap-1.5 rounded-lg border px-2 text-sm transition-colors duration-150', me ? 'border-brand/60 bg-brand/15 text-fg-strong' : 'border-line/[0.06] bg-line/[0.05] text-fg-muted hover:border-line/20')}
     >
-      {custom ? <img src={custom.url} alt={custom.name} className="h-4 w-4 object-contain" /> : <span>{emoji}</span>}
-      <span className="text-xs font-semibold">{count}</span>
-    </button>
+      {burst > 0 && <motion.span key={burst} aria-hidden className="pointer-events-none absolute inset-0 rounded-lg border-2 border-brand" initial={{ opacity: 0.9, scale: 1 }} animate={{ opacity: 0, scale: 1.5 }} transition={{ duration: 0.45, ease: ease.out }} />}
+      {custom ? <img src={custom.url} alt="" className="h-4 w-4 object-contain" /> : <span aria-hidden>{emoji}</span>}
+      <span className="relative inline-flex h-4 overflow-hidden text-xs font-semibold tabular-nums">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span key={count} initial={{ y: dir * 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -dir * 12, opacity: 0 }} transition={{ duration: dur.short, ease: ease.out }}>
+            {count}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+    </motion.button>
   );
 }
 
@@ -288,9 +332,9 @@ function fmtSize(n: number) {
  * the light thumbnail fades in over it, and the original is only downloaded when the photo is opened.
  */
 function ImageAttachment({ a }: { a: Attachment }) {
-  const [lightbox, setLightbox] = useState(false);
+  const [open, setOpen] = useState<DOMRect | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [fullLoaded, setFullLoaded] = useState(false);
+  const thumb = useRef<HTMLButtonElement>(null);
   const w = Math.min(400, a.width ?? 400);
   const hRaw = a.width && a.height ? Math.round((a.height / a.width) * w) : undefined;
   const h = hRaw && hRaw > 350 ? 350 : hRaw;
@@ -299,10 +343,11 @@ function ImageAttachment({ a }: { a: Attachment }) {
   return (
     <>
       <button
+        ref={thumb}
         type="button"
-        onClick={() => setLightbox(true)}
+        onClick={() => thumb.current && setOpen(thumb.current.getBoundingClientRect())}
         aria-label={`Abrir imagem ${a.filename}`}
-        className="group/img relative block cursor-zoom-in overflow-hidden rounded-xl border border-line/[0.06] bg-line/[0.04]"
+        className={clsx('group/img relative block cursor-zoom-in overflow-hidden rounded-xl border border-line/[0.06] bg-line/[0.04]', open && !isMobileNow() && 'invisible')}
         style={{ width: wFinal, height: h ?? 220, maxWidth: '100%' }}
       >
         {a.placeholder && (
@@ -318,19 +363,83 @@ function ImageAttachment({ a }: { a: Attachment }) {
           className={clsx('relative h-full w-full object-cover transition-[opacity,transform,filter] duration-500 ease-out group-hover/img:scale-[1.02]', loaded ? 'opacity-100 blur-0' : 'opacity-0 blur-md')}
         />
       </button>
-      {lightbox && (
-        <Modal onClose={() => setLightbox(false)} className="!max-w-[92vw] bg-transparent shadow-none">
-          <div className="relative flex items-center justify-center">
-            {!fullLoaded && <img src={src} alt="" aria-hidden className="max-h-[80vh] max-w-full rounded" />}
-            <img src={a.url} alt={a.filename} onLoad={() => setFullLoaded(true)} className={clsx('max-h-[80vh] max-w-full rounded', !fullLoaded && 'absolute inset-0 m-auto opacity-0')} />
-            {!fullLoaded && <span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] text-white/80">carregando original…</span>}
-          </div>
-          <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-fg-muted hover:underline">
-            Abrir original ({fmtSize(a.size)})
-          </a>
-        </Modal>
-      )}
+      {open && (isMobileNow() ? <MobileLightbox a={a} src={src} onClose={() => setOpen(null)} /> : <ImageViewer a={a} src={src} from={open} getThumb={() => thumb.current?.getBoundingClientRect() ?? open} onClose={() => setOpen(null)} />)}
     </>
+  );
+}
+
+/** Phones: the 0.8 lightbox, unchanged (mobile is out of the 1.0 scope). */
+function MobileLightbox({ a, src, onClose }: { a: Attachment; src: string; onClose: () => void }) {
+  const [fullLoaded, setFullLoaded] = useState(false);
+  return (
+    <Modal onClose={onClose} className="!max-w-[92vw] bg-transparent shadow-none">
+      <div className="relative flex items-center justify-center">
+        {!fullLoaded && <img src={src} alt="" aria-hidden className="max-h-[80vh] max-w-full rounded" />}
+        <img src={a.url} alt={a.filename} onLoad={() => setFullLoaded(true)} className={clsx('max-h-[80vh] max-w-full rounded', !fullLoaded && 'absolute inset-0 m-auto opacity-0')} />
+        {!fullLoaded && <span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] text-white/80">carregando original…</span>}
+      </div>
+      <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-fg-muted hover:underline">
+        Abrir original ({fmtSize(a.size)})
+      </a>
+    </Modal>
+  );
+}
+
+/**
+ * Viewer connected to the thumbnail: the picture grows out of it (FLIP with the Web Animations API, transform only)
+ * and shrinks back into it when closed. The original is only downloaded here.
+ */
+function ImageViewer({ a, src, from, getThumb, onClose }: { a: Attachment; src: string; from: DOMRect; getThumb: () => DOMRect; onClose: () => void }) {
+  const img = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
+  const closing = useRef(false);
+  const ratio = a.width && a.height ? a.width / a.height : from.width / Math.max(1, from.height);
+  const maxW = window.innerWidth * 0.92;
+  const maxH = window.innerHeight * 0.8;
+  const W = Math.round(Math.min(maxW, maxH * ratio, Math.max(from.width, a.width ?? maxW)));
+  const H = Math.round(W / ratio);
+  const reduce = document.documentElement.dataset.reduceMotion === 'true';
+  const flip = (r: DOMRect) => {
+    const dx = r.left + r.width / 2 - window.innerWidth / 2;
+    const dy = r.top + r.height / 2 - (window.innerHeight / 2 - 14);
+    return `translate(${dx}px, ${dy}px) scale(${r.width / W}, ${r.height / H})`;
+  };
+  useLayoutEffect(() => {
+    if (reduce || !img.current) return;
+    img.current.animate([{ transform: flip(from), borderRadius: '24px' }, { transform: 'none', borderRadius: '12px' }], { duration: 340, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+  }, []);
+  const close = () => {
+    if (closing.current) return;
+    closing.current = true;
+    if (reduce || !img.current) return onClose();
+    const back = document.getElementById(`bd-${a.id}`);
+    back?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' });
+    img.current.animate([{ transform: 'none' }, { transform: flip(getThumb()) }], { duration: 260, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }).onfinish = onClose;
+  };
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" role="dialog" aria-modal aria-label={a.filename} onClick={close}>
+      <motion.div id={`bd-${a.id}`} className="absolute inset-0 bg-black/85" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: dur.short }} />
+      <div ref={img} className="relative overflow-hidden rounded-xl bg-black/40 shadow-float" style={{ width: W, height: H }} onClick={(e) => e.stopPropagation()}>
+        <img src={src} alt="" aria-hidden className="absolute inset-0 h-full w-full object-contain" />
+        <img src={a.url} alt={a.filename} onLoad={() => setFull(true)} className={clsx('absolute inset-0 h-full w-full object-contain transition-opacity duration-300', full ? 'opacity-100' : 'opacity-0')} />
+        {!full && <span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] text-white/80">carregando original…</span>}
+      </div>
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: dur.short }} className="relative mt-3 flex items-center gap-3 text-sm text-white/70" onClick={(e) => e.stopPropagation()}>
+        <span className="max-w-[40vw] truncate">{a.filename}</span>
+        <a href={a.url} target="_blank" rel="noreferrer" className="hover:text-white hover:underline">
+          Abrir original ({fmtSize(a.size)})
+        </a>
+        <button className="rounded-lg bg-white/10 px-3 py-1 font-semibold hover:bg-white/20" onClick={close} autoFocus>
+          Fechar
+        </button>
+      </motion.div>
+    </div>,
+    document.body,
   );
 }
 

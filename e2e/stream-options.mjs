@@ -101,7 +101,7 @@ try {
   await B.getByRole('button', { name: 'Diagnóstico' }).first().click();
   const report = await B.locator('pre').first().textContent({ timeout: 8000 }).catch(() => '');
   await B.screenshot({ path: `${SHOTS}/share-diag.png` });
-  check('Diagnóstico gera relatório real (o que chega, codec, FPS, caminho, versão de quem transmite)', /Chegando: \d+×\d+ · \d+ FPS · H264/i.test(report) && /Caminho: (UDP|TCP|TURN)/.test(report) && /App de quem transmite: 0\./.test(report), report.split('\n').slice(3, 6).join(' | '));
+  check('Diagnóstico gera relatório real (o que chega, codec, FPS, caminho, versão de quem transmite)', /Chegando: \d+×\d+ · \d+ FPS · H264/i.test(report) && /Caminho: (UDP|TCP|TURN)/.test(report) && /App de quem transmite: \d+\./.test(report), report.split('\n').slice(3, 6).join(' | '));
   await B.keyboard.press('Escape');
 
   // 6) old-app warning: an app that doesn't report its version

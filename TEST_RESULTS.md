@@ -260,3 +260,28 @@ O que o `mobile-nav` confere:
 **Não testado aqui:**
 - **120 FPS de verdade.** A captura de teste gera 20 FPS e esta máquina não tem placa de vídeo nem monitor de 120 Hz. O que foi verificado é a configuração: o codificador aceita 120 FPS e a captura é pedida a 120. O FPS real aparece na barra "ao vivo" e no diagnóstico.
 - **Começo da transmissão:** nos primeiros 10–15 s a resolução sobe aos poucos enquanto o WebRTC mede a internet. É comportamento normal e aparece no diagnóstico.
+
+## 15. Versão 1.0.0 (plano "Aldetes 1.0 — Plano Premium Completo")
+
+O relatório completo está em **`docs/V1_0.md`**: checklist com status real, desempenho antes e depois, migração e rollback, e limites.
+
+| Suite | Resultado |
+|---|---|
+| `pnpm test` | **48/48** |
+| `e2e/v1-features.mjs` (novo: Pulse, navegação, Ctrl+K, larguras, pastas, Chat 2.0, perfis, Server Studio, uploads, vídeo, central de áudio, showcase, abertura) | **28/28** |
+| `e2e/desktop-island2.mjs` (novo: arraste com cursor real, ímã, clique ≠ arraste, área útil, monitor ausente, tamanhos, não focável) | **7/7** |
+| `e2e/stream-options.mjs` / `two-clients.mjs` / `multi-stream.mjs` / `media.mjs` | **7/7** / **17/17** / **8/8** / **5/5** |
+| `e2e/mobile-nav.mjs` / `mobile-pwa.mjs` | **29/29** / **10/10** |
+| `e2e/desktop-smoke.mjs` / `desktop-island.mjs` / `desktop-update.mjs` (Electron 44.9.3) | **11/11** / **9/9** / **4/4** |
+| Migração `20261105120000_studio_profiles`: aplicar, e `down.sql` dentro de uma transação | **ok** |
+
+**Corrigido por causa dos testes:**
+- HTML disfarçado de PNG era aceito em avatar, banner e ícone (falha que já existia);
+- as configurações do servidor abertas pelo cabeçalho podiam suspender a tela (já existia);
+- o editor de perfil não reconhecia o que tinha sido salvo, porque o JSONB reordena as chaves;
+- a ilha perdia os primeiros pixels do arraste.
+
+**Não testado aqui:**
+- Windows real e dois PCs para o retorno de áudio;
+- monitores de 120/144/165 Hz;
+- dois monitores físicos.

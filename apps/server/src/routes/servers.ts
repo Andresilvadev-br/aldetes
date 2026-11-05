@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createServerSchema, updateServerSchema, ServerEvents, Permissions, DEFAULT_EVERYONE_PERMISSIONS, hasPermission } from '@aldetes/shared';
+import { createServerSchema, updateServerSchema, ServerEvents, Permissions, DEFAULT_EVERYONE_PERMISSIONS, hasPermission, studioThemeSchema, studioLevel } from '@aldetes/shared';
+import { Prisma } from '@prisma/client';
 import type { AppContext } from '../context';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { snowflake } from '../lib/snowflake';
@@ -84,6 +85,49 @@ export function serverRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     const s = await db.server.update({ where: { id }, data: body });
     await audit(ctx, id, req.auth.userId, 'server_update', id, body);
+    ctx.gw.toServer(id, ServerEvents.SERVER_UPDATE, S.server(s));
+    return S.server(s);
+  });
+
+  // ---------- Server Studio: draft → publish → revert (MANAGE_SERVER only) ----------
+  const studioLimit = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
+  app.get('/servers/:id/studio', auth, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    const s = await db.server.findUniqueOrThrow({ where: { id }, select: { studio: true, studioDraft: true, studioPrev: true } });
+    const safe = (v: unknown) => (v ? (studioThemeSchema.safeParse(v).data ?? null) : null);
+    return { live: safe(s.studio), draft: safe(s.studioDraft), prev: safe(s.studioPrev) };
+  });
+  app.put('/servers/:id/studio/draft', { ...auth, ...studioLimit }, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    const theme = studioThemeSchema.parse(req.body);
+    await db.server.update({ where: { id }, data: { studioDraft: theme } });
+    return { draft: theme };
+  });
+  app.delete('/servers/:id/studio/draft', auth, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    await db.server.update({ where: { id }, data: { studioDraft: Prisma.DbNull } });
+    return { ok: true };
+  });
+  app.post('/servers/:id/studio/publish', { ...auth, ...studioLimit }, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    const theme = studioThemeSchema.parse(req.body);
+    const cur = await db.server.findUniqueOrThrow({ where: { id }, select: { studio: true } });
+    const s = await db.server.update({ where: { id }, data: { studio: theme, studioPrev: cur.studio ?? Prisma.DbNull, studioDraft: Prisma.DbNull } });
+    await audit(ctx, id, req.auth.userId, 'server_studio_publish', id, { level: studioLevel(theme) });
+    ctx.gw.toServer(id, ServerEvents.SERVER_UPDATE, S.server(s));
+    return S.server(s);
+  });
+  app.post('/servers/:id/studio/revert', { ...auth, ...studioLimit }, async (req) => {
+    const { id } = req.params as { id: string };
+    await requireServer(db, id, req.auth.userId, Permissions.MANAGE_SERVER);
+    const cur = await db.server.findUniqueOrThrow({ where: { id }, select: { studio: true, studioPrev: true } });
+    // swap live ↔ previous (revert twice = back to where you were); no previous → back to the default look
+    const s = await db.server.update({ where: { id }, data: { studio: cur.studioPrev ?? Prisma.DbNull, studioPrev: cur.studio ?? Prisma.DbNull } });
+    await audit(ctx, id, req.auth.userId, 'server_studio_revert', id);
     ctx.gw.toServer(id, ServerEvents.SERVER_UPDATE, S.server(s));
     return S.server(s);
   });

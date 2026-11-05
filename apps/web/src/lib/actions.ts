@@ -193,3 +193,37 @@ export async function openDm(userId: string): Promise<string> {
   const c = await api<{ id: string }>('POST', '/users/@me/channels', { recipientIds: [userId] });
   return c.id;
 }
+
+/**
+ * Jump to a message and briefly highlight it (replies, pins, files/links panel). Older messages are fetched page by
+ * page (up to ~400 back) so the original really appears; reduced motion gets an instant jump.
+ */
+export async function jumpToMessage(channelId: string, messageId: string) {
+  const find = () => document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(messageId)}"]`);
+  let el = find();
+  for (let i = 0; !el && i < 8; i++) {
+    const cm = get().messages[channelId];
+    if (!cm || !cm.hasMore) break;
+    if (cm.items.some((m) => m.id === messageId)) break;
+    const oldest = cm.items.find((m) => !m.pending)?.id;
+    if (!oldest || oldest < messageId) break;
+    await loadMessages(channelId, { before: oldest }).catch(() => {});
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    el = find();
+  }
+  el = find();
+  if (!el) {
+    toastMissing();
+    return false;
+  }
+  const reduce = document.documentElement.dataset.reduceMotion === 'true';
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  el.classList.remove('msg-flash');
+  void el.offsetWidth; // restart the animation
+  el.classList.add('msg-flash');
+  setTimeout(() => el?.classList.remove('msg-flash'), 1800);
+  return true;
+}
+function toastMissing() {
+  void import('../components/common/overlay').then((m) => m.toast('Essa mensagem é antiga demais ou foi apagada.'));
+}

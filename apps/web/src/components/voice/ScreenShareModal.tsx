@@ -13,11 +13,20 @@ type Res = '720p' | '1080p' | '1440p';
 type Fps = '30' | '60' | '120';
 type Hint = 'motion' | 'detail';
 
-function audioNote(): { ok: boolean; text: string } {
-  if (desktop) return desktop.supportsSystemAudio ? { ok: true, text: 'Leva junto o som do PC (jogo, música, vídeo).' } : { ok: false, text: 'Este sistema não permite capturar o som do PC.' };
+/**
+ * Stream sound. `echo` = the PC mix may also carry the call's voices (people would hear themselves back):
+ * Windows 10 has no per-process exclusion, so we say it and start with the sound OFF (explicit, safe fallback).
+ */
+function audioNote(): { ok: boolean; text: string; echo: boolean } {
+  if (desktop) {
+    if (!desktop.supportsSystemAudio) return { ok: false, echo: false, text: 'O som do PC só pode ser capturado no Windows. A transmissão vai só com imagem.' };
+    if (desktop.ownAudioExcluded === false)
+      return { ok: true, echo: true, text: 'No Windows 10 o som do PC inclui as vozes da call — quem assiste se ouviria de volta. Ligue só se a call estiver mutada no seu PC, ou use o Windows 11.' };
+    return { ok: true, echo: false, text: 'Leva o som do jogo, música e vídeos — sem as vozes da call (ninguém se ouve de volta).' };
+  }
   const ua = navigator.userAgent;
-  if (!/Chrome\//.test(ua)) return { ok: false, text: 'Este navegador não captura áudio da tela.' };
-  return { ok: true, text: /Windows/.test(ua) ? 'Funciona ao compartilhar uma aba ou a tela inteira.' : 'Funciona ao compartilhar uma aba do navegador.' };
+  if (!/Chrome\//.test(ua)) return { ok: false, echo: false, text: 'Este navegador não captura o som da tela. Use o Chrome, o Edge ou o app para Windows.' };
+  return { ok: true, echo: false, text: /Windows/.test(ua) ? 'Funciona ao compartilhar uma aba ou a tela inteira, sem o som desta aba.' : 'Funciona ao compartilhar uma aba do navegador.' };
 }
 
 /** Screen share setup — Ultra Motion: one panel, live previews, physical selection, honest numbers. */
@@ -27,7 +36,7 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
   const [fps, setFps] = useState<Fps>(saved.endsWith('120') ? '120' : saved.endsWith('60') ? '60' : '30');
   const [hint, setHint] = useState<Hint>('motion');
   const aNote = audioNote();
-  const [audio, setAudio] = useState(aNote.ok);
+  const [audio, setAudio] = useState(aNote.ok && !aNote.echo);
   const [lite, setLite] = useState(() => usePrefs.getState().streamLite);
   const [sources, setSources] = useState<DesktopSource[] | null>(null);
   const [tab, setTab] = useState<'screen' | 'window'>('screen');
@@ -217,7 +226,7 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
             </span>
             <div className="flex-1">
               <div className="font-bold text-fg-strong">Compartilhar o som</div>
-              <div className="text-sm text-fg-muted">{aNote.text}</div>
+              <div className={clsx('text-sm', aNote.echo ? 'text-amber-400' : 'text-fg-muted')}>{aNote.text}</div>
             </div>
             <Switch checked={audio && aNote.ok} disabled={!aNote.ok} onChange={setAudio} />
           </div>

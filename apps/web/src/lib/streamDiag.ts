@@ -81,6 +81,8 @@ export async function diagnoseOwn(): Promise<string> {
       `Codificador: ${y.encoderImplementation ?? '?'}${y.powerEfficientEncoder != null ? (y.powerEfficientEncoder ? ' (placa de vídeo)' : ' (processador)') : ''} · limite: ${{ none: 'nenhum', cpu: 'PROCESSADOR', bandwidth: 'INTERNET', other: 'outro' }[y.qualityLimitationReason as string] ?? y.qualityLimitationReason ?? '?'}`,
     );
   }
+  const iso = useVoice.getState().screenAudioIsolated;
+  lines.push(`Som do PC: ${iso == null ? 'desligado' : iso ? 'ligado, sem as vozes da call (sem retorno)' : 'ligado — PODE conter as vozes da call (Windows 10 / navegador sem suporte)'}`);
   lines.push(`Captura da tela: ${Math.round(src?.framesPerSecond ?? 0)} FPS${src?.width ? ` · ${src.width}×${src.height}` : ''}`);
   const pth = path(b);
   lines.push(`Caminho: ${pth.text}${pth.pair?.availableOutgoingBitrate ? ` · banda de envio estimada ${(pth.pair.availableOutgoingBitrate / 1e6).toFixed(1).replace('.', ',')} Mbps` : ''}`);

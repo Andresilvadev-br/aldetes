@@ -12,6 +12,11 @@ export interface PublicUser {
   createdAt: string;
   bannerPreset: string | null;
   profileEffect: string | null;
+  /** 1.0 (absent on older servers) */
+  avatarDecoration?: string | null;
+  profileEntrance?: string | null;
+  pronouns?: string | null;
+  profileLinks?: Array<{ label: string; url: string }>;
 }
 
 export interface SelfUser extends PublicUser {
@@ -77,6 +82,8 @@ export interface Server {
   rulesChannelId: string | null;
   welcomeChannelId: string | null;
   createdAt: string;
+  /** Server Studio (1.0): the published theme; null = default look. */
+  studio?: import('./schemas').StudioTheme | null;
 }
 
 export interface Attachment {

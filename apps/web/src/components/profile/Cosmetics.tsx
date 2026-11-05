@@ -1,6 +1,7 @@
-import { memo, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { PublicUser } from '@aldetes/shared';
 import { colorFor } from '../common/Avatar';
+import { useOffscreenPause } from '@/lib/perf';
 
 /* Deterministic pseudo-random so particles don't jump on re-render */
 const rnd = (i: number, salt = 1) => {
@@ -184,17 +185,154 @@ export const BANNERS: Record<string, { label: string; tag: string; render: () =>
       </div>
     ),
   },
+  // ---------- 1.0 collections ----------
+  'neon-current': {
+    label: 'Neon Current',
+    tag: 'coleção',
+    render: () => (
+      <div className="cz" style={{ background: 'linear-gradient(135deg,#07021a 0%,#1a0640 55%,#06142e 100%)' }}>
+        {[0, 1, 2].map((i) => (
+          <svg key={i} viewBox="0 0 200 40" preserveAspectRatio="none" style={{ left: 0, top: `${22 + i * 22}%`, width: '200%', height: 28, opacity: 0.9 - i * 0.2, animation: `cz-wave ${5 + i * 2}s linear infinite` }}>
+            <path d="M0 20 C 25 2, 25 38, 50 20 S 75 2, 100 20 S 125 38, 150 20 S 175 2, 200 20" stroke={['#ff2d78', '#22d3ee', '#a855f7'][i]} strokeWidth="2" fill="none" style={{ filter: `drop-shadow(0 0 4px ${['#ff2d78', '#22d3ee', '#a855f7'][i]})` }} />
+          </svg>
+        ))}
+      </div>
+    ),
+  },
+  orbital: {
+    label: 'Orbital',
+    tag: 'coleção',
+    render: () => (
+      <div className="cz" style={{ background: 'radial-gradient(ellipse at 50% 60%,#1e1b4b 0%,#0b0a1f 60%,#040312 100%)' }}>
+        {/* system centred to the right: names/avatars sit on the left of banners and headers */}
+        <div style={{ left: '86%', top: '55%', width: 26, height: 26, margin: -13, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%,#fde68a,#f59e0b 60%,#b45309)', boxShadow: '0 0 24px #f59e0b' }} />
+        {[60, 100, 150].map((d, i) => (
+          <div key={d} style={{ left: '86%', top: '55%', width: d * 2, height: d * 0.7, marginLeft: -d, marginTop: -d * 0.35, borderRadius: '50%', border: '1px solid rgba(165,180,252,.35)' }}>
+            <span style={{ position: 'absolute', left: '50%', top: '50%', width: '100%', height: '100%', marginLeft: '-50%', marginTop: '-50%', animation: `cz-spin ${6 + i * 4}s linear infinite`, transformOrigin: '50% 50%' }}>
+              <span style={{ position: 'absolute', left: -4, top: '50%', width: 8, height: 8, marginTop: -4, borderRadius: '50%', background: ['#22d3ee', '#f472b6', '#a3e635'][i], boxShadow: `0 0 8px ${['#22d3ee', '#f472b6', '#a3e635'][i]}` }} />
+            </span>
+          </div>
+        ))}
+        {many(24, (i) => (
+          <span key={i} style={{ left: `${rnd(i, 11) * 100}%`, top: `${rnd(i, 12) * 100}%`, width: 2, height: 2, borderRadius: '50%', background: '#fff', animation: `cz-twinkle ${2 + rnd(i, 13) * 3}s ease-in-out ${-rnd(i, 14) * 3}s infinite` }} />
+        ))}
+      </div>
+    ),
+  },
+  'chroma-wave': {
+    label: 'Chroma Wave',
+    tag: 'coleção',
+    render: () => (
+      <div className="cz" style={{ background: 'linear-gradient(120deg,#ff2d78,#f59e0b,#22c55e,#22d3ee,#a855f7,#ff2d78)', backgroundSize: '300% 100%', animation: 'cz-chroma 12s linear infinite' }}>
+        {[0, 1].map((i) => (
+          <div key={i} style={{ left: 0, bottom: `${-10 + i * 18}%`, width: '200%', height: '60%', opacity: 0.35 + i * 0.2, animation: `cz-wave ${9 - i * 3}s linear infinite` }}>
+            <svg viewBox="0 0 200 20" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+              <path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V20 H0Z" fill="rgba(10,6,24,.55)" />
+            </svg>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  'zen-dust': {
+    label: 'Zen Dust',
+    tag: 'coleção',
+    render: () => (
+      <div className="cz" style={{ background: 'linear-gradient(180deg,#1c1917 0%,#292524 60%,#44403c 100%)' }}>
+        <div style={{ left: '62%', top: '18%', width: 54, height: 54, borderRadius: '50%', background: 'radial-gradient(circle,#fef3c7 0%,#fde68a 40%,transparent 70%)', opacity: 0.8 }} />
+        {many(30, (i) => (
+          <span key={i} style={css({ left: `${rnd(i, 21) * 100}%`, bottom: 0, width: 2 + rnd(i, 22) * 2, height: 2 + rnd(i, 22) * 2, borderRadius: '50%', background: 'rgba(254,243,199,.75)', '--dx': `${(rnd(i, 23) - 0.5) * 40}px`, animation: `cz-rise ${8 + rnd(i, 24) * 8}s ease-in-out ${-rnd(i, 25) * 12}s infinite` })} />
+        ))}
+        <svg viewBox="0 0 200 30" preserveAspectRatio="none" style={{ left: 0, bottom: 0, width: '100%', height: '35%' }}>
+          <path d="M0 30 L0 18 Q 40 8 80 16 T 160 12 T 200 16 L200 30Z" fill="#0c0a09" opacity=".8" />
+        </svg>
+      </div>
+    ),
+  },
+  // ---------- 1.0 static gradients (no animation at all) ----------
+  'g-dusk': { label: 'Crepúsculo', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#ff7e5f,#feb47b 45%,#6a3093)' }} /> },
+  'g-mint': { label: 'Menta', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#0f766e,#34d399 55%,#d9f99d)' }} /> },
+  'g-ember': { label: 'Brasa', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#450a0a,#dc2626 55%,#f97316)' }} /> },
+  'g-ice': { label: 'Gelo', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#0c4a6e,#38bdf8 55%,#e0f2fe)' }} /> },
+  'g-mono': { label: 'Grafite', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#0a0a0a,#3f3f46 60%,#71717a)' }} /> },
+  'g-berry': { label: 'Amora', tag: 'estático', render: () => <div className="cz" style={{ background: 'linear-gradient(135deg,#4a044e,#c026d3 55%,#f0abfc)' }} /> },
 };
 
-/** Banner: animated preset › uploaded image/GIF › accent colour. */
+export const isVideoUrl = (u: string | null | undefined) => !!u && /\.(mp4|webm)(\?|$)/i.test(u);
+
+/** Muted looping video banner (always re-encoded by the server). Paused with reduced motion / off screen. */
+export function BannerVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    const reduce = document.documentElement.dataset.reduceMotion === 'true';
+    if (reduce) return void v.pause();
+    const io = new IntersectionObserver(([e]) => (e?.isIntersecting ? void v.play().catch(() => {}) : v.pause()));
+    io.observe(v);
+    return () => io.disconnect();
+  }, [src]);
+  return <video ref={ref} src={src} muted loop playsInline preload="metadata" aria-hidden className="absolute inset-0 h-full w-full object-cover" />;
+}
+
+/** Banner: animated preset › uploaded image/GIF/short video › accent colour. */
 export const ProfileBanner = memo(function ProfileBanner({ user, height, className }: { user: Pick<PublicUser, 'id' | 'bannerUrl' | 'bannerPreset' | 'accentColor'>; height: number; className?: string }) {
   const preset = user.bannerPreset ? BANNERS[user.bannerPreset] : undefined;
+  const pause = useOffscreenPause();
+  const video = !preset && isVideoUrl(user.bannerUrl);
   return (
-    <div className={className} style={{ position: 'relative', height, overflow: 'hidden', background: user.bannerUrl && !preset ? `center/cover url(${user.bannerUrl})` : (user.accentColor ?? colorFor(user.id)) }}>
+    <div ref={pause} className={className} style={{ position: 'relative', height, overflow: 'hidden', background: user.bannerUrl && !preset && !video ? `center/cover url(${user.bannerUrl})` : (user.accentColor ?? colorFor(user.id)) }}>
       {preset?.render()}
+      {video && <BannerVideo src={user.bannerUrl!} />}
     </div>
   );
 });
+
+/* ---------------- Avatar decorations (drawn around the avatar; the image itself is untouched) ---------------- */
+export const DECORATIONS: Record<string, { label: string; collection?: string }> = {
+  'neon-current': { label: 'Neon Current', collection: 'NEON CURRENT' },
+  orbital: { label: 'Orbital', collection: 'ORBITAL' },
+  'chroma-wave': { label: 'Chroma Wave', collection: 'CHROMA WAVE' },
+  'zen-dust': { label: 'Zen Dust', collection: 'ZEN DUST' },
+  halo: { label: 'Halo' },
+  'ember-ring': { label: 'Anel de brasa' },
+  frost: { label: 'Geada' },
+};
+
+/** Decoration layer: absolutely positioned around a square avatar of `size` px. Pointer-events none. */
+export function AvatarDecoration({ id, size }: { id: string | null | undefined; size: number }) {
+  if (!id || !DECORATIONS[id]) return null;
+  const pad = Math.max(3, Math.round(size * 0.09));
+  return (
+    <span aria-hidden className={`deco deco-${id}`} style={{ position: 'absolute', inset: -pad, borderRadius: '50%', pointerEvents: 'none' }}>
+      {id === 'orbital' && <span className="deco-orbit" />}
+      {id === 'zen-dust' && [0, 1, 2].map((i) => <span key={i} className="deco-mote" style={{ animationDelay: `${-i * 1.3}s`, left: `${20 + i * 28}%` }} />)}
+    </span>
+  );
+}
+
+/** Collections: a coordinated set (banner + decoration + effect + entrance). */
+export const COLLECTIONS: Array<{ id: string; name: string; banner: string; decoration: string; effect: string | null; entrance: string }> = [
+  { id: 'neon-current', name: 'NEON CURRENT', banner: 'neon-current', decoration: 'neon-current', effect: 'lightning', entrance: 'glitch' },
+  { id: 'orbital', name: 'ORBITAL', banner: 'orbital', decoration: 'orbital', effect: 'sparkles', entrance: 'reveal' },
+  { id: 'chroma-wave', name: 'CHROMA WAVE', banner: 'chroma-wave', decoration: 'chroma-wave', effect: 'confetti', entrance: 'lights' },
+  { id: 'zen-dust', name: 'ZEN DUST', banner: 'zen-dust', decoration: 'zen-dust', effect: null, entrance: 'particles' },
+];
+
+export const ENTRANCES: Record<string, string> = { particles: 'Partículas', lights: 'Luzes', glitch: 'Glitch limpo', reveal: 'Revelação do banner' };
+
+/**
+ * One-shot entrance when a profile card opens (≤ 700 ms, contained in the card, pointer-events none).
+ * Skipped with reduced motion / performance mode. `play` changes → replays (used by the editor preview).
+ */
+export function ProfileEntrance({ id, play = 0 }: { id: string | null | undefined; play?: number }) {
+  if (!id || !ENTRANCES[id] || document.documentElement.dataset.reduceMotion === 'true') return null;
+  return (
+    <span key={play} aria-hidden className={`entr entr-${id}`} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', borderRadius: 'inherit', zIndex: 5 }}>
+      {id === 'particles' && many(14, (i) => <span key={i} className="entr-p" style={css({ left: `${rnd(i, 31) * 100}%`, top: `${30 + rnd(i, 32) * 40}%`, '--dx': `${(rnd(i, 33) - 0.5) * 120}px`, '--dy': `${-40 - rnd(i, 34) * 80}px`, animationDelay: `${rnd(i, 35) * 120}ms` })} />)}
+    </span>
+  );
+}
 
 export const EFFECTS: Record<string, { label: string; render: () => ReactNode }> = {
   sparkles: {

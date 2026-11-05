@@ -12,8 +12,8 @@ export function userRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/users/@me', auth, async (req) => selfUser(await db.user.findUniqueOrThrow({ where: { id: req.auth.userId } })));
 
   app.patch('/users/@me', auth, async (req) => {
-    const body = updateProfileSchema.parse(req.body);
-    const user = await db.user.update({ where: { id: req.auth.userId }, data: body });
+    const { profileLinks, ...body } = updateProfileSchema.parse(req.body);
+    const user = await db.user.update({ where: { id: req.auth.userId }, data: { ...body, ...(profileLinks ? { profileLinks } : {}) } });
     await broadcastUserUpdate(ctx, user.id);
     if (body.status !== undefined || body.customStatus !== undefined) {
       if (body.status !== undefined && (await ctx.redis.exists(`presence:${user.id}`))) {

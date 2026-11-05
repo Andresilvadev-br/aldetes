@@ -63,7 +63,7 @@ export function MemberList({ channel }: { channel: Channel }) {
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => parent.current, estimateSize: (i) => (rows[i]!.kind === 'header' ? 40 : 44), overscan: 12 });
 
   return (
-    <aside ref={parent} className="scroll-thin h-full w-full shrink-0 overflow-y-auto md:w-64 border-l border-line/[0.06] bg-line/[0.015] px-2" aria-label="Membros">
+    <aside ref={parent} className="scroll-thin h-full w-full shrink-0 overflow-y-auto border-l border-line/[0.06] bg-line/[0.015] px-2" aria-label="Membros">
       <div style={{ height: v.getTotalSize(), position: 'relative' }}>
         {v.getVirtualItems().map((vi) => {
           const r = rows[vi.index]!;

@@ -57,6 +57,8 @@ export interface DesktopSettings {
   startHidden: boolean;
   minimizeToTray: boolean;
   floatingIsland: boolean;
+  /** 1.0: keep the floating island above full-screen apps (absent on older apps) */
+  islandOverFullscreen?: boolean;
 }
 
 export interface DesktopBridge {
@@ -71,6 +73,8 @@ export interface DesktopBridge {
   selectScreenSource(id: string, withAudio: boolean): Promise<void>;
   /** Whether system/loopback audio capture is supported on this OS. */
   supportsSystemAudio: boolean;
+  /** 1.0+: the PC sound of a stream excludes Aldetes's own audio (Windows 11+). undefined on older apps. */
+  ownAudioExcluded?: boolean;
   notify(title: string, body: string, tag?: string): void;
   setBadge(count: number): void;
   onGlobalShortcut(cb: (name: string) => void): () => void;
@@ -96,6 +100,8 @@ export interface DesktopBridge {
   sendIslandCommand(cmd: IslandCommand): void;
   onIslandCommand(cb: (cmd: IslandCommand) => void): () => void;
   setIslandSize(w: number, h: number): void;
+  /** 1.0: drag the floating island by its surface (optional: older app versions use the grip) */
+  islandDrag?(phase: 'press' | 'move' | 'end' | 'cancel'): void;
   /** While live: the main process raises the app's capture/encoder process priority (optional: older app versions lack it). */
   setStreaming?(on: boolean): void;
   setDesktopSettings(patch: Partial<DesktopSettings>): Promise<DesktopSettings>;

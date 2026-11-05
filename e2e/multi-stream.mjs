@@ -107,10 +107,10 @@ try {
   // H: switching Foco → Grade and changing focus must not remount/restart the videos
   await C.evaluate(() => document.querySelectorAll('video').forEach((v, i) => (v.dataset.mark = String(i))));
   const before = await C.evaluate(() => [...document.querySelectorAll('video')].map((v) => ({ mark: v.dataset.mark, t: v.currentTime })));
-  await C.getByRole('button', { name: 'Grade' }).click();
+  await C.getByRole('button', { name: 'Grade', exact: true }).click();
   await C.waitForTimeout(900);
   await C.screenshot({ path: `${SHOTS}/stage-two-streams-grid.png` });
-  await C.getByRole('button', { name: 'Foco' }).click();
+  await C.getByRole('button', { name: 'Foco', exact: true }).click();
   await C.waitForTimeout(400);
   // click the thumbnail (second tile) to swap focus
   const thumbs = C.locator('[title="Clique para destacar"]');

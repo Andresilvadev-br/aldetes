@@ -6,6 +6,8 @@ import { App } from './App';
 import { initApi } from './lib/api';
 import { applyAppearance } from './lib/prefs';
 import { installCursorLight } from './lib/motion';
+import { startPerfMonitor } from './lib/perf';
+import { isMobileNow } from './lib/mobile';
 import { installMediaBridge } from './lib/media';
 import { installActivity } from './lib/activity';
 import { installPwa } from './lib/pwa';
@@ -16,6 +18,8 @@ const syncHidden = () => (document.documentElement.dataset.hidden = String(docum
 document.addEventListener('visibilitychange', syncHidden);
 syncHidden();
 installCursorLight();
+// UltraMotion 3.0: measured frame drops / input latency, auto back-off under load (desktop layout only)
+if (!isMobileNow()) startPerfMonitor();
 
 // Test hook (dev builds only): lets automated E2E tests inspect the LiveKit room and store.
 if (import.meta.env.DEV) {

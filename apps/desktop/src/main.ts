@@ -23,7 +23,7 @@ import {
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { constants as osConstants, setPriority } from 'node:os';
+import { constants as osConstants, setPriority, release } from 'node:os';
 import { Updater } from './updater';
 import { startPtt, stopPtt } from './ptt';
 import { MediaBridge, type MediaCommand, type NowPlaying } from './media';
@@ -79,8 +79,14 @@ type Cfg = {
   autoStart?: boolean;
   startHidden?: boolean;
   floatingIsland?: boolean;
-  /** floating island position: capsule center-x and top, relative to the display's work area */
-  islandPos?: { cx: number; y: number; displayId: number } | null;
+  /**
+   * floating island position. 1.0: fractions of the display's work area (capsule center-x, top) + the display's id,
+   * scale and size when it was saved, so it survives DPI/resolution changes and falls back when a monitor is gone.
+   * 0.x saved { cx, y, displayId } in pixels — still read (converted on the fly).
+   */
+  islandPos?: { fx: number; fy: number; displayId: number; scale?: number; waW?: number; waH?: number } | { cx: number; y: number; displayId: number } | null;
+  /** keep the island above full-screen apps/games (off = normal always-on-top, hidden over exclusive full screen) */
+  islandOverFullscreen?: boolean;
 };
 const readCfg = (): Cfg => {
   try {
@@ -102,9 +108,13 @@ let tray: Tray | null = null;
 let quitting = false;
 let pendingSource: { id: string; audio: boolean } | null = null;
 
-// ---------- floating Live Island (always-on-top capsule at the top of the screen) ----------
-const ISLAND_W = 540;
-const ISLAND_H = 300;
+// ---------- floating Live Island 2.0 (always-on-top capsule, free to move) ----------
+// The window ALWAYS hugs the visible capsule (never an invisible area catching clicks), is not focusable (clicking it
+// never takes focus from the game), can be dragged by its surface, snaps magnetically to the top-center/corners/edges,
+// and its place is remembered per monitor as fractions of the work area (DPI/resolution safe, recovers if unplugged).
+const ISLAND_W = 680;
+const ISLAND_H = 320;
+const SNAP_PX = 28;
 let islandWin: BrowserWindow | null = null;
 let islandActive = false; // renderer says there is something worth showing (call, music, ring)
 const media = new MediaBridge((np: NowPlaying | null) => {
@@ -118,14 +128,22 @@ function appUrl(hash = '') {
   return (DEV_URL ?? `${APP_ORIGIN}/index.html`) + hash;
 }
 
+function applyIslandLevel() {
+  if (!islandWin) return;
+  const over = readCfg().islandOverFullscreen ?? true;
+  islandWin.setAlwaysOnTop(true, over ? 'screen-saver' : 'floating');
+  islandWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: over });
+}
+
 function createIslandWindow() {
   islandWin = new BrowserWindow({
-    width: ISLAND_W,
-    height: ISLAND_H,
+    width: 260,
+    height: 48,
     frame: false,
     transparent: true,
-    resizable: false,
-    movable: true, // dragged by its grip (-webkit-app-region: drag)
+    resizable: false, // size is driven by the capsule (presets + manual grip), clamped to the work area below
+    movable: true,
+    focusable: false, // WS_EX_NOACTIVATE on Windows: clicks work, the game keeps focus
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -136,43 +154,112 @@ function createIslandWindow() {
     backgroundColor: '#00000000',
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false },
   });
-  islandWin.setAlwaysOnTop(true, 'screen-saver');
-  islandWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  applyIslandLevel();
   islandWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   islandWin.webContents.on('will-navigate', (e) => e.preventDefault());
   void islandWin.loadURL(appUrl('#/island-overlay'));
-  islandWin.on('moved', saveIslandPos);
   islandWin.on('closed', () => (islandWin = null));
+  // monitors plugged/unplugged, resolution or DPI changed → put the island back in a valid place
+  for (const ev of ['display-added', 'display-removed', 'display-metrics-changed'] as const) screen.on(ev as 'display-added', () => setTimeout(positionIsland, 120));
 }
 
-// The overlay window always hugs the capsule (no invisible area blocking clicks), centered at the top.
 let islandSize = { w: 260, h: 48 };
 let shrinkTimer: ReturnType<typeof setTimeout> | null = null;
+let dragging: { cursor: Electron.Point; bounds: Electron.Rectangle } | null = null;
+
+/** Saved spot → display + absolute top-left for a capsule of size w×h (clamped to that display's work area). */
+function islandTarget(w: number, h: number) {
+  const saved = readCfg().islandPos;
+  const fallback = win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay();
+  const disp = (saved && screen.getAllDisplays().find((x) => x.id === saved.displayId)) || fallback;
+  const wa = disp.workArea;
+  let fx = 0.5;
+  let fy = 0;
+  if (saved && 'fx' in saved) {
+    fx = saved.fx;
+    fy = saved.fy;
+  } else if (saved && 'cx' in saved) {
+    fx = saved.cx / wa.width; // 0.x pixel format
+    fy = saved.y / wa.height;
+  }
+  const cx = wa.x + fx * wa.width;
+  const top = saved ? wa.y + fy * wa.height : wa.y + 6;
+  return {
+    disp,
+    x: Math.round(Math.min(wa.x + wa.width - w, Math.max(wa.x, cx - w / 2))),
+    y: Math.round(Math.min(wa.y + wa.height - h, Math.max(wa.y, top))),
+  };
+}
+
 function positionIsland() {
   if (!islandWin) return;
-  const d = win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay();
-  const w = Math.min(ISLAND_W + 40, Math.max(120, islandSize.w));
-  const h = Math.min(ISLAND_H, Math.max(36, islandSize.h));
-  const saved = readCfg().islandPos;
-  const disp = saved ? (screen.getAllDisplays().find((x) => x.id === saved.displayId) ?? d) : d;
-  const wa = disp.workArea;
-  const cx = saved ? wa.x + saved.cx : wa.x + wa.width / 2;
-  const top = saved ? wa.y + saved.y : wa.y + 6;
-  const x = Math.round(Math.min(wa.x + wa.width - w, Math.max(wa.x, cx - w / 2)));
-  const y = Math.round(Math.min(wa.y + wa.height - h, Math.max(wa.y, top)));
-  positioning = true;
-  islandWin.setBounds({ x, y, width: w, height: h });
-  setTimeout(() => (positioning = false), 50);
+  const wa0 = (win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay()).workArea;
+  const w = Math.min(ISLAND_W + 40, wa0.width, Math.max(120, islandSize.w));
+  const h = Math.min(ISLAND_H, wa0.height, Math.max(36, islandSize.h));
+  if (dragging) {
+    // mid-drag: only the size follows the capsule, the place stays under the cursor
+    const b = islandWin.getBounds();
+    return islandWin.setBounds({ x: b.x, y: b.y, width: w, height: h });
+  }
+  const t = islandTarget(w, h);
+  islandWin.setBounds({ x: t.x, y: t.y, width: w, height: h });
 }
-let positioning = false;
 
-/** User dragged the floating island: remember where its center/top is. */
-function saveIslandPos() {
-  if (!islandWin || positioning) return;
-  const b = islandWin.getBounds();
+function saveIslandPos(b: Electron.Rectangle) {
   const disp = screen.getDisplayMatching(b);
-  writeCfg({ islandPos: { cx: b.x + b.width / 2 - disp.workArea.x, y: b.y - disp.workArea.y, displayId: disp.id } });
+  const wa = disp.workArea;
+  writeCfg({ islandPos: { fx: (b.x + b.width / 2 - wa.x) / wa.width, fy: (b.y - wa.y) / wa.height, displayId: disp.id, scale: disp.scaleFactor, waW: wa.width, waH: wa.height } });
 }
+
+/** Magnetic snap: top-center, corners and edge midpoints of the display the capsule ends on. */
+function snapIsland(b: Electron.Rectangle): Electron.Rectangle {
+  const wa = screen.getDisplayMatching(b).workArea;
+  const m = 6;
+  const xs = { l: wa.x + m, c: Math.round(wa.x + (wa.width - b.width) / 2), r: wa.x + wa.width - b.width - m };
+  const ys = { t: wa.y + m, b: wa.y + wa.height - b.height - m };
+  let best: { x: number; y: number; d: number } | null = null;
+  for (const x of Object.values(xs))
+    for (const y of Object.values(ys)) {
+      const d = Math.hypot(b.x - x, b.y - y);
+      if (d < SNAP_PX && (!best || d < best.d)) best = { x, y, d };
+    }
+  // edges only (keep the other coordinate)
+  if (!best) {
+    const nx = Math.abs(b.x - xs.l) < SNAP_PX ? xs.l : Math.abs(b.x - xs.r) < SNAP_PX ? xs.r : Math.abs(b.x - xs.c) < SNAP_PX ? xs.c : b.x;
+    const ny = Math.abs(b.y - ys.t) < SNAP_PX ? ys.t : Math.abs(b.y - ys.b) < SNAP_PX ? ys.b : b.y;
+    return { ...b, x: nx, y: ny };
+  }
+  return { ...b, x: best.x, y: best.y };
+}
+
+/**
+ * press: remember the real cursor + bounds (nothing moves yet) · move: follow the cursor · end: snap + save ·
+ * cancel: it was a click. Uses the window's CURRENT size, so a capsule that changes size mid-drag lands right.
+ */
+function islandDrag(phase: 'press' | 'move' | 'end' | 'cancel') {
+  if (!islandWin) return;
+  if (phase === 'press') {
+    dragging = { cursor: screen.getCursorScreenPoint(), bounds: islandWin.getBounds() };
+    return;
+  }
+  if (!dragging) return;
+  if (phase === 'cancel') {
+    dragging = null;
+    return;
+  }
+  const c = screen.getCursorScreenPoint();
+  const cur = islandWin.getBounds();
+  // clamp to the work area of the monitor under the cursor (can move between monitors)
+  const wa = screen.getDisplayNearestPoint(c).workArea;
+  const x = Math.round(Math.min(wa.x + wa.width - cur.width, Math.max(wa.x, dragging.bounds.x + c.x - dragging.cursor.x)));
+  const y = Math.round(Math.min(wa.y + wa.height - cur.height, Math.max(wa.y, dragging.bounds.y + c.y - dragging.cursor.y)));
+  if (phase === 'move') return islandWin.setBounds({ x, y, width: cur.width, height: cur.height });
+  dragging = null;
+  const snapped = snapIsland({ x, y, width: cur.width, height: cur.height });
+  islandWin.setBounds(snapped);
+  saveIslandPos(snapped);
+}
+
 function resizeIsland(w: number, h: number) {
   const grow = w >= islandSize.w && h >= islandSize.h;
   islandSize = { w: Math.ceil(w), h: Math.ceil(h) };
@@ -193,6 +280,13 @@ function updateIslandVisibility() {
 }
 
 const SYSTEM_AUDIO_SUPPORTED = process.platform === 'win32'; // Electron 'loopback' audio: Windows only (reliably)
+/**
+ * Echo-free stream sound: since Electron 43.4/44, a getDisplayMedia request with `restrictOwnAudio` maps 'loopback' to
+ * Chromium's "loopback without Chrome" device (Windows process loopback that EXCLUDES Aldetes's own process tree, so the
+ * call's voices aren't sent back inside the stream). That Windows API exists from Windows 11 (build 22000) on; on
+ * Windows 10 the system mix still contains the call, and the share dialog says so and starts with the sound off.
+ */
+const OWN_AUDIO_EXCLUDED = process.platform === 'win32' && Number(release().split('.')[2] ?? 0) >= 22000;
 
 // ---------- start with the system ----------
 const launchedHidden = process.argv.includes('--hidden');
@@ -215,7 +309,7 @@ function applyAutoStart(enabled: boolean, hidden: boolean) {
     writeFileSync(file, `[Desktop Entry]\nType=Application\nName=Aldetes\nExec="${exec}"${hidden ? ' --hidden' : ''}\nX-GNOME-Autostart-enabled=true\n`);
     return;
   }
-  app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: hidden, args: hidden ? ['--hidden'] : [] });
+  app.setLoginItemSettings({ openAtLogin: enabled, args: hidden ? ['--hidden'] : [] });
 }
 
 function desktopSettings() {
@@ -225,6 +319,7 @@ function desktopSettings() {
     startHidden: c.startHidden ?? true,
     minimizeToTray: c.minimizeToTray ?? true,
     floatingIsland: c.floatingIsland ?? true,
+    islandOverFullscreen: c.islandOverFullscreen ?? true,
   };
 }
 
@@ -351,6 +446,7 @@ function createTray() {
 
 function registerIpc() {
   ipcMain.on('app:version', (e) => (e.returnValue = app.getVersion()));
+  ipcMain.on('app:ownAudioExcluded', (e) => (e.returnValue = OWN_AUDIO_EXCLUDED));
   ipcMain.handle('config:getServerUrl', () => readCfg().serverUrl ?? (DEFAULT_SERVER || null));
   ipcMain.handle('config:setServerUrl', (_e, url: string) => {
     const u = new URL(url); // throws if invalid
@@ -398,7 +494,9 @@ function registerIpc() {
     }
     if (cmd.type === 'media' && cmd.arg) return media.command(cmd.arg as MediaCommand);
     if (cmd.type === 'resetPos') {
-      writeCfg({ islandPos: null });
+      // back to the top-center of the monitor the island is on now
+      const disp = islandWin ? screen.getDisplayMatching(islandWin.getBounds()) : screen.getPrimaryDisplay();
+      writeCfg({ islandPos: { fx: 0.5, fy: 6 / disp.workArea.height, displayId: disp.id, scale: disp.scaleFactor, waW: disp.workArea.width, waH: disp.workArea.height } });
       return positionIsland();
     }
     win?.webContents.send('aldetes:island-command', cmd);
@@ -406,6 +504,10 @@ function registerIpc() {
   ipcMain.on('stream:active', (e, on: unknown) => {
     if (e.sender !== win?.webContents) return;
     applyStreamPriority(on === true);
+  });
+  ipcMain.on('island:drag', (e, phase: unknown) => {
+    if (e.sender !== islandWin?.webContents || (phase !== 'press' && phase !== 'move' && phase !== 'end' && phase !== 'cancel')) return;
+    islandDrag(phase);
   });
   ipcMain.on('island:size', (e, w: number, h: number) => {
     if (e.sender !== islandWin?.webContents || !Number.isFinite(w) || !Number.isFinite(h)) return;
@@ -432,6 +534,7 @@ function registerIpc() {
     const next = { ...desktopSettings(), ...patch };
     writeCfg(next);
     applyAutoStart(next.autoStart, next.startHidden);
+    applyIslandLevel();
     updateIslandVisibility();
     return next;
   });

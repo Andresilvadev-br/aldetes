@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import type { Message } from '@aldetes/shared';
@@ -15,6 +15,8 @@ import { activityLine } from '@/lib/activity';
 import { motion } from 'motion/react';
 import { MobileBack } from '../components/layout/MobileBack';
 import { spring, greeting } from '@/lib/motion';
+import { useIsMobile } from '@/lib/mobile';
+import { PulseHome } from './Pulse';
 
 /** Home header: greeting, clock and live stats (all real data). */
 function Greeting() {
@@ -77,6 +79,8 @@ type Tab = 'online' | 'all' | 'pending' | 'blocked' | 'add' | 'saved';
 
 export function FriendsPage() {
   const [tab, setTab] = useState<Tab>('online');
+  const scroller = useRef<HTMLDivElement>(null);
+  const friendsRef = useRef<HTMLElement>(null);
   const rels = useStoreShallow((s) => Object.values(s.relationships));
   const presences = useStore((s) => s.presences);
   const pendingCount = rels.filter((r) => r.type === 'incoming').length;
@@ -92,38 +96,59 @@ export function FriendsPage() {
       </span>
     </button>
   );
-  return (
-    <div className="flex h-full flex-col">
-      <Greeting />
-      <header className="mx-3 flex shrink-0 flex-wrap items-center gap-1 rounded-xl border border-line/[0.07] bg-line/[0.03] p-1 sm:mx-6">
-        <MobileBack />
-        {tabBtn('online', 'Disponível')}
-        {tabBtn('all', 'Todos')}
-        {tabBtn('pending', 'Pendente', pendingCount > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-bold text-white">{pendingCount}</span>)}
-        {tabBtn('blocked', 'Bloqueado')}
-        {tabBtn('saved', 'Salvas')}
-        <span className="flex-1" />
-        <button onClick={() => setTab('add')} className={clsx('btn px-3 py-1.5', tab === 'add' ? 'bg-ok/15 text-ok' : 'btn-primary')}>
-          <Icon name="plus" size={15} strokeWidth={2.5} /> Adicionar amigo
-        </button>
-      </header>
-      <div className="scroll-thin flex-1 overflow-y-auto px-6 py-4">
-        {tab === 'add' ? (
-          <AddFriend />
-        ) : tab === 'saved' ? (
-          <SavedMessages />
-        ) : (
-          <>
-            <div className="eyebrow mb-2">
-              {{ online: 'Disponível', all: 'Todos os amigos', pending: 'Pendente', blocked: 'Bloqueados' }[tab]} — {list.length}
-            </div>
-            {list.map((r) => (
-              <FriendRow key={r.userId} userId={r.userId} type={r.type} />
-            ))}
-            {!list.length && <p className="py-16 text-center text-fg-muted">{tab === 'online' ? 'Nenhum amigo disponível no momento.' : 'Nada por aqui.'}</p>}
-          </>
-        )}
+  const mobile = useIsMobile();
+  const header = (
+    <header className={clsx('flex shrink-0 flex-wrap items-center gap-1 rounded-xl border border-line/[0.07] bg-line/[0.03] p-1', mobile ? 'mx-3 sm:mx-6' : '')}>
+      <MobileBack />
+      {tabBtn('online', 'Disponível')}
+      {tabBtn('all', 'Todos')}
+      {tabBtn('pending', 'Pendente', pendingCount > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-bold text-white">{pendingCount}</span>)}
+      {tabBtn('blocked', 'Bloqueado')}
+      {tabBtn('saved', 'Salvas')}
+      <span className="flex-1" />
+      <button onClick={() => setTab('add')} className={clsx('btn px-3 py-1.5', tab === 'add' ? 'bg-ok/15 text-ok' : 'btn-primary')}>
+        <Icon name="plus" size={15} strokeWidth={2.5} /> Adicionar amigo
+      </button>
+    </header>
+  );
+  const body =
+    tab === 'add' ? (
+      <AddFriend />
+    ) : tab === 'saved' ? (
+      <SavedMessages />
+    ) : (
+      <>
+        <div className="eyebrow mb-2">
+          {{ online: 'Disponível', all: 'Todos os amigos', pending: 'Pendente', blocked: 'Bloqueados' }[tab]} — {list.length}
+        </div>
+        {list.map((r) => (
+          <FriendRow key={r.userId} userId={r.userId} type={r.type} />
+        ))}
+        {!list.length && <p className="py-16 text-center text-fg-muted">{tab === 'online' ? 'Nenhum amigo disponível no momento.' : 'Nada por aqui.'}</p>}
+      </>
+    );
+  // Phones keep the 0.8 layout (mobile is out of the 1.0 scope); desktop gets the Pulse home above the friends list.
+  if (mobile)
+    return (
+      <div className="flex h-full flex-col">
+        <Greeting />
+        {header}
+        <div className="scroll-thin flex-1 overflow-y-auto px-6 py-4">{body}</div>
       </div>
+    );
+  return (
+    <div className="scroll-thin h-full overflow-y-auto" ref={scroller}>
+      <PulseHome
+        onAddFriend={() => {
+          setTab('add');
+          requestAnimationFrame(() => friendsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        }}
+      />
+      <section ref={friendsRef} className="px-6 pb-6 pt-4" aria-label="Amigos">
+        <h2 className="mb-2 px-1 text-[15px] font-extrabold tracking-tight text-fg-strong">Amigos</h2>
+        {header}
+        <div className="pt-4">{body}</div>
+      </section>
     </div>
   );
 }
