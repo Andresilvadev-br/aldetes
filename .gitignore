@@ -16,3 +16,4 @@ apps/desktop/release
 infra/prod/livekit.yaml
 infra/home/livekit.yaml
 e2e-shots/
+.deployed-commit
