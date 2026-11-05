@@ -53,7 +53,7 @@ export interface VoiceStore {
   /** per-tile framing chosen by the viewer: whole picture (contain) or fill the tile (cover) */
   fit: Record<string, 'contain' | 'cover'>;
   /** viewer's quality choice per stream (only matters when the streamer offers a light version) */
-  viewQuality: Record<string, 'auto' | 'low'>;
+  viewQuality: Record<string, 'auto' | 'max' | 'low'>;
   /** in-app floating player hidden by the user */
   miniClosed: boolean;
 }
@@ -117,6 +117,12 @@ export const useVoice = create<VoiceStore>()(() => ({
   viewQuality: {},
   miniClosed: false,
 }));
+const appVersion = () => (desktop?.version && desktop.version !== '0.0.0' ? desktop.version : __APP_VERSION__);
+/** Version reported by a participant's app (null = an app older than 0.8, which doesn't report it). */
+export function participantVersion(identity: string): string | null {
+  const p = getParticipant(identity);
+  return p?.attributes?.app ?? null;
+}
 /** Screen sharing needs getDisplayMedia (desktop browsers, Android Chrome; not iOS Safari) or the desktop app. */
 export const canShareScreen = () => !!desktop || typeof navigator.mediaDevices?.getDisplayMedia === 'function';
 
@@ -238,6 +244,7 @@ function attachRoomEvents(r: Room) {
       bump();
     })
     .on(LK.RoomEvent.TrackMuted, bump)
+    .on(LK.RoomEvent.ParticipantAttributesChanged, bump)
     .on(LK.RoomEvent.TrackUnmuted, bump)
     .on(LK.RoomEvent.LocalTrackPublished, bump)
     .on(LK.RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
@@ -351,6 +358,8 @@ export async function joinVoice(channelId: string, isRejoin = false) {
     attachRoomEvents(r);
     await r.connect(t.url, t.token, { autoSubscribe: true });
     rejoinAttempts = 0;
+    // tell the call which app version I run (old versions don't, so others can warn: "app desatualizado")
+    void r.localParticipant.setAttributes({ app: appVersion(), client: desktop ? 'desktop' : 'web' }).catch(() => {});
     vset({ state: 'connected', serverId: t.serverId, canSpeak: t.permissions.speak, canVideo: t.permissions.video, connectedAt: isRejoin ? (vget().connectedAt ?? Date.now()) : Date.now() });
     for (const p of r.remoteParticipants.values()) applyRemoteAudio(p);
     await r.startAudio().catch(() => {});
@@ -486,23 +495,27 @@ export const STREAM_PRESETS = {
   '1080p60': { width: 1920, height: 1080, frameRate: 60, maxBitrate: 12_000_000 },
   '1440p30': { width: 2560, height: 1440, frameRate: 30, maxBitrate: 12_000_000 },
   '1440p60': { width: 2560, height: 1440, frameRate: 60, maxBitrate: 18_000_000 },
+  // 120 FPS: needs a 120 Hz+ monitor (the capturer can't deliver more frames than the screen draws) and a GPU encoder
+  '720p120': { width: 1280, height: 720, frameRate: 120, maxBitrate: 10_000_000 },
+  '1080p120': { width: 1920, height: 1080, frameRate: 120, maxBitrate: 18_000_000 },
+  '1440p120': { width: 2560, height: 1440, frameRate: 120, maxBitrate: 26_000_000 },
 } as const;
+/** Upload of the voice server (measured on the KingHost VPS: ~81 Mbit/s). Every viewer receives its own copy. */
+export const SERVER_UPLINK_MBPS = 80;
 export type StreamQuality = keyof typeof STREAM_PRESETS;
 
 /**
- * Encoder strategy per content type:
- * - Motion (games/video) or any 60 FPS stream: H.264, which Chromium runs on the GPU's hardware
- *   encoder when available (NVENC/AMF/QuickSync via Media Foundation) — the CPU stays free for the game.
- *   Degradation keeps the frame rate: if something has to give, resolution drops a little, never FPS.
- * - Text/code at 30 FPS: VP9 (sharper per bit) with temporal layers only (L1T3). The library default
- *   (L3T3_KEY: three spatial layers) triples the software encoding cost and was a cause of FPS drops.
+ * Encoder strategy: ALWAYS H.264 for screen shares.
+ * - Chromium/Electron run it on the GPU's hardware encoder (NVENC/AMF/QuickSync) when available, so the game keeps its FPS.
+ * - H.264 has no temporal layers here, so the server can't silently cut a 60 FPS stream down to 15/30 FPS for a viewer
+ *   (that's what VP9's L1T3 allowed — and what "540p · 15 FPS" looked like).
+ * - "Texto e código" keeps the resolution (letters stay sharp); games/video and 60/120 FPS keep the frame rate.
  */
 function encoderPlan(preset: (typeof STREAM_PRESETS)[StreamQuality], motion: boolean) {
-  const h264 = motion || preset.frameRate >= 60;
   return {
-    videoCodec: h264 ? ('h264' as const) : ('vp9' as const),
-    scalabilityMode: h264 ? undefined : 'L1T3',
-    degradationPreference: !motion && preset.frameRate < 60 ? ('maintain-resolution' as const) : ('maintain-framerate' as const),
+    videoCodec: 'h264' as const,
+    scalabilityMode: undefined,
+    degradationPreference: !motion && preset.frameRate <= 30 ? ('maintain-resolution' as const) : ('maintain-framerate' as const),
   };
 }
 
@@ -528,13 +541,14 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
     // Optional light version (streamer's choice): one extra layer at the SAME frame rate, so viewers on weak
     // connections (or thumbnails) can drop resolution without dropping to a low-FPS layer. Costs some encoder work.
     const lite = !!opts.lite && preset.height > 540;
-    const liteLayer = preset.height > 720 ? new LK.VideoPreset(1280, 720, Math.round(preset.maxBitrate * 0.3), preset.frameRate) : new LK.VideoPreset(960, 540, Math.round(preset.maxBitrate * 0.35), preset.frameRate);
+    const liteFps = Math.min(60, preset.frameRate);
+    const liteLayer = preset.height > 720 ? new LK.VideoPreset(1280, 720, Math.round(preset.maxBitrate * 0.3), liteFps) : new LK.VideoPreset(960, 540, Math.round(preset.maxBitrate * 0.35), liteFps);
     await room.localParticipant.setScreenShareEnabled(true, capture, {
       screenShareEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.frameRate, priority: 'high' },
       screenShareSimulcastLayers: lite ? [liteLayer] : [],
       simulcast: lite,
       videoCodec: plan.videoCodec,
-      scalabilityMode: (plan.scalabilityMode ? (lite ? 'L2T3_KEY' : plan.scalabilityMode) : undefined) as never,
+      scalabilityMode: plan.scalabilityMode,
       backupCodec: { codec: 'vp8' },
       degradationPreference: plan.degradationPreference,
     });
@@ -693,6 +707,8 @@ export function setStreamVolume(identity: string, v: number) {
 }
 export function focusStream(identity: string) {
   setWatching(identity, true);
+  // the stream in focus always asks for the best version (Auto never picks a light copy for the big tile)
+  if (vget().viewQuality[identity] !== 'low') room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare)?.setVideoQuality(LK.VideoQuality.HIGH);
   vset({ focused: `${identity}:${Track.Source.ScreenShare}` });
 }
 
@@ -751,9 +767,12 @@ export function setTileFit(key: string, fit: 'contain' | 'cover') {
   vset((s) => ({ fit: { ...s.fit, [key]: fit } }));
 }
 /** "Auto" = best the network allows; "Leve" = cap to the light layer (only exists if the streamer offers it). */
-export function setViewQuality(identity: string, q: 'auto' | 'low') {
+export function setViewQuality(identity: string, q: 'auto' | 'max' | 'low') {
   const pub = room?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare);
+  // setVideoQuality also clears explicit dimensions → back to adaptive sizing
   pub?.setVideoQuality(q === 'low' ? LK.VideoQuality.LOW : LK.VideoQuality.HIGH);
+  // "Máxima": ask for the top layer regardless of the tile's size on screen
+  if (q === 'max') pub?.setVideoDimensions({ width: 3840, height: 2160 });
   vset((s) => ({ viewQuality: { ...s.viewQuality, [identity]: q } }));
 }
 /** Whether a remote stream has more than one quality layer to choose from. */

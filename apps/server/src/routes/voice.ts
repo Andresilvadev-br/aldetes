@@ -43,6 +43,8 @@ export function voiceRoutes(app: FastifyInstance, ctx: AppContext) {
       canPublish: sources.length > 0,
       canPublishData: true,
       canPublishSources: sources,
+      // lets the app publish its own attributes (e.g. its version, so others can see "app desatualizado")
+      canUpdateOwnMetadata: true,
     };
     const at = new AccessToken(cfg.LIVEKIT_API_KEY, cfg.LIVEKIT_API_SECRET, {
       identity: me,

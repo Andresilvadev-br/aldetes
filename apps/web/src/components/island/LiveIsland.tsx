@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import clsx from 'clsx';
 import { useStore, useStoreShallow, get, displayName } from '@/store';
 import { useIsland, dismissIsland, setIslandExpanded, pushIsland, type IslandEvent } from '@/lib/island';
-import { useVoice, toggleMute, toggleDeaf, toggleCamera, leaveVoice, stopScreenShare, joinVoice, focusStream } from '@/lib/voice';
+import { useVoice, toggleMute, toggleDeaf, toggleCamera, leaveVoice, stopScreenShare, joinVoice, focusStream, getParticipant, participantVersion } from '@/lib/voice';
 import { onGateway } from '@/lib/gateway';
 import { playSound } from '@/lib/sounds';
 import { desktop } from '@/lib/desktop';
@@ -129,6 +129,19 @@ export function LiveIsland({ mobile = false }: { mobile?: boolean } = {}) {
     }
     prevMembers.current = members;
   }, [members, myChannel, v.state]);
+  // Someone in my call runs an app older than 0.8 (it doesn't report its version): warn once — that is what caused
+  // the "15 FPS" streams (old apps sent an extra 15 FPS copy).
+  const roomVersion = useVoice((x) => x.version); // bumps when anyone's attributes/tracks change
+  useEffect(() => {
+    if (!myChannel || v.state !== 'connected' || !members.length) return;
+    const t = setTimeout(() => {
+      for (const id of members)
+        if (getParticipant(id) && !participantVersion(id))
+          pushIsland({ kind: 'info', title: `${displayName(id)} está com o app desatualizado`, body: 'Peça para sair pelo ícone perto do relógio e abrir de novo', userId: id, ttl: 6000, key: `oldapp:${id}`, cooldown: 30 * 60_000 });
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [members, myChannel, v.state, roomVersion]);
+
   // Ring sound loop while a ring is showing; stop if the caller leaves
   const ring = events.find((e) => e.kind === 'ring');
   const callerHere = useStore((s) => (ring ? s.voiceStates[ring.userId!]?.channelId === ring.channelId : false));

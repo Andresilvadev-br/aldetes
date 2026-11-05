@@ -13,6 +13,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.8.0',
+    date: '2026-11-05',
+    title: 'Transmissão lisa',
+    highlights: [
+      { title: '120 FPS', body: 'Transmita em 720p, 1080p ou 1440p a 120 FPS (precisa de monitor de 120 Hz ou mais).' },
+      { title: 'Sempre pela placa de vídeo', body: 'Todos os modos agora usam a placa de vídeo para codificar. A transmissão não cai mais para 15 FPS no caminho.' },
+      { title: 'Você escolhe a qualidade', body: 'Quem assiste escolhe Auto, Máxima ou Leve, e a tela em destaque sempre pede a melhor versão.' },
+      { title: 'Diagnóstico', body: 'Um botão na transmissão mede tudo por 2 segundos e gera um relatório para copiar e mandar.' },
+      { title: 'Aviso de app desatualizado', body: 'Se alguém na call estiver numa versão antiga, você fica sabendo (era isso que deixava a transmissão em 15 FPS).' },
+    ],
+    fixes: [
+      'Os interruptores da tela de transmitir, de Aparência e de Windows voltaram a funcionar',
+      'A tela de transmitir mostra quantas pessoas o servidor aguenta em cada qualidade',
+      'Quem transmite vê quando está perto do limite do servidor',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-11-04',
     title: 'O Aldetes no celular, do jeito certo',

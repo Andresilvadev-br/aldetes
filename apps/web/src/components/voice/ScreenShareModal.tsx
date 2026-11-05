@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'motion/react';
 import { desktop, type DesktopSource } from '@/lib/desktop';
-import { startScreenShare, STREAM_PRESETS } from '@/lib/voice';
+import { startScreenShare, STREAM_PRESETS, SERVER_UPLINK_MBPS } from '@/lib/voice';
 import { usePrefs } from '@/lib/prefs';
 import { spring } from '@/lib/motion';
 import { Icon, type IconName } from '../common/Icon';
 import { Switch, Segmented } from '../settings/SettingsLayout';
 
 type Res = '720p' | '1080p' | '1440p';
-type Fps = '30' | '60';
+type Fps = '30' | '60' | '120';
 type Hint = 'motion' | 'detail';
 
 function audioNote(): { ok: boolean; text: string } {
@@ -24,7 +24,7 @@ function audioNote(): { ok: boolean; text: string } {
 export function ScreenShareModal({ onClose }: { onClose: () => void }) {
   const saved = usePrefs.getState().streamQuality;
   const [res, setRes] = useState<Res>(saved.startsWith('1440') ? '1440p' : saved.startsWith('1080') ? '1080p' : '720p');
-  const [fps, setFps] = useState<Fps>(saved.endsWith('60') ? '60' : '30');
+  const [fps, setFps] = useState<Fps>(saved.endsWith('120') ? '120' : saved.endsWith('60') ? '60' : '30');
   const [hint, setHint] = useState<Hint>('motion');
   const aNote = audioNote();
   const [audio, setAudio] = useState(aNote.ok);
@@ -176,17 +176,25 @@ export function ScreenShareModal({ onClose }: { onClose: () => void }) {
           <Section n={3} title="Qualidade">
             <div className="flex flex-wrap items-center gap-3">
               <Segmented id="share-res" value={res} onChange={setRes} options={[['720p', '720p'], ['1080p', '1080p Full HD'], ['1440p', '1440p 2K']]} />
-              <Segmented id="share-fps" value={fps} onChange={setFps} options={[['30', '30 FPS'], ['60', '60 FPS']]} />
+              <Segmented id="share-fps" value={fps} onChange={setFps} options={[['30', '30 FPS'], ['60', '60 FPS'], ['120', '120 FPS']]} />
               <span className="ml-auto flex items-center gap-2 rounded-xl border border-line/[0.07] bg-line/[0.03] px-3 py-2 text-xs text-fg-muted">
                 <Icon name="upload" size={14} className="text-brand" />
                 usa até <b className="tabular-nums text-fg-strong">{mbps} Mbps</b> de upload
               </span>
             </div>
             <p className="mt-2 text-xs text-fg-faint">
-              {hint === 'motion' || fps === '60'
+              {hint === 'motion' || fps !== '30'
                 ? 'Codificado pela placa de vídeo (quando disponível), para não roubar FPS do seu jogo. Se a rede apertar, o FPS é mantido.'
                 : 'Codificação focada em nitidez: a resolução nunca cai, mesmo se a rede apertar.'}
               {res === '1440p' && ' 1440p só faz diferença se o seu monitor for 2K ou maior.'}
+            </p>
+            {fps === '120' && (
+              <p className="mt-2 rounded-xl border border-warn/25 bg-warn/10 px-3 py-2 text-xs text-warn">
+                120 FPS só sai se o seu monitor for de <b>120 Hz ou mais</b> (a captura não pega mais quadros do que a tela desenha) e a placa de vídeo codificar. A barra "ao vivo" mostra o FPS real.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-fg-faint">
+              O servidor aguenta cerca de <b className="text-fg">{Math.max(1, Math.floor(SERVER_UPLINK_MBPS / (preset.maxBitrate / 1_000_000)))} pessoas assistindo</b> nessa qualidade ao mesmo tempo.
             </p>
           </Section>
 

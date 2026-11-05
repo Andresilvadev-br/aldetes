@@ -58,7 +58,7 @@ export interface Prefs {
   userVolumes: Record<string, number>; // userId -> 0..2
   localMutes: Record<string, boolean>;
   favorites: string[]; // channel ids
-  streamQuality: '720p30' | '720p60' | '1080p30' | '1080p60' | '1440p30' | '1440p60';
+  streamQuality: '720p30' | '720p60' | '720p120' | '1080p30' | '1080p60' | '1080p120' | '1440p30' | '1440p60' | '1440p120';
 }
 
 const defaults: Prefs = {

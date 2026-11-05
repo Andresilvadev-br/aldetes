@@ -10,11 +10,11 @@ on:
       version:
         description: 'Versão a publicar (ex.: 0.2.0)'
         required: true
-        default: '0.7.0'
+        default: '0.8.0'
       notes:
         description: 'Novidades (aparecem no aviso de atualização; separe os itens com ;)'
         required: false
-        default: 'Celular com barra inferior e telas que deslizam; Notificações num só lugar; Call sempre à mão no celular; Toque longo abre as opções; Correções de telas cortadas no celular'
+        default: 'Transmissão em até 120 FPS; Sempre pela placa de vídeo (sem cair para 15 FPS); Quem assiste escolhe Auto, Máxima ou Leve; Botão de diagnóstico da transmissão; Interruptores das configurações consertados'
 
 permissions:
   contents: write

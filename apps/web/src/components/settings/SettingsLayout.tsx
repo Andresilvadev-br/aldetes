@@ -135,26 +135,45 @@ export function SettingsTitle({ children }: { children: ReactNode }) {
 
 export function Toggle({ checked, onChange, label, desc, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; desc?: string; disabled?: boolean }) {
   return (
-    <label className={clsx('flex cursor-pointer items-start justify-between gap-4 border-b border-line/[0.06] py-4', disabled && 'cursor-not-allowed opacity-50')}>
+    <div
+      className={clsx('flex cursor-pointer items-start justify-between gap-4 border-b border-line/[0.06] py-4', disabled && 'cursor-not-allowed opacity-50')}
+      onClick={() => !disabled && onChange(!checked)}
+    >
       <div>
         <div className="font-medium text-fg-strong">{label}</div>
         {desc && <div className="mt-1 text-sm text-fg-muted">{desc}</div>}
       </div>
-      <Switch checked={checked} disabled={disabled} onChange={onChange} />
-    </label>
+      <Switch checked={checked} disabled={disabled} onChange={onChange} label={label} />
+    </div>
   );
 }
 
-/** Pill switch: gradient track, thumb moves with a spring and keeps inertia when toggled quickly. */
-export function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+/**
+ * Pill switch: gradient track, thumb moves with a spring.
+ * It is a real button (role="switch"): it used to be a hidden checkbox that only reacted when wrapped in a
+ * <label>, so switches placed in plain rows (screen-share options, Appearance, Windows settings) ignored clicks.
+ */
+export function Switch({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label?: string }) {
   return (
-    <span
-      className={clsx('relative mt-0.5 flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200', checked ? 'grad shadow-[0_6px_18px_-6px_rgb(var(--brand))]' : 'bg-line/[0.12]')}
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={(e) => {
+        e.preventDefault(); // inside a <label> the click would otherwise be delivered twice
+        e.stopPropagation();
+        onChange(!checked);
+      }}
+      className={clsx(
+        'relative mt-0.5 flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'grad shadow-[0_6px_18px_-6px_rgb(var(--brand))]' : 'bg-line/[0.12]',
+      )}
       style={{ justifyContent: checked ? 'flex-end' : 'flex-start' }}
     >
-      <input type="checkbox" className="sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <motion.span layout transition={spring.snappy} className="h-5 w-5 rounded-full bg-white shadow" />
-    </span>
+    </button>
   );
 }
 

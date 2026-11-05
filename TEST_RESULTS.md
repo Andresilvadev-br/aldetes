@@ -239,3 +239,24 @@ O que o `mobile-nav` confere:
 - Safari do iPhone e PWA no iOS em aparelho real (não há WebKit aqui);
 - Android físico;
 - o teclado real do iOS.
+
+## 14. Versão 0.8.0: transmissão (diagnóstico com a VPS real, 120 FPS, interruptores)
+
+**Diagnóstico feito na VPS de produção:**
+- **Firewall:** o `ufw` libera todas as portas de mídia.
+- **Conexão das duas pessoas da call:** pelo log do LiveKit, `connectionType: "udp"`. O firewall da KingHost não bloqueia nada.
+- **Velocidade da VPS:** 1.255 Mbit/s de download e **81 Mbit/s de upload**. Esse upload é o teto do servidor: cerca de 6 pessoas assistindo em 1080p 60.
+- **Causa do "540p · 15 FPS":** a transmissão chegou em duas versões, e a de baixo tinha 15 FPS. Isso só acontece com o app antigo (≤ 0.4), que mandava uma cópia de 720p/15. O app atual não tinha como ligar a versão leve, porque os interruptores estavam quebrados.
+
+| Teste | Resultado |
+|---|---|
+| `e2e/stream-options.mjs` (interruptor funciona; 1080p 120 sai em H.264 numa versão só com limite de 120 FPS; "Texto e código" em H.264; versão leve com as duas cópias a 60 FPS; "Máxima"; diagnóstico; aviso de app desatualizado) | **7/7** |
+| Interruptores de Aparência e linhas com texto (Voz e vídeo) | **2/2** |
+| `pnpm test` | **43/43** |
+| `e2e/two-clients.mjs` (com a fonte real de 60 FPS → ~60 recebidos) / `e2e/multi-stream.mjs` | **17/17** / **8/8** |
+| `e2e/mobile-nav.mjs` | **29/29** |
+| `e2e/desktop-smoke.mjs` / `desktop-island.mjs` / `desktop-update.mjs` | **11/11** / **9/9** / **4/4** |
+
+**Não testado aqui:**
+- **120 FPS de verdade.** A captura de teste gera 20 FPS e esta máquina não tem placa de vídeo nem monitor de 120 Hz. O que foi verificado é a configuração: o codificador aceita 120 FPS e a captura é pedida a 120. O FPS real aparece na barra "ao vivo" e no diagnóstico.
+- **Começo da transmissão:** nos primeiros 10–15 s a resolução sobe aos poucos enquanto o WebRTC mede a internet. É comportamento normal e aparece no diagnóstico.

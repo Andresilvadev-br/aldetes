@@ -5,7 +5,8 @@ import clsx from 'clsx';
 import type { Participant, VideoTrack } from 'livekit-client';
 import { Track } from '@/lib/lk';
 import { useStore, displayName } from '@/store';
-import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, type Tile } from '@/lib/voice';
+import { listTiles, useVoice, toggleCamera, toggleMute, toggleDeaf, leaveVoice, stopScreenShare, switchCamera, setWatching, setStreamVolume, focusStream, setStageLayout, canShareScreen, setTileFit, setViewQuality, streamHasLayers, participantVersion, getRoom, SERVER_UPLINK_MBPS, type Tile } from '@/lib/voice';
+import { diagnoseViewer, diagnoseOwn } from '@/lib/streamDiag';
 import { spring, dur } from '@/lib/motion';
 import { usePrefs } from '@/lib/prefs';
 import { LiveAvatar, ReactionPicker } from './LiveAvatar';
@@ -13,7 +14,7 @@ import { useMedia, SHORT } from '@/lib/mobile';
 import { Segmented } from '../settings/SettingsLayout';
 import { Avatar } from '../common/Avatar';
 import { Icon } from '../common/Icon';
-import { Tooltip, useContextMenu } from '../common/overlay';
+import { Tooltip, useContextMenu, Modal, toast } from '../common/overlay';
 import { QualityBars } from './VoicePanel';
 import { ScreenShareModal } from './ScreenShareModal';
 import { useMemberMenu } from '../common/UserPopout';
@@ -132,6 +133,7 @@ function ViewerStreamBar({ tile, tileRef }: { tile: Tile; tileRef: React.RefObje
   const fit = useVoice((v) => v.fit[tile.key] ?? 'contain');
   const vq = useVoice((v) => v.viewQuality[tile.identity] ?? 'auto');
   const layers = streamHasLayers(tile.identity);
+  const oldApp = useOldApp(tile.identity);
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -156,15 +158,21 @@ function ViewerStreamBar({ tile, tileRef }: { tile: Tile; tileRef: React.RefObje
         </label>
       )}
       <span className="flex-1" />
+      {oldApp && (
+        <span className="rounded-lg bg-warn/20 px-2 py-1 text-[11px] font-bold text-warn" title="O app de quem transmite é antigo: peça para fechar pelo ícone perto do relógio (Sair) e abrir de novo.">
+          App de quem transmite desatualizado
+        </span>
+      )}
       {layers && (
         <span className="flex overflow-hidden rounded-lg bg-white/10 text-[11px] font-semibold" role="group" aria-label="Qualidade que você recebe">
-          {(['auto', 'low'] as const).map((q) => (
-            <button key={q} className={clsx('px-2 py-1', vq === q ? 'bg-white text-black' : 'hover:bg-white/15')} onClick={() => setViewQuality(tile.identity, q)} aria-pressed={vq === q}>
-              {q === 'auto' ? 'Auto' : 'Leve'}
+          {(['auto', 'max', 'low'] as const).map((q) => (
+            <button key={q} className={clsx('px-2 py-1', vq === q ? 'bg-white text-black' : 'hover:bg-white/15')} onClick={() => setViewQuality(tile.identity, q)} aria-pressed={vq === q} title={q === 'max' ? 'Sempre a melhor versão, mesmo em tela pequena' : q === 'low' ? 'Versão leve (economiza internet)' : 'A melhor que a sua internet aguenta'}>
+              {q === 'auto' ? 'Auto' : q === 'max' ? 'Máxima' : 'Leve'}
             </button>
           ))}
         </span>
       )}
+      <DiagButton run={() => diagnoseViewer(tile.identity)} />
       <button className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10" title={fit === 'cover' ? 'Mostrar a tela inteira' : 'Preencher o espaço'} aria-label="Enquadramento" onClick={() => setTileFit(tile.key, fit === 'cover' ? 'contain' : 'cover')}>
         <Icon name={fit === 'cover' ? 'focus' : 'expand'} size={16} />
       </button>
@@ -204,8 +212,15 @@ function OwnStreamBar() {
   }, []);
   const sec = since ? Math.floor((now - since) / 1000) : 0;
   const low = !!st && st.fps > 0 && st.fps < st.targetFps * 0.85;
+  const viewers = useVoice((v) => (v.version, getRoom()?.remoteParticipants.size ?? 0));
+  const serverLoad = st ? st.mbps * viewers : 0;
+  const capLimited = !!st && st.sourceFps > 0 && st.sourceFps < st.targetFps * 0.85; // the screen/monitor gives fewer frames
   const advice =
-    st && low && st.limit === 'cpu'
+    st && capLimited && st.targetFps > 60
+      ? `A captura entrega ${st.sourceFps} FPS: o monitor provavelmente é de ${st.sourceFps < 70 ? '60' : st.sourceFps < 110 ? '75–100' : 'menos de 120'} Hz. Para 120 FPS, o monitor precisa ser de 120 Hz ou mais.`
+      : serverLoad > SERVER_UPLINK_MBPS * 0.85
+        ? `≈ ${Math.round(serverLoad)} Mbps saindo do servidor (limite ~${SERVER_UPLINK_MBPS}). Com ${viewers} pessoas, baixe para 1080p 60 ou 720p para não travar.`
+        : st && low && st.limit === 'cpu'
       ? st.hardware === false
         ? 'O processador está no limite. Use "Jogos e vídeos" (codifica na placa de vídeo) ou baixe para 720p.'
         : 'O PC está no limite. Feche programas pesados ou baixe a resolução.'
@@ -228,7 +243,13 @@ function OwnStreamBar() {
             {st.codec ?? ''} · {st.hardware ? 'GPU' : 'CPU'}
           </span>
         )}
+        {viewers > 0 && st && st.mbps > 0 && (
+          <span className="hidden text-[11px] tabular-nums text-white/50 md:inline" title="Cada pessoa recebe a própria cópia: é isso que sai do servidor">
+            {viewers} {viewers === 1 ? 'pessoa' : 'pessoas'} · ≈{Math.round(serverLoad)} Mbps do servidor
+          </span>
+        )}
         <span className="flex-1" />
+        <DiagButton run={diagnoseOwn} />
         <button className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20" onClick={() => setChange(true)}>
           Trocar tela
         </button>
@@ -481,11 +502,12 @@ function PeopleStrip({ people: all, serverId, vertical }: { people: string[]; se
 
 function PersonLabel({ id, serverId, vertical }: { id: string; serverId: string | null; vertical: boolean }) {
   const vs = useStore((s) => s.voiceStates[id]);
+  const old = useOldApp(id);
   return (
     <span className={clsx('min-w-0 leading-tight', vertical ? 'xl:flex-1 max-xl:max-w-[72px] max-xl:text-center' : 'max-w-[72px] text-center')}>
       <span className="block truncate text-[12.5px] font-semibold text-fg-strong">{displayName(id, serverId)}</span>
       <span className={clsx('truncate text-[10.5px] text-fg-muted', vertical ? 'hidden xl:flex xl:items-center xl:gap-1' : 'hidden')}>
-        {vs?.streaming ? <b className="text-danger">transmitindo</b> : vs?.video ? 'câmera ligada' : vs?.selfDeaf || vs?.serverDeaf ? 'sem áudio' : vs?.selfMute || vs?.serverMute ? 'mutado' : 'na voz'}
+        {old ? <b className="text-warn" title="App antigo: peça para sair pelo ícone perto do relógio e abrir de novo">app desatualizado</b> : vs?.streaming ? <b className="text-danger">transmitindo</b> : vs?.video ? 'câmera ligada' : vs?.selfDeaf || vs?.serverDeaf ? 'sem áudio' : vs?.selfMute || vs?.serverMute ? 'mutado' : 'na voz'}
       </span>
     </span>
   );
@@ -588,3 +610,50 @@ export function CallDock() {
 }
 /** @deprecated kept for older imports */
 export const VoiceControls = CallDock;
+
+/** An app older than 0.8 doesn't report its version; give it a few seconds after joining before warning. */
+export function useOldApp(identity: string) {
+  useVoice((v) => v.version);
+  const [grace, setGrace] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setGrace(false), 5000);
+    return () => clearTimeout(t);
+  }, [identity]);
+  return !grace && !participantVersion(identity) && !!getRoom()?.remoteParticipants.get(identity);
+}
+
+/** "Diagnóstico": runs the real stats for 2 s and shows a report to copy and send. */
+function DiagButton({ run }: { run: () => Promise<string> }) {
+  const [report, setReport] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <button
+        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setReport(await run());
+          } finally {
+            setBusy(false);
+          }
+        }}
+        title="Mede a transmissão por 2 segundos e gera um relatório"
+      >
+        {busy ? 'Medindo…' : 'Diagnóstico'}
+      </button>
+      {report && (
+        <Modal onClose={() => setReport(null)} title="Diagnóstico da transmissão" subtitle="Copie e mande para quem está ajudando você.">
+          <pre className="scroll-thin max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-xl bg-bg-rail p-3 text-[12px] leading-relaxed text-fg">{report}</pre>
+          <button
+            className="btn-primary mt-3 w-full"
+            onClick={() => navigator.clipboard.writeText(report).then(() => toast('Relatório copiado!', 'success'), () => toast('Não deu para copiar; selecione o texto.'))}
+          >
+            <Icon name="copy" size={16} /> Copiar relatório
+          </button>
+        </Modal>
+      )}
+    </>
+  );
+}
