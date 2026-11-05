@@ -30,6 +30,21 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2.0.1',
+    date: '2026-11-06',
+    title: 'Correções da 2.0',
+    highlights: [
+      { title: 'Cantinhos mobiliados', body: 'Quem ainda não montou o próprio cantinho aparece num dos cinco cenários prontos, em vez de uma sala vazia.' },
+      { title: 'Together mais claro', body: 'Encerrar, limpar o quadro e controlar o cronômetro só aparecem para quem pode — nada de botão que dá erro.' },
+      { title: 'Quadro sem sumiço', body: 'Dois traços feitos bem rápido não apagam mais um ao outro na sua tela.' },
+    ],
+    fixes: [
+      'Um "0" solto no topo da lista de canais sumiu',
+      'Quando o servidor ainda está atualizando, aparece um aviso claro em vez de uma mensagem técnica',
+      'O servidor volta a se atualizar sozinho mesmo depois de uma atualização que falhou',
+    ],
+  },
+  {
     version: '2.0.0',
     date: '2026-11-06',
     title: 'Aldetes 2.0',
