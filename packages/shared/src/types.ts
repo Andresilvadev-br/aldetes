@@ -179,11 +179,12 @@ export interface TogetherState {
   timer?: { label: string; durationMs: number; startedAt: number | null; remainingMs: number };
   notes?: { title: string; text: string; editedBy: string | null };
   board?: { title: string; items: BoardItem[] };
+  roll?: { title: string; mode: 'dice' | 'people'; sides: number; results: Array<{ by: string; value: number; pick: string | null; at: number }> };
 }
 export interface TogetherSession {
   id: string;
   channelId: string;
-  kind: 'poll' | 'timer' | 'notes' | 'board';
+  kind: 'poll' | 'timer' | 'notes' | 'board' | 'roll';
   createdBy: string;
   version: number;
   state: TogetherState;

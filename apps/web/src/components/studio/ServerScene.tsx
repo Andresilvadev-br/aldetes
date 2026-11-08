@@ -4,6 +4,8 @@ import { DEFAULT_STUDIO, studioThemeSchema, type Server, type StudioTheme } from
 import { usePrefs, getPrefs, setPrefs } from '@/lib/prefs';
 import { BANNERS, BannerVideo, isVideoUrl, bannerVars, Badge, nameClass } from '../profile/Cosmetics';
 import { useStore } from '@/store';
+import { AL_BY_ID } from '@aldetes/shared';
+import { AlAmbient } from '../profile/AnimeLegends';
 import { useOffscreenPause } from '@/lib/perf';
 
 /** The published theme of a server (defaults when there is none or it doesn't validate). */
@@ -43,7 +45,8 @@ const LIGHT = { soft: 'from-black/10 via-bg-side/50 to-bg-side', vivid: 'from-tr
 export function ServerCover({ server, theme, className, children, fade = true, still = false }: { server: Pick<Server, 'bannerUrl' | 'name'>; theme: StudioTheme; className?: string; children?: ReactNode; fade?: boolean; /** previews: no loops, no video playback */ still?: boolean }) {
   const effects = useServerEffects() && !still;
   const pause = useOffscreenPause();
-  const scene = theme.scene ? BANNERS[theme.scene] : undefined;
+  // 2.2: an Anime Legends server identity uses that collection's scene as the cover
+  const scene = theme.legend ? BANNERS[`al:${theme.legend}`] : theme.scene ? BANNERS[theme.scene] : undefined;
   const video = isVideoUrl(server.bannerUrl);
   const accent = theme.accent;
   const style: CSSProperties = server.bannerUrl && !scene && !video ? { background: `${POS[theme.bannerPosition]}/cover url(${server.bannerUrl})` } : {};
@@ -113,6 +116,13 @@ export function ServerAmbient({ theme, serverId }: { theme: StudioTheme; serverI
   const active = useStore((s) => (theme.ambient === 'reactive-glow' ? Object.values(s.voiceStates).filter((v) => v.serverId === serverId).length : 0));
   const n = useBudget(theme.ambient === 'starlight' ? 22 : theme.ambient === 'ambient-particles' ? 14 : theme.ambient === 'digital-atmosphere' ? 5 : 2);
   const pause = useOffscreenPause();
+  const legend = theme.legend ? AL_BY_ID[theme.legend] : undefined;
+  if (legend && effects)
+    return (
+      <div ref={pause} className="amb" style={{ '--amb-o': 0.25 + (0.6 * theme.intensity) / 100 } as CSSProperties} data-ambient={`legend:${legend.id}`} aria-hidden>
+        <AlAmbient c={legend} n={Math.min(n + 4, 16)} />
+      </div>
+    );
   if (theme.ambient === 'none' || !effects) return null;
   const o = 0.2 + (0.6 * theme.intensity) / 100;
   const st = { '--amb-o': o, ...(theme.accent ? { '--sa': theme.accent } : {}) } as CSSProperties;
@@ -149,4 +159,62 @@ export function PresentationBg({ kind, accent }: { kind: StudioTheme['presentati
         ? `linear-gradient(${a}22 1px, transparent 1px) 0 0/18px 18px, linear-gradient(90deg, ${a}22 1px, transparent 1px) 0 0/18px 18px, linear-gradient(180deg, ${a}18, transparent)`
         : `radial-gradient(120% 60% at 50% 120%, ${a}45, transparent 60%), radial-gradient(120% 50% at 50% 135%, ${a}30, transparent 70%)`;
   return <div className="pointer-events-none absolute inset-0" style={{ background: bg }} data-presentation={kind} aria-hidden />;
+}
+
+/**
+ * 2.2 Server Atmosphere: lighting, background and a few details across the channel list (behind it, never over
+ * messages). Mostly static layers (beautiful without motion); the few loops pause with Essencial, load, settle and
+ * off screen like every other server effect.
+ */
+export const ATMOSPHERES: Record<Exclude<StudioTheme['atmosphere'], 'none'>, { label: string; desc: string; accent: string }> = {
+  'cyber-city': { label: 'Cyber City', desc: 'Neon, grade no chão e skyline', accent: '#22d3ee' },
+  celestial: { label: 'Celestial', desc: 'Céu profundo, nebulosa e estrelas', accent: '#818cf8' },
+  'japanese-night': { label: 'Japanese Night', desc: 'Lua, lanternas e montanhas', accent: '#f43f5e' },
+  luxury: { label: 'Luxury', desc: 'Preto, dourado e mármore', accent: '#eab308' },
+  mystic: { label: 'Mystic', desc: 'Névoa, runas e luz violeta', accent: '#a855f7' },
+};
+export function ServerAtmosphere({ theme, compact }: { theme: StudioTheme; compact?: boolean }) {
+  const pause = useOffscreenPause();
+  if (theme.atmosphere === 'none') return null;
+  const a = theme.accent ?? ATMOSPHERES[theme.atmosphere].accent;
+  return (
+    <div ref={pause} className={`atm atm-${theme.atmosphere}`} style={{ '--sa': a } as CSSProperties} data-atmosphere={theme.atmosphere} aria-hidden>
+      {theme.atmosphere === 'cyber-city' && (
+        <>
+          <i className="atm-sky" />
+          <i className="atm-grid" />
+          {!compact && Array.from({ length: 9 }, (_, i) => <i key={i} className="atm-bldg" style={{ left: `${i * 11.5}%`, height: `${10 + r(i, 21) * 16}%` }} />)}
+          <i className="atm-scan" />
+        </>
+      )}
+      {theme.atmosphere === 'celestial' && (
+        <>
+          <i className="atm-neb" />
+          {Array.from({ length: compact ? 10 : 22 }, (_, i) => <i key={i} className="atm-star" style={{ left: `${r(i, 31) * 100}%`, top: `${r(i, 32) * 100}%`, animationDelay: `${-r(i, 33) * 5}s`, opacity: 0.3 + r(i, 34) * 0.7 }} />)}
+        </>
+      )}
+      {theme.atmosphere === 'japanese-night' && (
+        <>
+          <i className="atm-moon" />
+          <i className="atm-mtn" />
+          {[0, 1, 2].map((i) => <i key={i} className="atm-lantern" style={{ left: `${18 + i * 30}%`, top: `${6 + (i % 2) * 6}%`, animationDelay: `${-i * 1.3}s` }} />)}
+        </>
+      )}
+      {theme.atmosphere === 'luxury' && (
+        <>
+          <i className="atm-marble" />
+          <i className="atm-gold" style={{ top: '14%' }} />
+          <i className="atm-gold" style={{ bottom: '12%' }} />
+          <i className="atm-sheen" />
+        </>
+      )}
+      {theme.atmosphere === 'mystic' && (
+        <>
+          <i className="atm-fog" style={{ top: '30%' }} />
+          <i className="atm-fog" style={{ top: '65%', animationDirection: 'reverse' }} />
+          <i className="atm-rune" />
+        </>
+      )}
+    </div>
+  );
 }

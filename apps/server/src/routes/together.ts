@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomInt } from 'node:crypto';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { Permissions, hasPermission, togetherCreateSchema, togetherOpSchema, type TogetherState, type TogetherSession, type BoardItem, type VoiceState } from '@aldetes/shared';
@@ -73,7 +74,9 @@ export function togetherRoutes(app: FastifyInstance, ctx: AppContext) {
           ? { timer: { label: body.label, durationMs: body.minutes * 60_000, startedAt: null, remainingMs: body.minutes * 60_000 } }
           : body.kind === 'notes'
             ? { notes: { title: body.title, text: '', editedBy: null } }
-            : { board: { title: body.title, items: [] } };
+            : body.kind === 'roll'
+              ? { roll: { title: body.title, mode: body.mode, sides: body.sides, results: [] } }
+              : { board: { title: body.title, items: [] } };
     const row = await db.togetherSession.create({ data: { id: snowflake(), channelId: id, kind: body.kind, createdBy: req.auth.userId, state: state as Prisma.InputJsonValue } });
     const s = dto(row);
     emit(id, { type: 'created', session: s, serverNow: Date.now() });
@@ -156,6 +159,24 @@ export function togetherRoutes(app: FastifyInstance, ctx: AppContext) {
           if (!ids.size) throw forbidden('Você só apaga o que desenhou (moderadores apagam tudo)');
           b.items = b.items.filter((i) => !ids.has(i.id));
           delta = { remove: [...ids] };
+          break;
+        }
+        case 'roll': {
+          const r = st.roll;
+          if (!r) throw badRequest('Operação inválida para esta ferramenta');
+          // fair: the server draws (crypto), everyone sees the same result
+          let pick: string | null = null;
+          let value = randomInt(1, r.sides + 1);
+          if (r.mode === 'people') {
+            const people = Object.entries(await redis.hgetall('voice:states'))
+              .filter(([, v]) => (JSON.parse(v) as VoiceState).channelId === cur.channelId)
+              .map(([u]) => u)
+              .sort();
+            if (!people.length) throw badRequest('Ninguém na call para sortear');
+            value = randomInt(0, people.length);
+            pick = people[value]!;
+          }
+          r.results = [{ by: me, value, pick, at: Date.now() }, ...r.results].slice(0, 20);
           break;
         }
         case 'clear': {

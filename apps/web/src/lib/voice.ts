@@ -1,3 +1,4 @@
+import { guardScreenAudio, type GuardState } from './screenAudioGuard';
 import { create } from 'zustand';
 import type {
   Room,
@@ -46,6 +47,8 @@ export interface VoiceStore {
   screenInfo: string | null;
   /** stream PC sound: true = call voices left out (no echo), false = may contain them, null = no sound */
   screenAudioIsolated: boolean | null;
+  /** echo guard on the PC sound of my stream (lib/screenAudioGuard) */
+  screenAudioGuard: GuardState | null;
   /** live encoder stats of our own stream (sampled every 2 s) */
   screenStats: StreamStats | null;
   /** actions waiting for the real result (button shows loading; state confirmed only after it returns) */
@@ -108,6 +111,7 @@ export const useVoice = create<VoiceStore>()(() => ({
   screenSince: null,
   screenInfo: null,
   screenAudioIsolated: null,
+  screenAudioGuard: null,
   screenStats: null,
   pending: { mic: false, cam: false, screen: false },
   stageLayout: (() => {
@@ -408,6 +412,7 @@ export async function leaveVoice() {
   intentionalLeave = true;
   const had = !!room;
   await room?.disconnect();
+  disposeScreenGuard();
   cleanupRoom();
   vset({ channelId: null, serverId: null, state: 'idle', error: null, connectedAt: null, screenSince: null });
   if (had) playSound('leave');
@@ -586,7 +591,13 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
     const hasAudio = !!audioPub;
     // Is the PC sound really isolated from the call? (the browser reports the applied constraint)
     const aSet = (audioPub?.track?.mediaStreamTrack?.getSettings?.() ?? {}) as MediaTrackSettings & { restrictOwnAudio?: boolean };
-    vset({ screenAudioIsolated: hasAudio ? aSet.restrictOwnAudio === true || desktop?.ownAudioExcluded === true : null });
+    // Only "confirmed" when the capture reports the restriction AND (on the desktop app) Windows supports process
+    // loopback exclusion. Otherwise the echo guard ducks the PC sound while someone in the call speaks; it also
+    // detects an echo that slips through anyway.
+    const confirmed = aSet.restrictOwnAudio === true && (desktop ? desktop.ownAudioExcluded === true : true);
+    vset({ screenAudioIsolated: hasAudio ? confirmed : null, screenAudioGuard: null });
+    disposeScreenGuard();
+    if (audioPub) disposeGuard = guardScreenAudio(room, audioPub, confirmed, (g) => vset({ screenAudioGuard: g }));
     if (opts.audio && !hasAudio) toast('O sistema/navegador não forneceu áudio para esta fonte; transmitindo apenas vídeo.');
   } catch (err) {
     const name = (err as Error)?.name;
@@ -598,7 +609,14 @@ export async function startScreenShare(opts: { quality: StreamQuality; audio: bo
 }
 
 /** Keep the stream going but stop sending the PC sound (safe fallback when it may echo the call). */
+let disposeGuard: (() => void) | null = null;
+function disposeScreenGuard() {
+  disposeGuard?.();
+  disposeGuard = null;
+}
+
 export async function stopScreenAudio() {
+  disposeScreenGuard();
   const pub = room?.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
   if (pub?.track) await room!.localParticipant.unpublishTrack(pub.track as never, true);
   vset({ screenAudioIsolated: null });
@@ -606,6 +624,7 @@ export async function stopScreenAudio() {
 
 export async function stopScreenShare() {
   await room?.localParticipant.setScreenShareEnabled(false);
+  disposeScreenGuard();
   stopStreamStats();
   vset({ screen: false, screenInfo: null, screenSince: null, screenAudioIsolated: null });
   publishSelfState();

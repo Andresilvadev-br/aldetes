@@ -3,6 +3,8 @@ import clsx from 'clsx';
 import { motion } from 'motion/react';
 import type { BannerOptions, ProfileDecor, SelfUser } from '@aldetes/shared';
 import { useStore } from '@/store';
+import { usePrefs, setPrefs, getPrefs } from '@/lib/prefs';
+import { AL_BY_ID, AL_CHARACTERS, AL_COLLECTIONS, AL_UNIVERSES, type AlCollection } from '@aldetes/shared';
 import { api, upload } from '@/lib/api';
 import { spring } from '@/lib/motion';
 import { useOffscreenPause } from '@/lib/perf';
@@ -58,6 +60,7 @@ export const draftOf = (me: SelfUser): ProfileDraft => ({
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 const CATS = [
+  ['legends', 'Anime Legends'],
   ['collections', 'Coleções'],
   ['banners', 'Banners'],
   ['frames', 'Molduras'],
@@ -78,7 +81,8 @@ export function IdentityStudio() {
   const base = draftOf(me);
   const [d, setD] = useState<ProfileDraft>(() => draftOf(me));
   const [hist, setHist] = useState<ProfileDraft[]>([]);
-  const [cat, setCat] = useState<Cat>('collections');
+  const [fut, setFut] = useState<ProfileDraft[]>([]);
+  const [cat, setCat] = useState<Cat>('legends');
   const [compare, setCompare] = useState<'after' | 'before'>('after');
   const [view, setView] = useState<'compact' | 'expanded'>('compact');
   const [replay, setReplay] = useState(0);
@@ -91,6 +95,7 @@ export function IdentityStudio() {
   /** every visual change goes through here so it can be undone */
   const set = (p: Partial<ProfileDraft>, { again = false } = {}) => {
     setHist((h) => [...h.slice(-49), d]);
+    setFut([]);
     setD((x) => ({ ...x, ...p }));
     if (again) setReplay((r) => r + 1);
   };
@@ -100,14 +105,22 @@ export function IdentityStudio() {
     const prev = hist.at(-1);
     if (!prev) return;
     setHist((h) => h.slice(0, -1));
+    setFut((f) => [...f, d]);
     setD(prev);
+  };
+  const redo = () => {
+    const next = fut.at(-1);
+    if (!next) return;
+    setFut((f) => f.slice(0, -1));
+    setHist((h) => [...h, d]);
+    setD(next);
   };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault();
-        undo();
-      }
+      if (!(e.ctrlKey || e.metaKey) || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) (e.preventDefault(), undo());
+      else if (key === 'y' || (key === 'z' && e.shiftKey)) (e.preventDefault(), redo());
     };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
@@ -188,6 +201,7 @@ export function IdentityStudio() {
 
       <div className="flex gap-8">
         <div className="min-w-0 flex-1 space-y-6" data-testid="identity-gallery">
+          {cat === 'legends' && <LegendsGallery d={d} set={set} me={me} />}
           {cat === 'collections' && (
             <Group title="Coleções" desc="Um visual completo de uma vez — banner, moldura, efeito, tema e decorações. Depois você troca qualquer peça.">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -438,6 +452,9 @@ export function IdentityStudio() {
         <button className="btn-ghost text-sm" disabled={!hist.length} onClick={undo} title="Desfazer (Ctrl+Z)">
           <Icon name="arrowLeft" size={14} /> Desfazer
         </button>
+        <button className="btn-ghost px-2 text-sm" disabled={!fut.length} onClick={redo} title="Refazer (Ctrl+Y)" aria-label="Refazer">
+          <Icon name="chevronRight" size={14} />
+        </button>
         <span className={clsx('flex-1 text-right text-sm', dirty ? 'text-fg' : 'text-fg-faint')} aria-live="polite" data-testid="unsaved">
           {dirty ? (
             <span className="inline-flex items-center gap-1.5">
@@ -559,13 +576,20 @@ function Filtered<T>({ filters, items, match, render, cols = 'grid-cols-2 lg:gri
 /** Pauses everything inside while off screen (gallery thumbnails). */
 function Thumb({ children }: { children: ReactNode }) {
   const pause = useOffscreenPause();
-  return <div ref={pause}>{children}</div>;
+  const [live, setLive] = useState(false);
+  return (
+    <div ref={pause} data-settled={String(!live)} onPointerEnter={() => setLive(true)} onPointerLeave={() => setLive(false)}>
+      {children}
+    </div>
+  );
 }
 
 function Tile({ active, label, tag, onClick, children }: { active: boolean; label: string; tag?: string; onClick: () => void; children: ReactNode }) {
   const pause = useOffscreenPause();
+  // catalog thumbnails stay still until the pointer asks for the animated preview (hover/focus)
+  const [live, setLive] = useState(false);
   return (
-    <motion.button ref={pause} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={spring.snappy} onClick={onClick} aria-pressed={active} className="group relative text-left">
+    <motion.button ref={pause} data-settled={String(!live)} onPointerEnter={() => setLive(true)} onPointerLeave={() => setLive(false)} onFocus={() => setLive(true)} onBlur={() => setLive(false)} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} transition={spring.snappy} onClick={onClick} aria-pressed={active} className="group relative block w-full min-w-0 text-left">
       <span className={clsx('relative block overflow-hidden rounded-xl border-2 transition-colors', active ? 'border-brand shadow-glow' : 'border-transparent group-hover:border-line/20')}>
         {children}
         {tag && <span className={clsx('absolute left-1.5 top-1.5 rounded-md px-1.5 py-px text-[9px] font-bold uppercase tracking-wide backdrop-blur-sm', tag === 'novo' || tag === '2.1' ? 'bg-brand/80 text-white' : 'bg-black/50 text-white/80')}>{tag}</span>}
@@ -608,5 +632,133 @@ function Slider({ label, value, min, max, unit, onStart, onChange }: { label: st
         {unit}
       </span>
     </label>
+  );
+}
+
+/* ---------------- Anime Legends: universe → character → variation ---------------- */
+const PARTS = [
+  ['bannerPreset', 'Banner', 'banner'],
+  ['avatarDecoration', 'Moldura', 'frame'],
+  ['profileEffect', 'Efeito', 'effect'],
+  ['profileTheme', 'Tema', 'theme'],
+] as const;
+function LegendsGallery({ d, set, me }: { d: ProfileDraft; set: (p: Partial<ProfileDraft>, o?: { again?: boolean }) => void; me: SelfUser }) {
+  const [uni, setUni] = useState<keyof typeof AL_UNIVERSES | 'fav'>('jjk');
+  const [char, setChar] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [comboName, setComboName] = useState('');
+  const favs = usePrefs((p) => p.alFavorites);
+  const combos = usePrefs((p) => p.profileCombos);
+  const list = AL_COLLECTIONS.filter((c) => (uni === 'fav' ? favs.includes(c.id) : c.universe === uni && (!char || c.character === char)));
+  const chars = uni === 'fav' ? [] : Object.entries(AL_CHARACTERS).filter(([, v]) => v.universe === uni);
+  const sel = open ? AL_BY_ID[open] : undefined;
+  const applyAll = (c: AlCollection) => set({ bannerPreset: `al:${c.id}`, avatarDecoration: `al:${c.id}`, profileEffect: `al:${c.id}`, profileTheme: `al:${c.id}`, bannerOptions: null }, { again: true });
+  const current = (k: (typeof PARTS)[number][0]) => d[k] as string | null;
+  return (
+    <section className="space-y-3" data-testid="legends-gallery">
+      <div>
+        <h3 className="text-lg font-extrabold tracking-tight text-fg-strong">Anime Legends</h3>
+        <p className="text-xs text-fg-muted">27 coleções em 3 universos. Aplique o conjunto inteiro ou só uma peça — dá para misturar coleções diferentes. Visuais originais, sem arte oficial. Passe o mouse numa miniatura para ver a animação.</p>
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Universo">
+        {(Object.entries(AL_UNIVERSES) as Array<[keyof typeof AL_UNIVERSES, string]>).map(([id, n]) => (
+          <button key={id} role="tab" aria-selected={uni === id} onClick={() => (setUni(id), setChar(null))} className={clsx('rounded-lg px-3 py-1.5 text-xs font-bold', uni === id ? 'bg-brand text-white' : 'bg-line/[0.06] text-fg-muted hover:text-fg-strong')}>
+            {n}
+          </button>
+        ))}
+        <button role="tab" aria-selected={uni === 'fav'} onClick={() => setUni('fav')} className={clsx('rounded-lg px-3 py-1.5 text-xs font-bold', uni === 'fav' ? 'bg-brand text-white' : 'bg-line/[0.06] text-fg-muted hover:text-fg-strong')}>
+          ★ Favoritas ({favs.length})
+        </button>
+      </div>
+      {chars.length > 0 && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Personagem">
+          <button aria-pressed={!char} onClick={() => setChar(null)} className={clsx('rounded-full border px-3 py-1 text-xs font-semibold', !char ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/[0.1] text-fg-muted')}>
+            Todos
+          </button>
+          {chars.map(([id, v]) => (
+            <button key={id} aria-pressed={char === id} onClick={() => setChar(id)} className={clsx('rounded-full border px-3 py-1 text-xs font-semibold', char === id ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/[0.1] text-fg-muted')}>
+              {v.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {list.map((c) => (
+          <div key={c.id} className="relative">
+            <Tile active={open === c.id} label={`${String(c.n).padStart(2, '0')} — ${c.title}`} tag={AL_CHARACTERS[c.character]?.name.split(' ')[0]} onClick={() => setOpen(open === c.id ? null : c.id)}>
+              <div className="relative h-[86px]" style={themeStyle(`al:${c.id}`)}>
+                <ProfileBanner user={{ ...me, bannerPreset: `al:${c.id}`, bannerOptions: null }} height={56} />
+                <span className="absolute bottom-1.5 left-2 rounded-full">
+                  <Avatar userId={me.id} size={30} decoration={`al:${c.id}`} />
+                </span>
+              </div>
+            </Tile>
+            <button aria-label={favs.includes(c.id) ? `Tirar ${c.title} das favoritas` : `Favoritar ${c.title}`} onClick={() => setPrefs({ alFavorites: favs.includes(c.id) ? favs.filter((x) => x !== c.id) : [...favs, c.id] })} className={clsx('absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-sm', favs.includes(c.id) ? 'text-yellow-400' : 'text-white/70 hover:text-white')}>
+              ★
+            </button>
+          </div>
+        ))}
+      </div>
+      {!list.length && <p className="text-sm text-fg-muted">Marque coleções com ★ para guardar aqui.</p>}
+
+      {sel && (
+        <div className="rounded-2xl border border-line/[0.08] bg-bg-side p-4" data-testid="legend-detail">
+          <div className="mb-1 text-[11px] font-black uppercase tracking-wider text-fg-faint">
+            {AL_UNIVERSES[sel.universe]} · {AL_CHARACTERS[sel.character]?.name}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-xl font-black text-fg-strong">
+              {String(sel.n).padStart(2, '0')} — {sel.title}
+            </h4>
+            <span className="text-xs text-fg-muted">{sel.aesthetic}</span>
+            <span className="flex-1" />
+            <button className="btn-primary h-8 px-3 text-xs" onClick={() => applyAll(sel)}>
+              Aplicar conjunto completo
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2 xl:grid-cols-2">
+            {PARTS.map(([k, label, name]) => {
+              const on = current(k) === `al:${sel.id}`;
+              return (
+                <button key={k} aria-pressed={on} onClick={() => set({ [k]: on ? null : `al:${sel.id}` } as Partial<ProfileDraft>, { again: k === 'profileEffect' })} className={clsx('flex items-center gap-2 rounded-xl border px-3 py-2 text-left', on ? 'border-brand bg-brand/10' : 'border-line/[0.08] hover:border-line/20')}>
+                  <span className="w-16 shrink-0 text-[10px] font-black uppercase tracking-wider text-fg-faint">{label}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-fg-strong">{sel.names[name]}</span>
+                  <span className={clsx('text-xs font-semibold', on ? 'text-brand' : 'text-fg-muted')}>{on ? 'Aplicado' : 'Aplicar'}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-fg-faint">
+            Na mesma coleção: servidor <b className="text-fg-muted">{sel.names.server}</b> (Worlds Studio → Anime Legends) e cantinho <b className="text-fg-muted">{sel.names.spaces}</b> (Room Builder → Efeitos e temas).
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-line/[0.08] p-3">
+        <div className="mb-2 text-sm font-bold text-fg-strong">Minhas combinações</div>
+        <div className="flex flex-wrap gap-2">
+          {combos.map((c, i) => (
+            <span key={i} className="flex items-center gap-1 rounded-lg bg-line/[0.06] pl-2.5 text-xs font-semibold text-fg">
+              <button onClick={() => set(c.parts as Partial<ProfileDraft>, { again: true })}>{c.name}</button>
+              <button aria-label={`Apagar ${c.name}`} className="px-1.5 py-1 text-fg-faint hover:text-danger" onClick={() => setPrefs({ profileCombos: combos.filter((_, j) => j !== i) })}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input className="input h-8 w-44 text-xs" maxLength={30} placeholder="Nome da combinação" value={comboName} onChange={(e) => setComboName(e.target.value)} />
+          <button
+            className="btn-secondary h-8 px-3 text-xs"
+            disabled={!comboName.trim() || combos.length >= 12}
+            onClick={() => {
+              setPrefs({ profileCombos: [...getPrefs().profileCombos, { name: comboName.trim(), parts: { bannerPreset: d.bannerPreset, avatarDecoration: d.avatarDecoration, profileEffect: d.profileEffect, profileTheme: d.profileTheme, profileEntrance: d.profileEntrance } }] });
+              setComboName('');
+              toast('Combinação salva neste aparelho.', 'success');
+            }}
+          >
+            Salvar a atual
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -254,6 +254,7 @@ function ServerLayout() {
   const nav = useNavigate();
   useEffect(() => {
     if (!server) return;
+    if (channelId === 'showcase') return; // 2.2 Vitrine
     if (!channelId || !channel) {
       // pick last visited or first text channel
       let last: string | null = null;
@@ -277,8 +278,22 @@ function ServerLayout() {
     }
   }, [server, serverId, channelId, channel, nav]);
   if (!server) return <Navigate to="/channels/@me" replace />;
-  return <Sidebarred sidebar={<ChannelSidebar serverId={serverId!} />}>{channel ? <ChannelView channelId={channel.id} key={channel.id} /> : <EmptyServer />}</Sidebarred>;
+  return (
+    <Sidebarred sidebar={<ChannelSidebar serverId={serverId!} />}>
+      {channelId === 'showcase' ? (
+        <Suspense fallback={null}>
+          <ServerShowcase serverId={serverId!} />
+        </Suspense>
+      ) : channel ? (
+        <ChannelView channelId={channel.id} key={channel.id} />
+      ) : (
+        <EmptyServer />
+      )}
+    </Sidebarred>
+  );
 }
+
+const ServerShowcase = lazy(() => import('../studio/ServerShowcase').then((m) => ({ default: m.ServerShowcase })));
 
 function EmptyServer() {
   return <div className="flex flex-1 items-center justify-center text-fg-muted">Nenhum canal de texto disponível.</div>;

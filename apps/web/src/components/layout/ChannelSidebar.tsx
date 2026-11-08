@@ -1,8 +1,8 @@
 import { useMemo, useState, lazy, Suspense, useRef, useLayoutEffect, useEffect } from 'react';
-import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers, ServerAmbient, ServerName, PresentationBg } from '../studio/ServerScene';
+import { ServerCover, IconFrame, themeOf, useServerEffects, usePlainServers, ServerAmbient, ServerName, PresentationBg, ServerAtmosphere } from '../studio/ServerScene';
 import { borderClass } from '../profile/Cosmetics';
 import { useSettle } from '@/lib/perf';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Permissions, hasPermission, type Channel } from '@aldetes/shared';
 import { useStore, channelPermissions, isUnread, get, displayName, useStoreShallow } from '@/store';
@@ -177,8 +177,12 @@ export function ChannelSidebar({ serverId }: { serverId: string }) {
 
       {/* ambient effect: behind the channel list only — the list sits above it (z-10), messages are another column */}
       <div className="relative flex min-h-0 flex-1 flex-col">
+      <ServerAtmosphere theme={theme} />
       <ServerAmbient theme={theme} serverId={serverId} />
       <motion.div key={serverId} variants={listV} initial="hidden" animate="show" className="scroll-thin relative z-10 flex-1 overflow-y-auto px-2 pb-4 pt-2">
+        {theme.showcase.enabled && (
+          <NavLinkShowcase serverId={serverId} />
+        )}
         <WelcomeCard serverId={serverId} theme={theme} />
         {favChannels.length > 0 && (
           <motion.div variants={itemV} className="mb-2">
@@ -662,5 +666,17 @@ function VoiceRoom({
         })}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** 2.2: entry to the server's Vitrine (Showcase) at the top of the channel list. */
+function NavLinkShowcase({ serverId }: { serverId: string }) {
+  const nav = useNavigate();
+  const loc = useLocation();
+  const on = loc.pathname === `/channels/${serverId}/showcase`;
+  return (
+    <button onClick={() => nav(`/channels/${serverId}/showcase`)} aria-current={on ? 'page' : undefined} className={clsx('mb-1 flex h-9 w-full items-center gap-2 rounded-lg px-2 text-[14px] font-semibold transition-colors', on ? 'bg-line/[0.08] text-fg-strong' : 'text-fg-muted hover:bg-line/[0.05] hover:text-fg-strong')} data-testid="showcase-link">
+      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand/20 text-brand">✦</span> Vitrine do servidor
+    </button>
   );
 }

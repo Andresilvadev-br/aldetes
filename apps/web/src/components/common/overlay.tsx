@@ -8,7 +8,7 @@ import { useIsMobile, useBackToClose } from '@/lib/mobile';
 import { spring } from '@/lib/motion';
 
 // ---------------- Modal ----------------
-export function Modal({ onClose, children, className, title, subtitle, footer, wide }: { onClose: () => void; children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ onClose, children, className, title, subtitle, footer, wide, top }: { onClose: () => void; children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; footer?: ReactNode; wide?: boolean; /** above every other overlay (confirmations) */ top?: boolean }) {
   const mobile = useIsMobile();
   useBackToClose(onClose);
   useEffect(() => {
@@ -18,7 +18,7 @@ export function Modal({ onClose, children, className, title, subtitle, footer, w
   }, [onClose]);
   return createPortal(
     <motion.div
-      className={clsx('fixed inset-0 z-50 flex justify-center bg-black/70', mobile ? 'items-end p-0' : 'items-center p-4')}
+      className={clsx('fixed inset-0 flex justify-center bg-black/70', top ? 'z-[95]' : 'z-50', mobile ? 'items-end p-0' : 'items-center p-4')}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
@@ -307,6 +307,7 @@ export function ConfirmHost() {
   };
   return (
     <Modal
+      top
       onClose={() => done(false)}
       title={req.title}
       footer={

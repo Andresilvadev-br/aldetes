@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { DEFAULT_STUDIO, SERVER_SCENES, SERVER_ICON_ANIMS, SERVER_AMBIENTS, WORLD_TEMPLATES, type Server, type StudioTheme } from '@aldetes/shared';
+import { AL_CHARACTERS, AL_COLLECTIONS, AL_UNIVERSES, DEFAULT_STUDIO, SERVER_SCENES, SERVER_ICON_ANIMS, SERVER_AMBIENTS, WORLD_TEMPLATES, type Server, type StudioTheme } from '@aldetes/shared';
 import { motion } from 'motion/react';
 import { spring } from '@/lib/motion';
 import { useOffscreenPause } from '@/lib/perf';
@@ -11,15 +11,19 @@ import { Icon } from '../common/Icon';
 import { toast, toastError, confirmDialog } from '../common/overlay';
 import { ServerIcon } from '../layout/ServerRail';
 import { BANNERS, BADGE_LABEL, Badge, bannerVars, borderClass } from '../profile/Cosmetics';
-import { ServerCover, IconFrame, themeOf, luminance, ServerAmbient, ServerName, PresentationBg } from './ServerScene';
+import { ServerCover, IconFrame, themeOf, luminance, ServerAmbient, ServerName, PresentationBg, ServerAtmosphere, ATMOSPHERES } from './ServerScene';
 
+const ENTRANCES: Array<[StudioTheme['entrance'], string]> = [['none', 'Nenhuma'], ['cinematic', 'Cinematic Reveal'], ['holographic', 'Holographic Entrance'], ['icon-expand', 'Icon Expansion'], ['particle-reveal', 'Particle Reveal'], ['glass', 'Glass Transition'], ['sweep', 'Varredura'], ['bloom', 'Flor de luz'], ['glitch', 'Glitch']];
 const WCATS = [
   ['themes', 'Temas'],
+  ['atmosphere', 'Atmosfera'],
+  ['legends', 'Anime Legends'],
   ['banners', 'Banners'],
   ['icons', 'Ícones animados'],
   ['effects', 'Efeitos de servidor'],
   ['decor', 'Decorações'],
   ['collections', 'Coleções'],
+  ['showcase', 'Vitrine'],
 ] as const;
 type WCat = (typeof WCATS)[number][0];
 const NEW_TEMPLATES = new Set(['cyber-district', 'royal-obsidian', 'celestial', 'crimson-pulse', 'crystal-dimension']);
@@ -57,6 +61,7 @@ export function ServerStudio({ serverId }: { serverId: string }) {
   const [busy, setBusy] = useState(false);
   const [replay, setReplay] = useState(0);
   const [sceneFilter, setSceneFilter] = useState<'all' | 'new'>('all');
+  const [uni, setUni] = useState<keyof typeof AL_UNIVERSES>('jjk');
   const bannerInput = useRef<HTMLInputElement>(null);
   const iconInput = useRef<HTMLInputElement>(null);
 
@@ -278,7 +283,14 @@ export function ServerStudio({ serverId }: { serverId: string }) {
             </div>
           </Row>
           <Row label="Entrada ao abrir o servidor">
-            <Segmented id="entr" value={t.entrance} onChange={(v) => (apply({ entrance: v }), setReplay((r) => r + 1))} options={[['none', 'Nenhuma'], ['sweep', 'Varredura'], ['bloom', 'Flor de luz'], ['glitch', 'Glitch']]} />
+            <div className="flex flex-wrap gap-1.5">
+              {ENTRANCES.map(([v, l]) => (
+                <button key={v} aria-pressed={t.entrance === v} onClick={() => (apply({ entrance: v }), setReplay((r) => r + 1))} className={clsx('rounded-lg border px-2.5 py-1 text-xs font-semibold', t.entrance === v ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/[0.1] text-fg-muted hover:text-fg-strong')}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-fg-faint">Curta (menos de 1 s), opcional e nunca bloqueia: a lista de canais já funciona durante a entrada.</p>
           </Row>
         </Section>
       )}
@@ -332,6 +344,52 @@ export function ServerStudio({ serverId }: { serverId: string }) {
           </Row>
         </Section>
       )}
+
+      {cat === 'atmosphere' && (
+        <Section title="Atmosfera do servidor" desc="Iluminação, fundo e detalhes por trás da lista de canais e na Vitrine. Fica estático no Essencial e em quem escolheu a aparência padrão.">
+          <div className="grid grid-cols-2 gap-2 py-4 md:grid-cols-3">
+            {(['none', ...Object.keys(ATMOSPHERES)] as StudioTheme['atmosphere'][]).map((a) => (
+              <button key={a} aria-pressed={t.atmosphere === a} onClick={() => apply({ atmosphere: a })} className={clsx('overflow-hidden rounded-xl border-2 text-left', t.atmosphere === a ? 'border-brand' : 'border-transparent hover:border-line/20')}>
+                <Thumb className="relative block h-24 overflow-hidden bg-bg-side">
+                  <ServerAtmosphere theme={{ ...t, atmosphere: a }} compact />
+                </Thumb>
+                <span className="block px-2 py-1 text-xs font-bold text-fg">{a === 'none' ? 'Nenhuma' : ATMOSPHERES[a as keyof typeof ATMOSPHERES].label}</span>
+                {a !== 'none' && <span className="block px-2 pb-1.5 text-[10px] text-fg-muted">{ATMOSPHERES[a as keyof typeof ATMOSPHERES].desc}</span>}
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {cat === 'legends' && (
+        <Section title="Anime Legends — identidade de servidor" desc="Cena, partículas e cores da coleção no cabeçalho, na lista de canais e na Vitrine. Visuais originais, sem arte oficial.">
+          <div className="flex gap-1.5 py-3">
+            {(Object.entries(AL_UNIVERSES) as Array<[keyof typeof AL_UNIVERSES, string]>).map(([id, n]) => (
+              <button key={id} aria-pressed={uni === id} onClick={() => setUni(id)} className={clsx('rounded-lg px-3 py-1 text-xs font-bold', uni === id ? 'bg-brand text-white' : 'bg-line/[0.06] text-fg-muted')}>
+                {n}
+              </button>
+            ))}
+            {t.legend && (
+              <button className="ml-auto rounded-lg px-3 py-1 text-xs font-semibold text-fg-muted hover:text-danger" onClick={() => apply({ legend: null })}>
+                Tirar identidade
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 pb-4 md:grid-cols-3">
+            {AL_COLLECTIONS.filter((c) => c.universe === uni).map((c) => (
+              <button key={c.id} aria-pressed={t.legend === c.id} onClick={() => apply({ legend: c.id, accent: c.palette[0], nameEffect: t.nameEffect === 'none' ? 'glow' : t.nameEffect })} className={clsx('overflow-hidden rounded-xl border-2 text-left', t.legend === c.id ? 'border-brand' : 'border-transparent hover:border-line/20')}>
+                <Thumb className="relative block h-16 overflow-hidden" settle>
+                  {BANNERS[`al:${c.id}`]?.render()}
+                </Thumb>
+                <span className="block truncate px-2 pt-1 text-xs font-extrabold text-fg-strong">{c.names.server}</span>
+                <span className="block truncate px-2 pb-1.5 text-[10px] text-fg-muted">{AL_CHARACTERS[c.character]?.name} · {c.title}</span>
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {cat === 'showcase' && <ShowcaseEditor serverId={serverId} t={t} apply={apply} set={set} />}
 
       {cat === 'collections' && (
         <Section title="Coleções" desc="Banner, ícone animado, efeito, tema e decorações que combinam — as mesmas coleções do Identity Studio do perfil.">
@@ -421,10 +479,11 @@ function SceneTile({ active, label, onClick, children }: { active: boolean; labe
 }
 
 /** Pauses its content while off screen: only visible thumbnails animate. */
-function Thumb({ className, style, children }: { className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
+function Thumb({ className, style, children, settle }: { className?: string; style?: React.CSSProperties; children: React.ReactNode; /** static until hovered (catalog thumbnails) */ settle?: boolean }) {
   const pause = useOffscreenPause();
+  const [live, setLive] = useState(false);
   return (
-    <span ref={pause} className={clsx('block', className)} style={style}>
+    <span ref={pause} className={clsx('block', className)} style={style} data-settled={settle ? String(!live) : undefined} onPointerEnter={settle ? () => setLive(true) : undefined} onPointerLeave={settle ? () => setLive(false) : undefined}>
       {children}
     </span>
   );
@@ -520,5 +579,91 @@ function StudioPreview({ server, theme, replay, expanded }: { server: Server; th
         </div>
       )}
     </div>
+  );
+}
+
+/** Vitrine editor: recommended channels, highlights and events (real data saved with the theme). */
+function ShowcaseEditor({ serverId, t, apply, set }: { serverId: string; t: StudioTheme; apply: (p: Partial<StudioTheme>) => void; set: (p: Partial<StudioTheme>) => void }) {
+  const sc = t.showcase;
+  const chans = useStore((s) => Object.values(s.channels).filter((c) => c.serverId === serverId && c.type !== 'category').sort((a, b) => a.position - b.position));
+  const up = (p: Partial<StudioTheme['showcase']>) => apply({ showcase: { ...sc, ...p } });
+  const type = (p: Partial<StudioTheme['showcase']>) => set({ showcase: { ...sc, ...p } });
+  const local = (iso: string) => {
+    const d = new Date(iso);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  return (
+    <Section title="Vitrine do servidor" desc="Uma página de apresentação: informações, o que está acontecendo agora, canais recomendados, eventos e destaques.">
+      <Row label="Mostrar a Vitrine">
+        <div className="flex items-center gap-3">
+          <Switch checked={sc.enabled} onChange={(enabled) => up({ enabled })} />
+          <span className="text-sm text-fg-muted">Aparece no topo da lista de canais como “Vitrine do servidor”.</span>
+        </div>
+      </Row>
+      <Row label={`Canais recomendados (${sc.channels.length}/4)`}>
+        <div className="flex flex-wrap gap-1.5">
+          {chans.map((c) => {
+            const on = sc.channels.includes(c.id);
+            return (
+              <button key={c.id} aria-pressed={on} disabled={!on && sc.channels.length >= 4} onClick={() => up({ channels: on ? sc.channels.filter((x) => x !== c.id) : [...sc.channels, c.id] })} className={clsx('rounded-lg border px-2.5 py-1 text-xs font-semibold disabled:opacity-40', on ? 'border-brand bg-brand/15 text-fg-strong' : 'border-line/[0.1] text-fg-muted')}>
+                {c.type === 'voice' ? '🔊' : '#'} {c.name}
+              </button>
+            );
+          })}
+        </div>
+      </Row>
+      <Row label={`Eventos (${sc.events.length}/5)`}>
+        <div className="space-y-2">
+          {sc.events.map((e, i) => (
+            <div key={i} className="flex flex-wrap gap-2">
+              <input className="input min-w-[180px] flex-1" maxLength={80} placeholder="Nome do evento" value={e.title} onChange={(ev) => type({ events: sc.events.map((x, j) => (j === i ? { ...x, title: ev.target.value } : x)) })} />
+              <input className="input w-[210px]" type="datetime-local" aria-label="Data e hora" value={local(e.at)} onChange={(ev) => ev.target.value && type({ events: sc.events.map((x, j) => (j === i ? { ...x, at: new Date(ev.target.value).toISOString() } : x)) })} />
+              <select className="input w-[160px]" aria-label="Canal do evento" value={e.channelId ?? ''} onChange={(ev) => up({ events: sc.events.map((x, j) => (j === i ? { ...x, channelId: ev.target.value || null } : x)) })}>
+                <option value="">Sem canal</option>
+                {chans.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button className="icon-btn hover:text-danger" aria-label="Remover evento" onClick={() => up({ events: sc.events.filter((_, j) => j !== i) })}>
+                <Icon name="x" />
+              </button>
+            </div>
+          ))}
+          {sc.events.length < 5 && (
+            <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => up({ events: [...sc.events, { title: 'Noite de jogos', at: new Date(Date.now() + 86400000).toISOString(), channelId: null }] })}>
+              <Icon name="plus" size={13} /> Adicionar evento
+            </button>
+          )}
+        </div>
+      </Row>
+      <Row label={`Destaques (${sc.highlights.length}/3)`}>
+        <div className="space-y-2">
+          {sc.highlights.map((h, i) => (
+            <div key={i} className="grid gap-2 rounded-xl border border-line/[0.06] p-2 md:grid-cols-[1fr_1.4fr_160px_auto]">
+              <input className="input" maxLength={60} placeholder="Título" value={h.title} onChange={(ev) => type({ highlights: sc.highlights.map((x, j) => (j === i ? { ...x, title: ev.target.value } : x)) })} />
+              <input className="input" maxLength={200} placeholder="Texto curto" value={h.body} onChange={(ev) => type({ highlights: sc.highlights.map((x, j) => (j === i ? { ...x, body: ev.target.value } : x)) })} />
+              <select className="input" aria-label="Canal do destaque" value={h.channelId ?? ''} onChange={(ev) => up({ highlights: sc.highlights.map((x, j) => (j === i ? { ...x, channelId: ev.target.value || null } : x)) })}>
+                <option value="">Sem link</option>
+                {chans.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button className="icon-btn hover:text-danger" aria-label="Remover destaque" onClick={() => up({ highlights: sc.highlights.filter((_, j) => j !== i) })}>
+                <Icon name="x" />
+              </button>
+            </div>
+          ))}
+          {sc.highlights.length < 3 && (
+            <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => up({ highlights: [...sc.highlights, { title: 'Novidade', body: '', channelId: null }] })}>
+              <Icon name="plus" size={13} /> Adicionar destaque
+            </button>
+          )}
+        </div>
+      </Row>
+    </Section>
   );
 }

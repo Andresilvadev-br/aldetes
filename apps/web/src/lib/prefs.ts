@@ -88,6 +88,10 @@ export interface Prefs {
   streamVolumes: Record<string, number>;
   /** 2.0 Worlds: servers shown with the default look for ME only ("Usar aparência padrão") */
   plainServers: string[];
+  /** 2.2 favorites (this device): Room Builder objects, Anime Legends collections, saved profile combos */
+  roomFavorites: string[];
+  alFavorites: string[];
+  profileCombos: Array<{ name: string; parts: Record<string, string | null> }>;
   /** chat density */
   density: 'cozy' | 'compact' | 'spacious';
   streamQuality: '720p30' | '720p60' | '720p120' | '1080p30' | '1080p60' | '1080p120' | '1440p30' | '1440p60' | '1440p120';
@@ -143,6 +147,9 @@ const defaults: Prefs = {
   density: 'cozy',
   callView: {},
   plainServers: [],
+  roomFavorites: [],
+  alFavorites: [],
+  profileCombos: [],
   multiview: {},
   streamVolumes: {},
   streamQuality: '1080p60',

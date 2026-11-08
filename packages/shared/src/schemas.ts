@@ -1,3 +1,5 @@
+import { AL_IDS, AL_PROFILE_IDS } from './animeLegends';
+import { ROOM_ITEM_KEYS, WALLPAPERS, FLOOR_STYLES, ROOM_PARTICLES, validateLayout, type RoomObject } from './roomBuilder';
 import { z } from 'zod';
 
 export const usernameSchema = z
@@ -97,14 +99,15 @@ export const updateProfileSchema = z.object({
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   allowDmsFrom: z.enum(['everyone', 'friends', 'server_members']).optional(),
   allowFriendRequests: z.boolean().optional(),
-  bannerPreset: z.enum(BANNER_PRESETS).nullable().optional(),
-  profileEffect: z.enum(PROFILE_EFFECTS).nullable().optional(),
-  avatarDecoration: z.enum(AVATAR_DECORATIONS).nullable().optional(),
+  // Anime Legends elements are stored as `al:<collectionId>` in the same fields (2.2)
+  bannerPreset: z.enum([...BANNER_PRESETS, ...AL_PROFILE_IDS] as [string, ...string[]]).nullable().optional(),
+  profileEffect: z.enum([...PROFILE_EFFECTS, ...AL_PROFILE_IDS] as [string, ...string[]]).nullable().optional(),
+  avatarDecoration: z.enum([...AVATAR_DECORATIONS, ...AL_PROFILE_IDS] as [string, ...string[]]).nullable().optional(),
   profileEntrance: z.enum(PROFILE_ENTRANCES).nullable().optional(),
   pronouns: z.string().trim().max(40).nullable().optional(),
   profileLinks: z.array(profileLinkSchema).max(3).optional(),
   bannerOptions: bannerOptionsSchema.nullable().optional(),
-  profileTheme: z.enum(PROFILE_THEMES).nullable().optional(),
+  profileTheme: z.enum([...PROFILE_THEMES, ...AL_PROFILE_IDS] as [string, ...string[]]).nullable().optional(),
   profileDecor: profileDecorSchema.nullable().optional(),
 });
 
@@ -113,6 +116,17 @@ export const updateProfileSchema = z.object({
 export const SERVER_SCENES = ['aurora', 'galaxy', 'neon-grid', 'ocean', 'embers', 'neon-current', 'orbital', 'chroma-wave', 'zen-dust', 'neon-skyline', 'cosmic-horizon', 'digital-matrix', 'dreamscape', 'energy-core'] as const;
 export const SERVER_ICON_ANIMS = ['none', 'orbit-glow', 'crystal-shine', 'pulse-beacon', 'neon-trace', 'hologram'] as const;
 export const SERVER_AMBIENTS = ['none', 'ambient-particles', 'aurora-background', 'reactive-glow', 'digital-atmosphere', 'starlight'] as const;
+export const SERVER_ATMOSPHERES = ['none', 'cyber-city', 'celestial', 'japanese-night', 'luxury', 'mystic'] as const;
+export const SERVER_ENTRANCES_22 = ['cinematic', 'holographic', 'icon-expand', 'particle-reveal', 'glass'] as const;
+const snowflake = z.string().regex(/^[0-9]{1,24}$/);
+export const showcaseSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** recommended channels (ids of this server; unknown ids are simply not shown) */
+  channels: z.array(snowflake).max(4).default([]),
+  highlights: z.array(z.object({ title: z.string().trim().min(1).max(60), body: z.string().trim().max(200).default(''), channelId: snowflake.nullable().default(null) })).max(3).default([]),
+  events: z.array(z.object({ title: z.string().trim().min(1).max(80), at: z.string().datetime(), channelId: snowflake.nullable().default(null) })).max(5).default([]),
+});
+export type Showcase = z.infer<typeof showcaseSchema>;
 export const studioThemeSchema = z.object({
   /** Essencial */
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
@@ -127,7 +141,7 @@ export const studioThemeSchema = z.object({
   /** Signature */
   iconFrame: z.enum(['none', 'ring', 'neon', 'orbital']).default('none'),
   separator: z.enum(['line', 'glow', 'dots']).default('line'),
-  entrance: z.enum(['none', 'sweep', 'bloom', 'glitch']).default('none'),
+  entrance: z.enum(['none', 'sweep', 'bloom', 'glitch', ...SERVER_ENTRANCES_22]).default('none'),
   welcome: z
     .object({ enabled: z.boolean().default(false), title: z.string().trim().max(60).default(''), body: z.string().trim().max(240).default('') })
     .default({ enabled: false, title: '', body: '' }),
@@ -146,6 +160,12 @@ export const studioThemeSchema = z.object({
   surface: z.enum(['default', 'deep', 'tinted']).default('default'),
   /** 0–100: how strong scenes/textures/entrances are (the person's own motion settings still win) */
   intensity: z.number().int().min(0).max(100).default(70),
+  /** 2.2 Server Worlds: Anime Legends identity (cover + ambience of that collection) */
+  legend: z.enum(AL_IDS).nullable().default(null),
+  /** 2.2 atmosphere: lighting, background and details across header + channel list */
+  atmosphere: z.enum(SERVER_ATMOSPHERES).default('none'),
+  /** 2.2 Server Showcase (Vitrine) */
+  showcase: showcaseSchema.default({ enabled: false, channels: [], highlights: [], events: [] }),
 });
 export type StudioTheme = z.infer<typeof studioThemeSchema>;
 export const DEFAULT_STUDIO: StudioTheme = studioThemeSchema.parse({});
@@ -234,25 +254,48 @@ export const updateRoleSchema = createRoleSchema.partial().extend({ position: z.
 
 /* ---------------- Spaces (2.0): each person's own corner in the call ---------------- */
 /** Five ready-made 2.5D scenes. Everything is drawn by the app from these ids (no uploaded art, nothing remote). */
-export const SPACE_PRESETS = ['gamer', 'cozy', 'lounge', 'studio', 'minimal'] as const;
+export const SPACE_PRESETS = ['gamer', 'cozy', 'lounge', 'studio', 'minimal', 'office', 'japanese', 'anime', 'luxury'] as const;
 /** Furniture/details each scene can show (the renderer ignores ids a preset doesn't use). Max 6 per corner. */
 export const SPACE_ITEMS = ['desk', 'monitors', 'chair', 'bed', 'sofa', 'plant', 'shelf', 'lamp', 'neon', 'window', 'rug', 'speaker', 'easel', 'cat', 'posters'] as const;
-export const spaceSceneSchema = z.object({
-  preset: z.enum(SPACE_PRESETS).default('minimal'),
-  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#8b5cf6'),
-  lighting: z.enum(['day', 'night', 'neon', 'warm']).default('night'),
-  /** wall/background variant of the preset */
-  backdrop: z.enum(['a', 'b', 'c']).default('a'),
-  items: z.array(z.enum(SPACE_ITEMS)).max(6).default([]),
-  /** tiny looping details (monitor glow, lamp flicker…) — always off in Econômico/Reduzido, under load or off screen */
-  animated: z.boolean().default(true),
-  avatarPos: z.enum(['left', 'center', 'right']).default('center'),
+const objId = z.string().regex(/^[a-z0-9]{1,8}$/);
+export const roomObjectSchema = z.object({
+  i: objId,
+  k: z.enum(ROOM_ITEM_KEYS),
+  x: z.number().min(-10).max(110),
+  y: z.number().min(-10).max(70),
+  r: z.number().int().min(0).max(3).optional(),
+  p: objId.optional(),
 });
+export const spaceSceneSchema = z
+  .object({
+    preset: z.enum(SPACE_PRESETS).default('minimal'),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#8b5cf6'),
+    lighting: z.enum(['day', 'night', 'neon', 'warm']).default('night'),
+    /** wall/background variant of the preset */
+    backdrop: z.enum(['a', 'b', 'c']).default('a'),
+    items: z.array(z.enum(SPACE_ITEMS)).max(6).default([]),
+    /** tiny looping details (monitor glow, lamp flicker…) — always off in Econômico/Reduzido, under load or off screen */
+    animated: z.boolean().default(true),
+    avatarPos: z.enum(['left', 'center', 'right']).default('center'),
+    /** 2.2 Smart Room Builder: free furniture layout (when present it replaces `items`) */
+    objects: z.array(roomObjectSchema).max(48).optional(),
+    wall: z.enum(WALLPAPERS).optional(),
+    floor: z.enum(FLOOR_STYLES).optional(),
+    particles: z.enum(ROOM_PARTICLES).default('none'),
+    /** Anime Legends ambience (that collection's Spaces element) */
+    ambiance: z.enum(AL_IDS).nullable().default(null),
+  })
+  .superRefine((s, ctx) => {
+    if (!s.objects) return;
+    if (new Set(s.objects.map((o) => o.i)).size !== s.objects.length) ctx.addIssue({ code: 'custom', message: 'ids repetidos' });
+    const bad = validateLayout(s.objects as RoomObject[], s.avatarPos);
+    if (bad.length) ctx.addIssue({ code: 'custom', message: `posição inválida (${bad[0]!.why})`, path: ['objects'] });
+  });
 export type SpaceScene = z.infer<typeof spaceSceneSchema>;
 export const DEFAULT_SPACE: SpaceScene = spaceSceneSchema.parse({});
 
 /* ---------------- Together (2.0): collaboration tools inside a call ---------------- */
-export const TOGETHER_KINDS = ['poll', 'timer', 'notes', 'board'] as const;
+export const TOGETHER_KINDS = ['poll', 'timer', 'notes', 'board', 'roll'] as const;
 export type TogetherKind = (typeof TOGETHER_KINDS)[number];
 const cleanText = (max: number) => z.string().max(max).transform((v) => v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ''));
 export const togetherCreateSchema = z.discriminatedUnion('kind', [
@@ -266,6 +309,8 @@ export const togetherCreateSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('timer'), label: cleanText(60).default('Foco'), minutes: z.number().int().min(1).max(180).default(25) }),
   z.object({ kind: z.literal('notes'), title: cleanText(60).default('Notas') }),
   z.object({ kind: z.literal('board'), title: cleanText(60).default('Quadro') }),
+  /** 2.2 small activity: dice or "who goes first" draw among the people in the call (server-side randomness) */
+  z.object({ kind: z.literal('roll'), title: cleanText(60).default('Sorteio'), mode: z.enum(['dice', 'people']).default('dice'), sides: z.union([z.literal(6), z.literal(20), z.literal(100)]).default(6) }),
 ]);
 export type TogetherCreate = z.infer<typeof togetherCreateSchema>;
 
@@ -284,6 +329,7 @@ export const togetherOpSchema = z.object({
     z.object({ type: z.literal('text'), id: z.string().min(4).max(40), color, x: z.number().min(0).max(1), y: z.number().min(0).max(1), text: cleanText(200).pipe(z.string().trim().min(1)) }),
     z.object({ type: z.literal('erase'), ids: z.array(z.string().max(40)).min(1).max(200) }),
     z.object({ type: z.literal('clear') }),
+    z.object({ type: z.literal('roll') }),
   ]),
 });
 export type TogetherOp = z.infer<typeof togetherOpSchema>['op'];

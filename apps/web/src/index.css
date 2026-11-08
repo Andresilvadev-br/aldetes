@@ -581,3 +581,138 @@ body {
 [data-offscreen='true'] *, [data-offscreen='true'] *::before, [data-offscreen='true'] *::after { animation-play-state: paused !important; }
 /* 2.1 settle: decoration rests after a while without interaction (see lib/perf.ts useSettle) */
 [data-settled='true'] *, [data-settled='true'] *::before, [data-settled='true'] *::after { animation-play-state: paused !important; }
+
+/* =====================================================================================================
+   2.2 ANIME LEGENDS — original shapes driven by --a1/--a2/--a3 (collection palette). transform/opacity loops only,
+   paused by the same rules as every .bn banner (Essencial/Reduzido, load, settle, off screen).
+   ===================================================================================================== */
+.al-bn > svg { position: absolute; }
+.al-core { width: var(--core, 44px); height: var(--core, 44px); margin: calc(var(--core, 44px) / -2); border-radius: 50%; background: radial-gradient(circle, #fff, var(--a1) 40%, transparent 72%); animation-name: bn-core; }
+.al-orbit { left: 50%; top: 50%; width: var(--sz); height: calc(var(--sz) * .38); margin: calc(var(--sz) * -.19) 0 0 calc(var(--sz) / -2); border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--a1) 70%, transparent); transform: rotate(var(--tilt)); animation-name: al-orbit; animation-timing-function: linear; }
+.al-orbit::after { content: ''; position: absolute; left: 50%; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--a2); box-shadow: 0 0 8px var(--a1); }
+@keyframes al-orbit { from { transform: rotate(var(--tilt)) rotateX(0deg); } to { transform: rotate(calc(var(--tilt) + 360deg)); } }
+.al-warp { inset: 20% 30%; border-radius: 50%; background: radial-gradient(closest-side, transparent 60%, color-mix(in srgb, var(--a1) 30%, transparent) 70%, transparent); animation-name: al-warp; }
+@keyframes al-warp { 0%, 100% { transform: scale(.9); opacity: .5; } 50% { transform: scale(1.15); opacity: 1; } }
+.al-ring-x { left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; border-radius: 50%; border: 2px solid var(--a2); animation-name: al-ring-x; animation-timing-function: ease-out; }
+@keyframes al-ring-x { from { transform: scale(.3); opacity: 1; } to { transform: scale(5); opacity: 0; } }
+.al-converge { left: 50%; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--a2); box-shadow: 0 0 6px var(--a1); animation-name: al-converge; animation-timing-function: ease-in; }
+@keyframes al-converge { from { transform: rotate(var(--ang)) translateX(160px); opacity: 0; } 20% { opacity: 1; } to { transform: rotate(var(--ang)) translateX(0); opacity: 0; } }
+.al-eye { width: 70px; height: 70px; margin: -35px; border-radius: 50%; border: 2px solid var(--a1); box-shadow: 0 0 0 8px color-mix(in srgb, var(--a2) 18%, transparent), inset 0 0 18px var(--a1); animation-name: al-warp; }
+.al-shard { width: 10px; height: 22px; clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%); background: linear-gradient(var(--a2), var(--a1)); transform: rotate(var(--rot)); animation-name: cz-twinkle; }
+.al-shock { width: 60px; height: 60px; margin: -30px; border-radius: 50%; border: 3px solid var(--a1); animation-name: al-ring-x; animation-timing-function: ease-out; }
+.al-streak { left: -30%; width: 30%; height: 2px; background: linear-gradient(90deg, transparent, var(--a2)); animation-name: al-streak; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+@keyframes al-streak { from { transform: translateX(0); opacity: 0; } 20% { opacity: 1; } to { transform: translateX(480%); opacity: 0; } }
+.al-bolt { animation-name: al-bolt; animation-timing-function: steps(1); filter: drop-shadow(0 0 3px var(--a1)); }
+@keyframes al-bolt { 0%, 70%, 100% { opacity: 0; } 72%, 78% { opacity: 1; } 75% { opacity: .3; } }
+.al-flash { inset: 0; background: radial-gradient(60% 60% at 50% 30%, color-mix(in srgb, var(--a1) 35%, transparent), transparent); animation-name: al-bolt; animation-timing-function: steps(1); }
+.al-smoke { top: 10%; width: 60%; height: 90%; border-radius: 50%; background: radial-gradient(closest-side, var(--a1), transparent); opacity: .55; animation-name: bn-drift; }
+.al-seal { width: 120px; height: 120px; margin: -60px; border-radius: 50%; border: 1.5px dashed var(--a1); box-shadow: 0 0 0 10px transparent, 0 0 0 11px color-mix(in srgb, var(--a1) 50%, transparent); animation-name: cz-spin; animation-timing-function: linear; opacity: .8; }
+.al-rays { left: 50%; top: 40%; width: 260%; aspect-ratio: 1; margin-left: -130%; margin-top: -130%; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--a2) 22%, transparent) 0 6deg, transparent 6deg 18deg); -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent); animation-name: cz-spin; animation-timing-function: linear; }
+.al-wave { animation-name: al-wave; animation-timing-function: linear; }
+@keyframes al-wave { to { transform: translateX(-200px); } }
+.al-flame { bottom: -6%; width: 12%; height: var(--h, 50%); border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%; background: linear-gradient(transparent, var(--a1) 45%, var(--a2)); transform-origin: bottom; opacity: .7; animation-name: al-flame; }
+@keyframes al-flame { 0%, 100% { transform: scaleY(1) skewX(0); } 50% { transform: scaleY(1.12) skewX(4deg); } }
+.al-burst { width: 80px; height: 80px; margin: -40px; border-radius: 50%; background: radial-gradient(circle, #fff, var(--a2) 30%, var(--a1) 55%, transparent 70%); animation-name: al-burst; animation-timing-function: ease-out; }
+@keyframes al-burst { 0% { transform: scale(.2); opacity: 0; } 15% { opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.al-mist { left: -20%; width: 140%; height: 30%; border-radius: 50%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--a2) 35%, transparent), transparent); animation-name: bn-wave; }
+.al-moon { right: 12%; top: 12%; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #e9d5ff 60%, var(--a1)); box-shadow: 0 0 40px color-mix(in srgb, var(--a1) 60%, transparent); }
+.al-sun { left: 50%; top: 40%; width: 80px; height: 80px; margin: -40px; border-radius: 50%; background: radial-gradient(circle, #fff7d6, var(--a1) 55%, var(--a2)); box-shadow: 0 0 50px var(--a1); }
+/* particles (banner, effect, ambient) */
+.al-p { position: absolute; display: block; width: 4px; height: 4px; transform: scale(var(--s, 1)); animation-name: cz-twinkle; }
+.bn .al-p { animation-name: al-float; }
+@keyframes al-float { 0% { transform: translateY(10px) scale(var(--s, 1)); opacity: 0; } 20%, 80% { opacity: 1; } 100% { transform: translateY(-40px) scale(var(--s, 1)); opacity: 0; } }
+.al-p-orbit, .al-p-converge, .al-p-sparks { border-radius: 50%; background: var(--a2); box-shadow: 0 0 6px var(--a1); }
+.al-p-shards { width: 5px; height: 9px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: var(--a2); }
+.al-p-shock { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--a1); background: none; }
+.al-p-bolts { width: 2px; height: 14px; background: var(--a1); box-shadow: 0 0 6px var(--a1); }
+.al-p-smoke { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(closest-side, var(--a2), transparent); }
+.al-p-embers { width: 3px; height: 3px; border-radius: 50%; background: var(--a2); box-shadow: 0 0 6px var(--a1); }
+.al-p-petals { width: 7px; height: 5px; border-radius: 70% 0 70% 0; background: var(--a1); }
+.bn .al-p-petals, .sp-pt.al-p-petals { animation-name: al-petal; }
+@keyframes al-petal { 0% { transform: translate(0, -20px) rotate(var(--rot)) scale(var(--s, 1)); opacity: 0; } 15%, 85% { opacity: .95; } 100% { transform: translate(-40px, 60px) rotate(calc(var(--rot) + 260deg)) scale(var(--s, 1)); opacity: 0; } }
+.al-p-droplets { width: 4px; height: 6px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: var(--a2); }
+.al-p-snow { width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 4px var(--a1); }
+.bn .al-p-snow { animation-name: al-snow; }
+@keyframes al-snow { 0% { transform: translateY(-10px); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(60px) translateX(10px); opacity: 0; } }
+.al-p-rays { width: 2px; height: 10px; background: linear-gradient(transparent, var(--a1)); }
+.al-p-glyphs { width: 7px; height: 7px; border: 1.5px solid var(--a1); transform: rotate(45deg) scale(var(--s, 1)); }
+.al-fx .pfx-p { width: 5px; height: 5px; }
+/* frames (deco-al-<family>): palette from inline vars, static below 56 px like every frame */
+.deco-al { --a1: #7c5cff; --a2: #fff; }
+.deco-al::before, .deco-al::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.deco-al::before { border: 2.5px solid var(--a1); box-shadow: 0 0 10px color-mix(in srgb, var(--a1) 70%, transparent), inset 0 0 6px color-mix(in srgb, var(--a1) 50%, transparent); }
+.deco-al-orbit::after { inset: -6px -14%; border: 1.5px solid var(--a2); border-left-color: transparent; border-right-color: transparent; transform: rotate(-24deg); animation: al-frame-spin 5s linear infinite; }
+@keyframes al-frame-spin { to { transform: rotate(336deg); } }
+.deco-al-converge::after { inset: -5px; background: conic-gradient(from 0deg, transparent, var(--a2), transparent 30%, var(--a1), transparent 60%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); animation: cz-spin 2.2s linear infinite; }
+.deco-al-facet::after { inset: -6px; border-radius: 0; clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%); background: linear-gradient(135deg, color-mix(in srgb, var(--a2) 60%, transparent), transparent 40%, color-mix(in srgb, var(--a1) 60%, transparent)); -webkit-mask: radial-gradient(farthest-side, transparent 86%, #000 87%); mask: radial-gradient(farthest-side, transparent 86%, #000 87%); animation: deco-breathe 3.4s ease-in-out infinite; }
+.deco-al-spikes::after { inset: -9px; background: repeating-conic-gradient(var(--a1) 0 6deg, transparent 6deg 24deg); -webkit-mask: radial-gradient(farthest-side, transparent 80%, #000 81%); mask: radial-gradient(farthest-side, transparent 80%, #000 81%); animation: al-pulse 1.6s ease-in-out infinite; }
+@keyframes al-pulse { 0%, 100% { transform: scale(1); opacity: .8; } 50% { transform: scale(1.06); opacity: 1; } }
+.deco-al-electric::after { inset: -5px; border: 2px dashed var(--a1); animation: al-jitter 0.9s steps(3) infinite; }
+@keyframes al-jitter { 0% { transform: rotate(0); } 33% { transform: rotate(7deg); } 66% { transform: rotate(-5deg); } }
+.deco-al-shade::after { inset: -8px; background: radial-gradient(farthest-side, transparent 70%, color-mix(in srgb, var(--a1) 70%, transparent) 78%, transparent); animation: deco-breathe 4.5s ease-in-out infinite; }
+.deco-al-crown::after { inset: -14px 8% auto; height: 16px; border-radius: 0; background: var(--a1); clip-path: polygon(0 100%, 8% 30%, 22% 70%, 36% 0, 50% 60%, 64% 0, 78% 70%, 92% 30%, 100% 100%); filter: drop-shadow(0 0 4px var(--a1)); animation: al-pulse 3s ease-in-out infinite; }
+.deco-al-seal::after { inset: -8px; border: 1.5px dashed var(--a1); box-shadow: inset 0 0 0 3px transparent, inset 0 0 0 4px color-mix(in srgb, var(--a2) 60%, transparent); animation: cz-spin 12s linear infinite; }
+.deco-al-wave::after { inset: -6px; background: repeating-conic-gradient(from 0deg, var(--a1) 0 10deg, var(--a2) 10deg 20deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); opacity: .8; animation: cz-spin 9s linear infinite; }
+.deco-al-flame::after { inset: -10px; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--a1) 90%, transparent) 0 8deg, color-mix(in srgb, var(--a2) 70%, transparent) 8deg 14deg, transparent 14deg 20deg); -webkit-mask: radial-gradient(farthest-side, transparent 78%, #000 80%, transparent); mask: radial-gradient(farthest-side, transparent 78%, #000 80%, transparent); animation: al-pulse 1.2s ease-in-out infinite; }
+.deco-al-petal::after { inset: -8px; background: radial-gradient(4px 3px at 50% 4px, var(--a1) 90%, transparent), radial-gradient(4px 3px at 50% calc(100% - 4px), var(--a1) 90%, transparent), radial-gradient(3px 4px at 4px 50%, var(--a2) 90%, transparent), radial-gradient(3px 4px at calc(100% - 4px) 50%, var(--a2) 90%, transparent); animation: cz-spin 10s linear infinite; }
+.deco-al-rays::after { inset: -10px; background: repeating-conic-gradient(var(--a1) 0 3deg, transparent 3deg 15deg); -webkit-mask: radial-gradient(farthest-side, transparent 76%, #000 78%, transparent); mask: radial-gradient(farthest-side, transparent 76%, #000 78%, transparent); animation: cz-spin 20s linear infinite; }
+.deco-al-split::before { border: 0; background: conic-gradient(var(--a1) 0 50%, var(--a2) 50% 100%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); }
+.deco-al-split::after { inset: -4px; background: conic-gradient(from 90deg, transparent 0 40%, color-mix(in srgb, var(--a1) 60%, transparent) 50%, transparent 60%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); animation: cz-spin 4s linear infinite; }
+.deco-static.deco-al::after { animation: none !important; }
+:root[data-motion='performance'] .deco-al::after, :root[data-reduce-motion='true'] .deco-al::after, :root[data-load='high'] .deco-al::after, [data-offscreen='true'] .deco-al::after { animation-play-state: paused !important; }
+:root[data-motion='performance'] .al-bn *, :root[data-reduce-motion='true'] .al-bn *, :root[data-load='high'] .al-bn * { animation-play-state: paused !important; }
+/* 2.2 Room Builder rooms */
+.sp-builder { container-type: inline-size; }
+.sp-o { position: absolute; }
+.sp-pt { position: absolute; animation: al-float 7s ease-in-out infinite; }
+.sp-pt.al-p-petals { animation-name: al-petal; }
+.sp-pt.al-p-snow { animation-name: al-snow; }
+:root[data-motion='performance'] .sp-pt, :root[data-load='high'] .sp-pt, :root[data-load='mid'] .sp-pt { animation-play-state: paused !important; }
+/* Room Builder editor overlays */
+.rb-canvas .sp-o { cursor: grab; }
+.rb-canvas .sp-o:active { cursor: grabbing; }
+.rb-sel > .sp-o { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; border-radius: 4px; }
+.rb-ok > .sp-o { outline: 2px solid #22c55e; outline-offset: 2px; border-radius: 4px; background: #22c55e1a; }
+.rb-bad > .sp-o { outline: 2px solid #ef4444; outline-offset: 2px; border-radius: 4px; background: #ef444426; }
+.rb-moved > .sp-o { outline: 2px dashed #22d3ee; outline-offset: 2px; border-radius: 4px; }
+.rb-grid { background: linear-gradient(#ffffff14 1px, transparent 1px) 0 0/100% 9%, linear-gradient(90deg, #ffffff14 1px, transparent 1px) 0 0/4% 100%; clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%); }
+/* 2.2 Server Atmospheres (behind the channel list) */
+.atm { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.atm > i { position: absolute; display: block; }
+.atm-cyber-city { background: linear-gradient(180deg, color-mix(in srgb, var(--sa) 10%, transparent), transparent 40%, color-mix(in srgb, #ff2d78 10%, transparent)); }
+.atm-sky { inset: 0; background: radial-gradient(80% 30% at 50% 100%, color-mix(in srgb, #ff2d78 22%, transparent), transparent); }
+.atm-grid { left: -30%; right: -30%; bottom: 0; height: 22%; background: linear-gradient(color-mix(in srgb, var(--sa) 40%, transparent) 1px, transparent 1px) 0 0/100% 14px, linear-gradient(90deg, color-mix(in srgb, var(--sa) 40%, transparent) 1px, transparent 1px) 0 0/22px 100%; transform: perspective(200px) rotateX(55deg); transform-origin: bottom; opacity: .45; }
+.atm-bldg { bottom: 22%; width: 10%; background: #05060d; border-top: 1px solid color-mix(in srgb, var(--sa) 60%, transparent); opacity: .7; }
+.atm-scan { inset: 0; background: repeating-linear-gradient(0deg, #ffffff06 0 1px, transparent 1px 3px); }
+.atm-celestial { background: linear-gradient(180deg, #070b24aa, transparent 70%); }
+.atm-neb { inset: 0; background: radial-gradient(50% 30% at 30% 25%, color-mix(in srgb, var(--sa) 26%, transparent), transparent), radial-gradient(40% 25% at 75% 60%, color-mix(in srgb, #f472b6 18%, transparent), transparent); }
+.atm-star { width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: cz-twinkle 5s ease-in-out infinite; }
+.atm-japanese-night { background: linear-gradient(180deg, #0b0f2a99, transparent 60%); }
+.atm-moon { right: 10%; top: 4%; width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #fde2e4 70%); box-shadow: 0 0 30px #fde2e480; opacity: .85; }
+.atm-mtn { left: 0; right: 0; bottom: 0; height: 18%; background: linear-gradient(#0a0c1d, #05060f); clip-path: polygon(0 60%, 18% 20%, 34% 55%, 52% 10%, 70% 50%, 86% 25%, 100% 55%, 100% 100%, 0 100%); opacity: .8; }
+.atm-lantern { width: 12px; height: 18px; border-radius: 40%; background: radial-gradient(circle, #fff3d6, var(--sa)); box-shadow: 0 0 16px color-mix(in srgb, var(--sa) 70%, transparent); transform-origin: top; animation: atm-sway 4s ease-in-out infinite; }
+@keyframes atm-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+.atm-luxury { background: linear-gradient(180deg, #000000a0, #0a0805a0); }
+.atm-marble { inset: 0; background: linear-gradient(115deg, transparent 40%, #ffffff0d 42%, transparent 45%), linear-gradient(65deg, transparent 62%, #ffffff0a 63%, transparent 66%); }
+.atm-gold { left: 8%; right: 8%; height: 1px; background: linear-gradient(90deg, transparent, var(--sa), transparent); opacity: .7; }
+.atm-sheen { top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, #ffffff0d, transparent); animation: bn-sweep 9s linear infinite; }
+.atm-mystic { background: linear-gradient(180deg, color-mix(in srgb, var(--sa) 10%, transparent), transparent 60%); }
+.atm-fog { left: -20%; width: 140%; height: 22%; border-radius: 50%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--sa) 18%, transparent), color-mix(in srgb, #2dd4bf 12%, transparent), transparent); animation: bn-wave 18s ease-in-out infinite; }
+.atm-rune { left: 50%; top: 45%; width: 180px; height: 180px; margin: -90px; border-radius: 50%; border: 1px dashed color-mix(in srgb, var(--sa) 45%, transparent); box-shadow: inset 0 0 0 14px transparent, inset 0 0 0 15px color-mix(in srgb, var(--sa) 25%, transparent); animation: cz-spin 40s linear infinite; }
+:root[data-motion='performance'] .atm *, :root[data-reduce-motion='true'] .atm *, :root[data-load='mid'] .atm *, :root[data-load='high'] .atm * { animation-play-state: paused !important; }
+/* 2.2 server entrances (short, optional, never block) */
+.studio-entr-cinematic::before, .studio-entr-cinematic::after { content: ''; position: absolute; left: 0; right: 0; height: 22%; background: #000; animation: entr-bars .8s cubic-bezier(.22,1,.36,1) both; }
+.studio-entr-cinematic::before { top: 0; transform-origin: top; }
+.studio-entr-cinematic::after { bottom: 0; transform-origin: bottom; }
+@keyframes entr-bars { 0%, 35% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+.studio-entr-holographic { background: repeating-linear-gradient(0deg, rgb(34 211 238 / .18) 0 2px, transparent 2px 5px), linear-gradient(180deg, transparent, rgb(34 211 238 / .35), transparent); background-size: 100% 100%, 100% 40%; background-repeat: repeat, no-repeat; animation: entr-holo .75s ease-out both; }
+@keyframes entr-holo { 0% { background-position: 0 0, 0 -40%; opacity: 1; } 80% { opacity: .8; } 100% { background-position: 0 0, 0 140%; opacity: 0; } }
+.studio-entr-icon-expand { background: radial-gradient(circle at 12% 78%, var(--sa, rgb(var(--brand))) 0, transparent 2%); animation: entr-expand .8s cubic-bezier(.22,1,.36,1) both; }
+@keyframes entr-expand { from { background-size: 100% 100%; opacity: .9; transform: scale(1); } to { transform: scale(30); opacity: 0; } }
+.studio-entr-particle-reveal { background: radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(2px 2px at 60% 70%, #fff, transparent), radial-gradient(2px 2px at 80% 20%, #fff, transparent), radial-gradient(2px 2px at 35% 80%, #fff, transparent), radial-gradient(2px 2px at 50% 45%, var(--sa, #fff), transparent); background-size: 60px 60px; animation: entr-particles .8s ease-out both; }
+@keyframes entr-particles { 0% { opacity: 1; background-size: 20px 20px; } 100% { opacity: 0; background-size: 140px 140px; } }
+.studio-entr-glass { background: linear-gradient(110deg, rgb(255 255 255 / .22), rgb(255 255 255 / .06) 60%, rgb(255 255 255 / .18)); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .25); animation: entr-glass .7s cubic-bezier(.22,1,.36,1) both; }
+@keyframes entr-glass { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-105%); opacity: .3; } }
+/* Room Builder: objects glide into place after a drop/auto-arrange (not while dragging) */
+.rb-canvas:not(.rb-dragging) .sp-o { transition: left .22s cubic-bezier(.22,1,.36,1), bottom .22s cubic-bezier(.22,1,.36,1), width .22s, height .22s; }
+:root[data-reduce-motion='true'] .rb-canvas .sp-o { transition: none; }

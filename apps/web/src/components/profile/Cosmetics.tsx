@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import clsx from 'clsx';
-import type { BannerOptions } from '@aldetes/shared';
+import { AL_COLLECTIONS, alOf, type BannerOptions } from '@aldetes/shared';
+import { AlBanner, AlEffect, alFrameFamily, alTheme, alVars } from './AnimeLegends';
 import type { PublicUser } from '@aldetes/shared';
 import { colorFor } from '../common/Avatar';
 import { useOffscreenPause } from '@/lib/perf';
@@ -456,8 +457,9 @@ export function AvatarDecoration({ id, size, animate }: { id: string | null | un
   if (!id || !DECORATIONS[id] || size < 20) return null;
   const pad = Math.max(2, Math.round(size * (size < 40 ? 0.06 : 0.09)));
   const live = animate ?? size >= 56;
+  const al = alOf(id);
   return (
-    <span aria-hidden className={clsx('deco', `deco-${id}`, !live && 'deco-static')} style={{ position: 'absolute', inset: -pad, borderRadius: '50%', pointerEvents: 'none', zIndex: 1 }}>
+    <span aria-hidden className={clsx('deco', al ? `deco-al deco-al-${alFrameFamily(al)}` : `deco-${id}`, !live && 'deco-static')} style={{ position: 'absolute', inset: -pad, borderRadius: '50%', pointerEvents: 'none', zIndex: 1, ...(al ? alVars(al) : {}) }}>
       {id === 'plasma-crown' && [-48, -24, 0, 24, 48].map((r, i) => <i key={r} style={{ rotate: `${r}deg`, animationDelay: `${-i * 0.27}s` }} />)}
       {id === 'orbital' && <span className="deco-orbit" />}
       {id === 'zen-dust' && [0, 1, 2].map((i) => <span key={i} className="deco-mote" style={{ animationDelay: `${-i * 1.3}s`, left: `${20 + i * 28}%` }} />)}
@@ -679,3 +681,12 @@ export function Badge({ id, size = 16 }: { id: string | null | undefined; size?:
 }
 export const nameClass = (effect: string | null | undefined) => (effect === 'glow' ? 'nm-glow' : effect === 'gradient' ? 'nm-gradient' : effect === 'shimmer' ? 'nm-shimmer' : '');
 export const borderClass = (b: string | null | undefined) => (b === 'flow' ? 'cb-flow' : b === 'pulse' ? 'cb-pulse' : '');
+
+/* ---------------- 2.2 Anime Legends: every collection element registered in the shared catalogs ---------------- */
+for (const c of AL_COLLECTIONS) {
+  const id = `al:${c.id}`;
+  BANNERS[id] = { label: c.names.banner, tag: 'anime', render: () => <AlBanner c={c} /> };
+  DECORATIONS[id] = { label: c.names.frame, collection: c.title };
+  EFFECTS[id] = { label: c.names.effect, render: () => <AlEffect c={c} /> };
+  PROFILE_THEMES[id] = alTheme(c);
+}

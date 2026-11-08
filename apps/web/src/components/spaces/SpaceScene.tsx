@@ -1,6 +1,7 @@
 import { memo, type CSSProperties, type ReactNode } from 'react';
 import clsx from 'clsx';
-import { DEFAULT_SPACE, spaceSceneSchema, type SpaceScene as Scene } from '@aldetes/shared';
+import { DEFAULT_SPACE, ROOM_PRESETS, spaceSceneSchema, type SpaceScene as Scene } from '@aldetes/shared';
+import { RoomView } from './Room';
 
 /**
  * Spaces — one person's corner, drawn in 2.5D with plain layers (gradients + a perspective floor plane).
@@ -16,7 +17,18 @@ export const PRESETS: Record<Scene['preset'], { label: string; desc: string; def
   lounge: { label: 'Lounge futurista', desc: 'Sofá, janelão da cidade e neon', defaults: { lighting: 'night', accent: '#22d3ee', items: ['sofa', 'window', 'neon', 'plant', 'rug', 'lamp'] } },
   studio: { label: 'Estúdio criativo', desc: 'Cavalete, estante e luz do dia', defaults: { lighting: 'day', accent: '#a855f7', items: ['easel', 'shelf', 'window', 'plant', 'desk', 'lamp'] } },
   minimal: { label: 'Minimalista', desc: 'Pouca coisa, muita calma', defaults: { lighting: 'day', accent: '#8b5cf6', items: ['plant', 'window', 'rug'] } },
+  office: { label: 'Escritório moderno', desc: 'Mesa, estante e muita luz', defaults: { lighting: 'day', accent: '#0ea5e9' } },
+  japanese: { label: 'Quarto japonês', desc: 'Futon, tatame e lanternas', defaults: { lighting: 'warm', accent: '#e11d48' } },
+  anime: { label: 'Anime Legends Room', desc: 'Colecionáveis, pôsteres e estrelas', defaults: { lighting: 'night', accent: '#a855f7' } },
+  luxury: { label: 'Apartamento de luxo', desc: 'Mármore, sofá e luz baixa', defaults: { lighting: 'night', accent: '#eab308' } },
 };
+
+/** 2.2 Smart Room Builder starter rooms (editable layouts) mapped to the scene presets. */
+export const BUILDER_PRESET: Record<string, Scene['preset']> = { gamer: 'gamer', cozy: 'cozy', office: 'office', lounge: 'lounge', japanese: 'japanese', minimal: 'minimal', anime: 'anime', luxury: 'luxury' };
+export function presetScene(id: keyof typeof ROOM_PRESETS, base: Partial<Scene> = {}): Scene {
+  const r = ROOM_PRESETS[id]!;
+  return { ...DEFAULT_SPACE, ...base, preset: BUILDER_PRESET[id] ?? 'minimal', lighting: r.lighting, accent: r.accent, wall: r.wall, floor: r.floor, particles: r.particles, objects: r.objects.map((o) => ({ ...o })), items: [] };
+}
 
 export const ITEM_LABEL: Record<Scene['items'][number], string> = {
   desk: 'Mesa', monitors: 'Monitores', chair: 'Cadeira gamer', bed: 'Cama', sofa: 'Sofá', plant: 'Planta', shelf: 'Estante', lamp: 'Luminária',
@@ -33,11 +45,12 @@ export function sceneOf(raw: unknown, userId?: string): Scene {
     const r = spaceSceneSchema.safeParse(raw);
     if (r.success) return r.data;
   }
-  if (!userId) return { ...DEFAULT_SPACE, ...PRESETS.minimal.defaults };
+  if (!userId) return presetScene('minimal');
   let h = 0;
   for (const ch of userId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const preset = (Object.keys(PRESETS) as Scene['preset'][])[h % 5]!;
-  return { ...DEFAULT_SPACE, preset, ...PRESETS[preset].defaults, backdrop: (['a', 'b', 'c'] as const)[(h >>> 3) % 3]!, avatarPos: 'center' };
+  // someone who never chose gets one of the 8 furnished starter rooms (always the same for that person)
+  const ids = Object.keys(ROOM_PRESETS) as Array<keyof typeof ROOM_PRESETS>;
+  return presetScene(ids[h % ids.length]!);
 }
 
 const WALLS: Record<Scene['lighting'], Record<Scene['backdrop'], [string, string]>> = {
@@ -166,11 +179,19 @@ function Item({ id, accent, lighting, anim }: { id: Scene['items'][number]; acce
 
 const AVATAR_X = { left: '28%', center: '50%', right: '72%' } as const;
 
+
 /**
  * The corner. `density` follows the call size: full (1–2), normal (3–6), light (7–10: 3 items, no loops),
  * mini (streams on screen: backdrop + person only). `children` is the person (avatar + name), placed on the floor.
  */
 export const SpaceScene = memo(function SpaceScene({ scene, density, children, worldTint }: { scene: Scene; density: Density; children?: ReactNode; worldTint?: string | null }) {
+  // 2.2: rooms made in the Smart Room Builder (free layout); older corners keep the slot renderer below
+  if (scene.objects)
+    return (
+      <RoomView scene={scene} density={density} worldTint={worldTint}>
+        {children}
+      </RoomView>
+    );
   const [w0, w1] = WALLS[scene.lighting][scene.backdrop];
   const [f0, f1] = FLOORS[scene.lighting];
   const items = density === 'mini' ? [] : density === 'light' ? scene.items.slice(0, 3) : scene.items;

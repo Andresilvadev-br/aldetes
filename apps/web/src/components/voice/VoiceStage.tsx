@@ -208,7 +208,7 @@ function OwnStreamBar() {
   const since = useVoice((v) => v.screenSince);
   const info = useVoice((v) => v.screenInfo);
   const st = useVoice((v) => v.screenStats);
-  const echoRisk = useVoice((v) => v.screenAudioIsolated === false);
+  const guard = useVoice((v) => v.screenAudioGuard);
   const [now, setNow] = useState(Date.now());
   const [change, setChange] = useState(false);
   useEffect(() => {
@@ -263,9 +263,9 @@ function OwnStreamBar() {
         </button>
       </div>
       {advice && <div className="self-start rounded-xl border border-warn/30 bg-black/80 px-3 py-1.5 text-xs text-warn">{advice}</div>}
-      {echoRisk && (
-        <div className="flex items-center gap-2 self-start rounded-xl border border-warn/30 bg-black/80 px-3 py-1.5 text-xs text-warn">
-          O som do PC pode levar as vozes da call (Windows 10): quem assiste pode se ouvir de volta.
+      {(guard === 'ducking' || guard === 'echo-detected') && (
+        <div className="flex items-center gap-2 self-start rounded-xl border border-ok/30 bg-black/80 px-3 py-1.5 text-xs text-white/85" data-testid="echo-guard">
+          {guard === 'echo-detected' ? 'Eco detectado no som do PC: ' : 'Proteção contra eco ativa: '}o som do PC abaixa enquanto alguém da call fala, para ninguém se ouvir de volta.
           <button className="rounded-md bg-white/10 px-2 py-0.5 font-semibold text-white hover:bg-white/20" onClick={() => void stopScreenAudio()}>
             Tirar o som
           </button>

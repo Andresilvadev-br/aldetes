@@ -14,6 +14,7 @@ const KIND: Record<TogetherSession['kind'], { label: string; icon: IconName }> =
   timer: { label: 'Cronômetro', icon: 'zap' },
   notes: { label: 'Notas', icon: 'edit' },
   board: { label: 'Quadro', icon: 'palette' },
+  roll: { label: 'Sorteio', icon: 'sparkle' },
 };
 
 /**
@@ -69,7 +70,7 @@ export default function TogetherPanel({ channelId, serverId, expanded, onExpand,
           <motion.div key={current.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={spring.gentle} className="flex h-full min-h-0 flex-col">
             <ToolHeader s={current} serverId={serverId} />
             <div className="min-h-0 flex-1 overflow-auto p-3">
-              {current.kind === 'poll' ? <PollView s={current} serverId={serverId} /> : current.kind === 'timer' ? <TimerView s={current} serverId={serverId} /> : current.kind === 'notes' ? <NotesView s={current} serverId={serverId} /> : <BoardView s={current} serverId={serverId} />}
+              {current.kind === 'poll' ? <PollView s={current} serverId={serverId} /> : current.kind === 'timer' ? <TimerView s={current} serverId={serverId} /> : current.kind === 'notes' ? <NotesView s={current} serverId={serverId} /> : current.kind === 'roll' ? <RollView s={current} serverId={serverId} /> : <BoardView s={current} serverId={serverId} />}
             </div>
           </motion.div>
         )}
@@ -84,7 +85,7 @@ function useCanModerate(s: TogetherSession, serverId: string | null) {
   useStore((st) => st.channels[s.channelId]);
   return s.createdBy === me || (!!serverId && hasPermission(channelPermissions(s.channelId), Permissions.MANAGE_MESSAGES));
 }
-const titleOf = (s: TogetherSession) => (s.kind === 'poll' ? (s.state.poll?.question ?? 'Enquete') : s.kind === 'timer' ? (s.state.timer?.label ?? 'Cronômetro') : s.kind === 'notes' ? (s.state.notes?.title ?? 'Notas') : (s.state.board?.title ?? 'Quadro')).slice(0, 22);
+const titleOf = (s: TogetherSession) => (s.kind === 'poll' ? (s.state.poll?.question ?? 'Enquete') : s.kind === 'timer' ? (s.state.timer?.label ?? 'Cronômetro') : s.kind === 'notes' ? (s.state.notes?.title ?? 'Notas') : s.kind === 'roll' ? (s.state.roll?.title ?? 'Sorteio') : (s.state.board?.title ?? 'Quadro')).slice(0, 22);
 
 function ToolHeader({ s, serverId }: { s: TogetherSession; serverId: string | null }) {
   const canClose = useCanModerate(s, serverId); // o servidor confere de novo
@@ -113,6 +114,8 @@ function Creator({ channelId, onDone }: { channelId: string; onDone: (id?: strin
   const [opts, setOpts] = useState(['', '']);
   const [minutes, setMinutes] = useState(25);
   const [dur, setDur] = useState<number | null>(null);
+  const [rollMode, setRollMode] = useState<'dice' | 'people'>('dice');
+  const [sides, setSides] = useState<6 | 20 | 100>(6);
   const [busy, setBusy] = useState(false);
   const go = async () => {
     setBusy(true);
@@ -122,7 +125,9 @@ function Creator({ channelId, onDone }: { channelId: string; onDone: (id?: strin
           ? await createTogether(channelId, { kind, question: q, options: opts.map((o) => o.trim()).filter(Boolean), durationSec: dur })
           : kind === 'timer'
             ? await createTogether(channelId, { kind, label: q.trim() || 'Foco', minutes })
-            : await createTogether(channelId, { kind, title: q.trim() || KIND[kind].label });
+            : kind === 'roll'
+              ? await createTogether(channelId, { kind, title: q.trim() || (rollMode === 'people' ? 'Quem começa?' : 'Dado'), mode: rollMode, sides })
+              : await createTogether(channelId, { kind, title: q.trim() || KIND[kind].label });
       onDone(s.id);
     } catch (e) {
       toastError(e);
@@ -163,6 +168,21 @@ function Creator({ channelId, onDone }: { channelId: string; onDone: (id?: strin
             </select>
           </div>
         </>
+      )}
+      {kind === 'roll' && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+          {(['dice', 'people'] as const).map((m) => (
+            <button key={m} aria-pressed={rollMode === m} onClick={() => setRollMode(m)} className={clsx('rounded-lg px-2 py-1 font-semibold', rollMode === m ? 'bg-brand/15 text-fg-strong' : 'bg-line/[0.05]')}>
+              {m === 'dice' ? 'Dado' : 'Sortear alguém da call'}
+            </button>
+          ))}
+          {rollMode === 'dice' &&
+            ([6, 20, 100] as const).map((n) => (
+              <button key={n} aria-pressed={sides === n} onClick={() => setSides(n)} className={clsx('rounded-lg px-2 py-1 font-semibold', sides === n ? 'bg-brand/15 text-fg-strong' : 'bg-line/[0.05]')}>
+                d{n}
+              </button>
+            ))}
+        </div>
       )}
       {kind === 'timer' && (
         <label className="flex items-center gap-2 text-xs text-fg-muted">
@@ -523,3 +543,37 @@ const fmt = (ms: number) => {
   const s = Math.ceil(ms / 1000);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
+
+/* ---------------- Sorteio (2.2): dice / pick someone in the call — drawn by the server, same result for everyone ---------------- */
+function RollView({ s }: { s: TogetherSession; serverId: string | null }) {
+  const r = s.state.roll!;
+  const last = r.results[0];
+  const [busy, setBusy] = useState(false);
+  const roll = async () => {
+    setBusy(true);
+    await togetherOp(s, { type: 'roll' }).catch(toastError);
+    setBusy(false);
+  };
+  return (
+    <div className="flex flex-1 flex-col items-center gap-3 p-4" data-testid="together-roll">
+      <AnimatePresence mode="popLayout">
+        <motion.div key={last ? last.at : 'none'} initial={{ scale: 0.6, rotate: -20, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={spring.snappy} className="flex h-28 w-28 items-center justify-center rounded-3xl border border-brand/40 bg-brand/10 text-4xl font-black text-fg-strong">
+          {!last ? '?' : r.mode === 'people' ? <span className="px-2 text-center text-base leading-tight">{last.pick ? displayName(last.pick, null) : '—'}</span> : last.value}
+        </motion.div>
+      </AnimatePresence>
+      <button className="btn-primary" disabled={busy} onClick={() => void roll()}>
+        {r.mode === 'people' ? 'Sortear' : `Rolar d${r.sides}`}
+      </button>
+      {r.results.length > 0 && (
+        <ul className="w-full space-y-1 text-xs text-fg-muted">
+          {r.results.slice(0, 8).map((x) => (
+            <li key={x.at + x.by} className="flex justify-between gap-2">
+              <span className="truncate">{displayName(x.by, null)} {r.mode === 'people' ? 'sorteou' : 'tirou'}</span>
+              <b className="text-fg">{r.mode === 'people' ? (x.pick ? displayName(x.pick, null) : '—') : x.value}</b>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
