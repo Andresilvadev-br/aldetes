@@ -285,3 +285,13 @@ O relatório completo está em **`docs/V1_0.md`**: checklist com status real, de
 - Windows real e dois PCs para o retorno de áudio;
 - monitores de 120/144/165 Hz;
 - dois monitores físicos.
+
+## 16. Versão 2.2.0 — Beyond (Anime Legends · Room Builder · Worlds 2.0)
+| Suite | Resultado |
+|---|---|
+| `pnpm test` (shared + web + server) | 25 + 7 + 31 = 63/63 (inclui regras do Room Builder e catálogo de 27 coleções / 162 nomes) |
+| `e2e/v22-beyond.mjs` | 13/13 |
+| `e2e/v21-identity.mjs` · `v1-features` · `v2-spaces` | 16/16 · 28/28 · 13/13 |
+| `v2-together` · `v2-multiview` · `multi-stream` · `media` · `two-clients` · `stream-options` | 9/9 · 7/7 · 8/8 · 5/5 · 17/17 · 7/7 |
+
+Não testado aqui: Windows real (a proteção contra eco depende do áudio do sistema do Windows; aqui só se verificou que transmissões com e sem som continuam funcionando).

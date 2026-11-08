@@ -30,6 +30,23 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2.2.0',
+    date: '2026-11-08',
+    title: 'Beyond',
+    tagline: 'Anime Legends, servidores com atmosfera e um cantinho que você decora móvel por móvel.',
+    highlights: [
+      { id: 'legends', category: 'Perfil', demo: 'profile', explore: 'profile', title: 'Anime Legends', body: '27 coleções em três universos: banner, moldura, efeito, tema, identidade de servidor e ambientação de Spaces. Aplique o conjunto ou misture peças. Visuais originais.' },
+      { id: 'room-builder', category: 'Calls', demo: 'spaces', explore: 'spaces', title: 'Smart Room Builder', body: 'Arraste móveis pelo seu cantinho: nada atravessa nada, o monitor encaixa na mesa, o tapete vai embaixo do sofá. Organizar automaticamente, 8 cenários prontos, desfazer e refazer.' },
+      { id: 'worlds2', category: 'Servidores', demo: 'studio', explore: 'studio', title: 'Server Worlds 2.0', body: 'Atmosferas (Cyber City, Celestial, Japanese Night, Luxury, Mystic), cinco entradas novas e a Vitrine do servidor com o que está acontecendo agora, eventos e destaques.' },
+      { id: 'roll', category: 'Calls', demo: 'together', title: 'Sorteio no Together', body: 'Role um dado ou sorteie alguém da call. Quem sorteia é o servidor: todo mundo vê o mesmo resultado.' },
+    ],
+    fixes: [
+      'Quem assiste uma transmissão não ouve mais as vozes da call de volta no som do PC',
+      'Janelas de confirmação não ficam mais escondidas atrás de outras janelas',
+      'Digitar fica mais leve enquanto outras pessoas estão digitando',
+    ],
+  },
+  {
     version: '2.1.0',
     date: '2026-11-06',
     title: 'Identity & Worlds',

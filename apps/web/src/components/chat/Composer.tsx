@@ -60,20 +60,6 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
   const lastTyping = useRef(0);
   const perms = channelPermissions(channelId);
   const canAttach = hasPermission(perms, Permissions.ATTACH_FILES);
-  const typingUsers = useStoreShallow((s) => {
-    const t = s.typing[channelId] ?? {};
-    const now = Date.now();
-    return Object.entries(t)
-      .filter(([uid, exp]) => exp > now && uid !== s.me?.id)
-      .map(([uid]) => uid);
-  });
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!typingUsers.length) return;
-    const t = setInterval(() => force((x) => x + 1), 1000);
-    return () => clearInterval(t);
-  }, [typingUsers.length]);
-
   useEffect(() => {
     setDraft(channelId, text);
   }, [text, channelId]);
@@ -310,17 +296,7 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         <SendOrMic canSend={!!text.trim() || files.length > 0} onSend={() => void submit()} recorder={recorder} canRecord={canAttach} />
       </div>
       <div className="absolute bottom-1 left-4 h-5 text-xs text-fg-muted">
-        {typingUsers.length > 0 && (
-          <span className="flex items-center gap-1" role="status" aria-live="polite">
-            <span className="flex gap-0.5" aria-hidden>
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-brand" style={{ animationDelay: `${i * 140}ms` }} />
-              ))}
-            </span>
-            <b className="text-fg">{typingUsers.slice(0, 3).map((u) => displayName(u, channel.serverId)).join(', ')}</b>
-            {typingUsers.length > 3 ? ' e outros estão digitando…' : typingUsers.length > 1 ? ' estão digitando…' : ' está digitando…'}
-          </span>
-        )}
+        <TypingIndicator channelId={channelId} serverId={channel.serverId} />
       </div>
       {picker && (
         <EmojiPicker
@@ -337,5 +313,36 @@ export function Composer({ channelId, replyTo, onClearReply }: { channelId: stri
         />
       )}
     </div>
+  );
+}
+
+/**
+ * "X está digitando…" in its own small component: the 1 s tick that expires stale typers re-renders only this line,
+ * not the whole composer (no input lag while others type).
+ */
+function TypingIndicator({ channelId, serverId }: { channelId: string; serverId: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  const typingUsers = useStoreShallow((s) => {
+    const t = s.typing[channelId] ?? {};
+    return Object.entries(t)
+      .filter(([uid, exp]) => exp > now && uid !== s.me?.id)
+      .map(([uid]) => uid);
+  });
+  useEffect(() => {
+    if (!typingUsers.length) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [typingUsers.length]);
+  if (!typingUsers.length) return null;
+  return (
+    <span className="flex items-center gap-1" role="status" aria-live="polite">
+      <span className="flex gap-0.5" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-brand" style={{ animationDelay: `${i * 140}ms` }} />
+        ))}
+      </span>
+      <b className="text-fg">{typingUsers.slice(0, 3).map((u) => displayName(u, serverId)).join(', ')}</b>
+      {typingUsers.length > 3 ? ' e outros estão digitando…' : typingUsers.length > 1 ? ' estão digitando…' : ' está digitando…'}
+    </span>
   );
 }
