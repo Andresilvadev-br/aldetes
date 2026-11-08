@@ -197,6 +197,7 @@ try {
   // ---------- profile: collection + links, saved, seen by the other client ----------
   await A.goto(`${BASE}/#/channels/@me`);
   await A.evaluate(() => import('/src/lib/ui.ts').then((m) => m.openSettings('profile')));
+  await A.getByRole('tab', { name: 'Coleções' }).click();
   await A.getByText('ORBITAL', { exact: true }).click();
   await A.getByRole('tab', { name: 'Sobre você' }).click();
   await A.getByRole('button', { name: 'Adicionar link' }).click();

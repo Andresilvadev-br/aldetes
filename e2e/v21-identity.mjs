@@ -14,6 +14,7 @@ try {
 
   // ---------- 1) Identity Studio: collection + adjustments, draft only until saved ----------
   await openProfileEditor(a);
+  await a.getByRole('tab', { name: 'Coleções' }).click();
   await a.getByText('NEON GENESIS', { exact: true }).click();
   const prev = a.getByTestId('profile-preview');
   const pv = {
